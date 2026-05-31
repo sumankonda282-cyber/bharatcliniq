@@ -101,6 +101,7 @@ class DoctorProfile(Base):
     is_active          = Column(Boolean, default=True)
     telehealth_enabled = Column(Boolean, default=False)
     telehealth_fee     = Column(Numeric(10, 2), nullable=True)
+    telehealth_slots   = Column(JSON, nullable=True)
     created_at         = Column(DateTime, server_default=func.now())
 
     staff        = relationship("Staff", back_populates="doctor_profile")
@@ -185,7 +186,6 @@ class Appointment(Base):
     staff_id          = Column(Integer, ForeignKey("staff.id"), nullable=True)
     appointment_date  = Column(Date, nullable=False)
     appointment_time  = Column(String(8), nullable=False)  # "HH:MM"
-    token_number      = Column(Integer, nullable=True)
     status            = Column(String(50), default="pending")
     mode              = Column(String(50), default="offline")
     reason            = Column(Text, nullable=True)
