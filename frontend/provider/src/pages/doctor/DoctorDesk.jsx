@@ -132,43 +132,45 @@ export default function DoctorDesk() {
           <p>No patients in queue for {date}</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {queue.map(appt => (
-            <div key={appt.id} className="card p-4 flex items-center gap-4 hover:border-blue-300 hover:shadow-md transition-all">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
-                #{appt.token_number || appt.id}
-              </div>
-              <Link to={`/encounter/${appt.id}`} className="flex-1 min-w-0">
-                <div className="font-semibold text-gray-900 flex items-center gap-2">
-                  {appt.patient_name}
-                  {appt.mode === 'telehealth' && (
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: '#0F2557' }}>
-                      <Video size={10} /> Virtual
-                    </span>
-                  )}
+        <>
+          <div className="space-y-3">
+            {queue.map(appt => (
+              <div key={appt.id} className="card p-4 flex items-center gap-4 hover:border-blue-300 hover:shadow-md transition-all">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
+                  #{appt.token_number || appt.id}
                 </div>
-                <div className="text-sm text-gray-500">{appt.reason || 'No reason specified'}</div>
-                <div className="text-xs text-gray-400 mt-0.5">{appt.appointment_time}</div>
-              </Link>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className={STATUS_COLORS[appt.status] || 'badge-gray'}>{appt.status.replace('_', ' ')}</span>
-                {appt.mode === 'telehealth' && ['pending', 'confirmed', 'in_progress'].includes(appt.status) && (
-                  <button
-                    onClick={() => setTelehealthAppt(appt)}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-                    style={{ background: '#F5821E' }}
-                  >
-                    <Video size={12} /> Join
-                  </button>
-                )}
-                <Link to={`/encounter/${appt.id}`}><ChevronRight size={16} className="text-gray-400" /></Link>
+                <Link to={`/encounter/${appt.id}`} className="flex-1 min-w-0">
+                  <div className="font-semibold text-gray-900 flex items-center gap-2">
+                    {appt.patient_name}
+                    {appt.mode === 'telehealth' && (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: '#0F2557' }}>
+                        <Video size={10} /> Virtual
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-500">{appt.reason || 'No reason specified'}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{appt.appointment_time}</div>
+                </Link>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={STATUS_COLORS[appt.status] || 'badge-gray'}>{appt.status.replace('_', ' ')}</span>
+                  {appt.mode === 'telehealth' && ['pending', 'confirmed', 'in_progress'].includes(appt.status) && (
+                    <button
+                      onClick={() => setTelehealthAppt(appt)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                      style={{ background: '#F5821E' }}
+                    >
+                      <Video size={12} /> Join
+                    </button>
+                  )}
+                  <Link to={`/encounter/${appt.id}`}><ChevronRight size={16} className="text-gray-400" /></Link>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-        {telehealthAppt && (
-          <TelehealthConsentModal appt={telehealthAppt} onClose={() => setTelehealthAppt(null)} />
-        )}
+            ))}
+          </div>
+          {telehealthAppt && (
+            <TelehealthConsentModal appt={telehealthAppt} onClose={() => setTelehealthAppt(null)} />
+          )}
+        </>
       )}
     </div>
   )
