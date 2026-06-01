@@ -106,8 +106,16 @@ export const platformApi = {
 }
 
 // ── PDF ───────────────────────────────────────────────────────────
+async function _downloadPdf(path, filename) {
+  const res = await api.get(path, { responseType: 'blob' })
+  const url = URL.createObjectURL(res instanceof Blob ? res : res.data || res)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 5000)
+}
+
 export const pdfApi = {
-  prescription: (id) => `${api.defaults.baseURL}/pdf/prescription/${id}`,
-  invoice:      (id) => `${api.defaults.baseURL}/pdf/invoice/${id}`,
-  labReport:    (id) => `${api.defaults.baseURL}/pdf/lab-report/${id}`,
+  prescription: (id) => _downloadPdf(`/pdf/prescription/${id}`, `prescription-${id}.pdf`),
+  invoice:      (id) => _downloadPdf(`/pdf/invoice/${id}`,      `invoice-${id}.pdf`),
+  labReport:    (id) => _downloadPdf(`/pdf/lab-report/${id}`,   `lab-report-${id}.pdf`),
 }

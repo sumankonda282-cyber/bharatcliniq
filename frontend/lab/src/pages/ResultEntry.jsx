@@ -55,7 +55,7 @@ function ResultsModal({ order, onClose, onSaved }) {
     if (validErr) { setError(validErr); return }
     setSaving(true); setError('')
     try {
-      await api.put(`/lab/orders/${order.id}/results`, {
+      await api.post(`/lab/orders/${order.id}/results`, {
         items: items.map(({ item_id, result_value, unit, reference_range, is_abnormal, method }) => ({
           item_id, result_value, unit, reference_range, is_abnormal, method
         }))

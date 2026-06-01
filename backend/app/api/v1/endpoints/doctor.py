@@ -47,6 +47,8 @@ def get_queue(
     )
     if profile:
         q = q.filter(Appointment.doctor_id == profile.id)
+    if current.branch_id:
+        q = q.filter(Appointment.branch_id == current.branch_id)
 
     appointments = q.order_by(Appointment.token_number).all()
     return [

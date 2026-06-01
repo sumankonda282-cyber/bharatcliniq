@@ -475,26 +475,39 @@ def update_online_booking(
             Patient.mobile == booking.patient_mobile,
             Patient.clinic_id == current.clinic_id,
         ).first()
-        if patient:
-            existing_count = db.query(Appointment).filter(
-                Appointment.doctor_id == booking.doctor_id,
-                Appointment.appointment_date == booking.booking_date,
-                Appointment.branch_id == booking.branch_id,
-            ).count()
-            appt = Appointment(
-                clinic_id        = current.clinic_id,
-                branch_id        = booking.branch_id,
-                patient_id       = patient.id,
-                doctor_id        = booking.doctor_id,
-                appointment_date = booking.booking_date,
-                appointment_time = booking.booking_time,
-                token_number     = existing_count + 1,
-                status           = "confirmed",
-                mode             = "online",
-                reason           = booking.reason,
-                online_booking_id = booking.id,
+        if not patient:
+            import random, string
+            uhid = "BC-" + "".join(random.choices(string.digits, k=6))
+            patient = Patient(
+                clinic_id  = current.clinic_id,
+                branch_id  = booking.branch_id,
+                full_name  = booking.patient_name,
+                mobile     = booking.patient_mobile,
+                email      = booking.patient_email,
+                uhid       = uhid,
+                is_active  = True,
             )
-            db.add(appt)
+            db.add(patient)
+            db.flush()
+        existing_count = db.query(Appointment).filter(
+            Appointment.doctor_id == booking.doctor_id,
+            Appointment.appointment_date == booking.booking_date,
+            Appointment.branch_id == booking.branch_id,
+        ).count()
+        appt = Appointment(
+            clinic_id        = current.clinic_id,
+            branch_id        = booking.branch_id,
+            patient_id       = patient.id,
+            doctor_id        = booking.doctor_id,
+            appointment_date = booking.booking_date,
+            appointment_time = booking.booking_time,
+            token_number     = existing_count + 1,
+            status           = "confirmed",
+            mode             = "online",
+            reason           = booking.reason,
+            online_booking_id = booking.id,
+        )
+        db.add(appt)
 
     db.commit()
     return {"message": f"Booking {new_status}", "id": booking_id}

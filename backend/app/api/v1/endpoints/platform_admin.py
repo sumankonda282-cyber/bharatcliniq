@@ -346,12 +346,18 @@ def change_plan(
     if not clinic:
         raise HTTPException(404, "Clinic not found")
     old_plan = clinic.subscription_plan
+    active_doctors = _doctor_count(db, clinic_id)
+    max_allowed = RATE_CARD[plan]["max_doctors"]
+    if active_doctors > max_allowed:
+        raise HTTPException(400,
+            f"Cannot downgrade to {plan}: clinic has {active_doctors} active doctors "
+            f"but {plan} plan allows max {max_allowed}. Deactivate excess doctors first.")
     clinic.subscription_plan = plan
     clinic.subscription_status = "active"
     _log(db, "changed_plan", "clinic", clinic_id, clinic.name, current,
          reason=f"{old_plan} → {plan}")
     db.commit()
-    return {"message": f"Plan changed to {plan}", "monthly_bill": _doctor_count(db, clinic_id) * RATE_CARD[plan]["price_per_doctor"]}
+    return {"message": f"Plan changed to {plan}", "monthly_bill": active_doctors * RATE_CARD[plan]["price_per_doctor"]}
 
 
 # ── Staff Verification ────────────────────────────────────────────────────────
