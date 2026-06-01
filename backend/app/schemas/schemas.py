@@ -315,8 +315,8 @@ class OnlineBookingCreate(BaseModel):
 class OnlineBookingOut(BaseModel):
     id: int
     clinic_id: int
-    branch_id: int
-    doctor_id: int
+    branch_id: Optional[int] = None
+    doctor_id: Optional[int] = None
     patient_name: str
     patient_mobile: str
     booking_date: date
