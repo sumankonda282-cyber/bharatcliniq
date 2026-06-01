@@ -26,9 +26,9 @@ export default function PlatformAdmin() {
       platformApi.getPending(),
       platformApi.getClinics({ limit: 100 }),
     ]).then(([d, p, a]) => {
-      setDashboard(d.data)
-      setPending(p.data || [])
-      setAllClinics(a.data || [])
+      setDashboard(d)
+      setPending(Array.isArray(p) ? p : [])
+      setAllClinics(Array.isArray(a) ? a : [])
     }).finally(() => setLoading(false))
   }
 

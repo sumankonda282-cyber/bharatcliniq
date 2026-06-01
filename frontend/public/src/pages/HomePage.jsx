@@ -9,8 +9,8 @@ import {
 import { publicApi } from '../api/client'
 import BrandLogo from '../components/BrandLogo'
 
-const PROVIDER_URL = import.meta.env.VITE_PROVIDER_URL || 'http://localhost:5174'
-const PATIENT_URL = import.meta.env.VITE_PATIENT_URL || 'http://localhost:5175'
+const PROVIDER_URL = import.meta.env.VITE_PROVIDER_URL || 'https://bharatcliniq-provider.vercel.app'
+const PATIENT_URL  = import.meta.env.VITE_PATIENT_URL  || 'https://bharatcliniq-patient.vercel.app'
 
 function Navbar() {
   const [open, setOpen] = useState(false)

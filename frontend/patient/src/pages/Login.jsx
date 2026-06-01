@@ -23,7 +23,7 @@ export default function Login() {
       await login(form.identifier, form.password)
       navigate('/')
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Invalid credentials. Please try again.')
+      setError(err.message || 'Invalid credentials. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -53,7 +53,7 @@ export default function Login() {
       // Reload page so AuthContext picks up the new user
       window.location.href = '/'
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Registration failed. Please try again.')
+      setError(err.message || 'Registration failed. Please try again.')
     } finally {
       setLoading(false)
     }

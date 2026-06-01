@@ -69,13 +69,20 @@ def list_appointments(
     doctor_id: Optional[int] = None,
     patient_id: Optional[int] = None,
     appointment_date: Optional[dt] = None,
+    date: Optional[dt] = None,
     status: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
     current: Staff = Depends(get_current_staff),
 ):
-    q = db.query(Appointment).filter(Appointment.clinic_id == current.clinic_id)
+    # Accept either 'date' or 'appointment_date' query param
+    filter_date = appointment_date or date
+
+    q = db.query(Appointment).options(
+        joinedload(Appointment.patient),
+        joinedload(Appointment.doctor).joinedload(DoctorProfile.staff),
+    ).filter(Appointment.clinic_id == current.clinic_id)
     if branch_id:
         q = q.filter(Appointment.branch_id == branch_id)
     elif current.branch_id:
@@ -84,11 +91,20 @@ def list_appointments(
         q = q.filter(Appointment.doctor_id == doctor_id)
     if patient_id:
         q = q.filter(Appointment.patient_id == patient_id)
-    if appointment_date:
-        q = q.filter(Appointment.appointment_date == appointment_date)
+    if filter_date:
+        q = q.filter(Appointment.appointment_date == filter_date)
     if status:
         q = q.filter(Appointment.status == status)
-    return q.order_by(Appointment.appointment_date, Appointment.token_number).offset(skip).limit(limit).all()
+    appts = q.order_by(Appointment.appointment_date, Appointment.token_number).offset(skip).limit(limit).all()
+
+    # Enrich with patient/doctor names
+    result = []
+    for a in appts:
+        out = AppointmentOut.model_validate(a)
+        out.patient_name = a.patient.full_name if a.patient else None
+        out.doctor_name = a.doctor.staff.full_name if a.doctor and a.doctor.staff else None
+        result.append(out)
+    return result
 
 
 @router.put("/{appt_id}", response_model=AppointmentOut)

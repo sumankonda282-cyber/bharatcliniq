@@ -36,9 +36,9 @@ export default function Encounter() {
   useEffect(() => {
     doctorApi.getEncounter(id)
       .then(r => {
-        setData(r.data)
-        if (r.data.soap_note) setSoap({ ...soap, ...r.data.soap_note })
-        if (r.data.vitals) setVitals({ ...vitals, ...r.data.vitals })
+        setData(r)
+        if (r.soap_note) setSoap({ ...soap, ...r.soap_note })
+        if (r.vitals) setVitals({ ...vitals, ...r.vitals })
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -50,7 +50,7 @@ export default function Encounter() {
       await appointmentsApi.addVitals({ appointment_id: parseInt(id), patient_id: data.patient.id, ...vitals })
       setSuccess('Vitals saved')
     } catch (err) {
-      setSuccess('Error: ' + (err.response?.data?.detail || 'Failed'))
+      setSuccess('Error: ' + (err.message || 'Failed'))
     } finally {
       setSaving(false)
       setTimeout(() => setSuccess(''), 3000)
@@ -69,7 +69,7 @@ export default function Encounter() {
       setSuccess('Encounter completed!')
       setTimeout(() => navigate('/doctor-desk'), 1500)
     } catch (err) {
-      setSuccess('Error: ' + (err.response?.data?.detail || 'Failed'))
+      setSuccess('Error: ' + (err.message || 'Failed'))
     } finally {
       setSaving(false)
     }

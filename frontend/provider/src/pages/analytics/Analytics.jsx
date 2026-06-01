@@ -14,8 +14,8 @@ export default function Analytics() {
     setLoading(true)
     setError('')
     clinicApi.getRevenue(month)
-      .then(r => setData(r.data))
-      .catch(err => setError(err.response?.data?.detail || 'Failed to load'))
+      .then(r => setData(r))
+      .catch(err => setError(err.message || 'Failed to load'))
       .finally(() => setLoading(false))
   }
 
@@ -33,7 +33,7 @@ export default function Analytics() {
       ) : data ? (
         <>
           {/* Totals */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div className="card p-5">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center"><IndianRupee size={18} className="text-green-600" /></div>

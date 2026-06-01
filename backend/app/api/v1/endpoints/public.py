@@ -177,14 +177,25 @@ def get_available_slots(
         if branch:
             branch_id = branch.id
 
-    # Get schedule for this day
+    # Get schedule for this day — try with branch first, then without
     day_name = booking_date.strftime("%A").lower()
-    schedule = db.query(DoctorSchedule).filter(
-        DoctorSchedule.doctor_id == doctor_profile_id,
-        DoctorSchedule.branch_id == branch_id,
-        DoctorSchedule.day_of_week == day_name,
-        DoctorSchedule.is_active == True,
-    ).first()
+    schedule = None
+    if branch_id:
+        schedule = db.query(DoctorSchedule).filter(
+            DoctorSchedule.doctor_id == doctor_profile_id,
+            DoctorSchedule.branch_id == branch_id,
+            DoctorSchedule.day_of_week == day_name,
+            DoctorSchedule.is_active == True,
+        ).first()
+    if not schedule:
+        # Fallback: any active schedule for this doctor on this day
+        schedule = db.query(DoctorSchedule).filter(
+            DoctorSchedule.doctor_id == doctor_profile_id,
+            DoctorSchedule.day_of_week == day_name,
+            DoctorSchedule.is_active == True,
+        ).first()
+        if schedule and not branch_id:
+            branch_id = schedule.branch_id
 
     if not schedule:
         return {"available": False, "reason": "Doctor not available on this day", "slots": []}
@@ -449,6 +460,20 @@ def register_clinic(body: dict, db: Session = Depends(get_db)):
         is_active        = True,
     )
     db.add(doctor_profile)
+    db.flush()
+
+    # Auto-create default Mon–Fri schedule so patients can book immediately
+    for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']:
+        db.add(DoctorSchedule(
+            doctor_id    = doctor_profile.id,
+            branch_id    = branch.id,
+            day_of_week  = day,
+            start_time   = "09:00",
+            end_time     = "17:00",
+            slot_minutes = 30,
+            max_patients = 20,
+            is_active    = True,
+        ))
     db.commit()
 
     return {

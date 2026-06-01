@@ -25,7 +25,7 @@ export default function Billing() {
   const load = () => {
     setLoading(true)
     billingApi.getInvoices({ status: filter, limit: 50 })
-      .then(r => setInvoices(r.data || []))
+      .then(r => setInvoices(Array.isArray(r) ? r : []))
       .finally(() => setLoading(false))
   }
 
@@ -33,7 +33,7 @@ export default function Billing() {
 
   useEffect(() => {
     if (ptSearch.length < 2) return
-    const t = setTimeout(() => patientsApi.list({ search: ptSearch, limit: 10 }).then(r => setPatients(r.data || [])), 300)
+    const t = setTimeout(() => patientsApi.list({ search: ptSearch, limit: 10 }).then(r => setPatients(Array.isArray(r) ? r : [])), 300)
     return () => clearTimeout(t)
   }, [ptSearch])
 
@@ -159,7 +159,7 @@ export default function Billing() {
             <button type="button" onClick={addItem} className="btn-secondary text-xs mt-2"><Plus size={13} />Add Line</button>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div><label className="label">Discount (₹)</label><input className="input" type="number" value={form.discount} onChange={e => setForm(f => ({ ...f, discount: e.target.value }))} /></div>
             <div><label className="label">Tax (₹)</label><input className="input" type="number" value={form.tax} onChange={e => setForm(f => ({ ...f, tax: e.target.value }))} /></div>
             <div className="flex items-end pb-1">
@@ -188,7 +188,7 @@ export default function Billing() {
             </div>
             <div>
               <label className="label">Payment Method</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {PAYMENT_METHODS.map(m => (
                   <button
                     key={m}

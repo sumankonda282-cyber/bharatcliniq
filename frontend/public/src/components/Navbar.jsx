@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { Menu, X } from 'lucide-react'
 import BrandLogo from './BrandLogo'
 
-const PROVIDER_URL = import.meta.env.VITE_PROVIDER_URL || 'http://localhost:5174'
-const PATIENT_URL  = import.meta.env.VITE_PATIENT_URL  || 'http://localhost:5175'
+const PROVIDER_URL = import.meta.env.VITE_PROVIDER_URL || 'https://bharatcliniq-provider.vercel.app'
+const PATIENT_URL  = import.meta.env.VITE_PATIENT_URL  || 'https://bharatcliniq-patient.vercel.app'
 
 export default function Navbar() {
   const [open, setOpen] = useState(false)

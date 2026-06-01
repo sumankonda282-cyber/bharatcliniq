@@ -240,9 +240,7 @@ function Step2({ data, onNext, onBack }) {
       const result = await publicApi.getDoctorSlots(data.doctor.id, d, data.clinic?.default_branch_id)
       setSlots(Array.isArray(result) ? result : result.slots || [])
     } catch (err) {
-      setError('Could not load slots. Please try another date.')
-      // Mock slots for demo
-      setSlots(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30'])
+      setError('Could not load slots. Please try another date or contact the clinic.')
     } finally {
       setLoading(false)
     }

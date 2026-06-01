@@ -19,7 +19,7 @@ export default function DoctorDesk() {
   useEffect(() => {
     setLoading(true)
     doctorApi.getQueue({ date })
-      .then(r => setQueue(r.data || []))
+      .then(r => setQueue(Array.isArray(r) ? r : []))
       .finally(() => setLoading(false))
   }, [date])
 
@@ -37,7 +37,7 @@ export default function DoctorDesk() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="card p-4 flex items-center gap-3">
           <div className="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
             <Clock size={18} className="text-yellow-600" />

@@ -21,7 +21,7 @@ export default function Imaging() {
   const load = () => {
     setLoading(true)
     imagingApi.getOrders({ limit: 50 })
-      .then(r => setOrders(r.data || []))
+      .then(r => setOrders(Array.isArray(r) ? r : []))
       .finally(() => setLoading(false))
   }
 
@@ -30,7 +30,7 @@ export default function Imaging() {
   useEffect(() => {
     if (ptSearch.length < 2) return
     const t = setTimeout(() => {
-      patientsApi.list({ search: ptSearch, limit: 10 }).then(r => setPatients(r.data || []))
+      patientsApi.list({ search: ptSearch, limit: 10 }).then(r => setPatients(Array.isArray(r) ? r : []))
     }, 300)
     return () => clearTimeout(t)
   }, [ptSearch])

@@ -21,7 +21,7 @@ export default function Referrals() {
   const load = () => {
     setLoading(true)
     Promise.all([referralsApi.getSent(), referralsApi.getReceived()])
-      .then(([s, r]) => { setSent(s.data || []); setReceived(r.data || []) })
+      .then(([s, r]) => { setSent(Array.isArray(s) ? s : []); setReceived(Array.isArray(r) ? r : []) })
       .finally(() => setLoading(false))
   }
 
@@ -29,7 +29,7 @@ export default function Referrals() {
 
   useEffect(() => {
     if (ptSearch.length < 2) return
-    const t = setTimeout(() => patientsApi.list({ search: ptSearch, limit: 10 }).then(r => setPatients(r.data || [])), 300)
+    const t = setTimeout(() => patientsApi.list({ search: ptSearch, limit: 10 }).then(r => setPatients(Array.isArray(r) ? r : [])), 300)
     return () => clearTimeout(t)
   }, [ptSearch])
 

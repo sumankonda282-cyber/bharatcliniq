@@ -24,9 +24,9 @@ export default function PatientNew() {
     setError('')
     try {
       const res = await patientsApi.create(form)
-      navigate(`/patients/${res.data.id}`)
+      navigate(`/patients/${res.id}`)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to register patient')
+      setError(err.message || 'Failed to register patient')
     } finally {
       setSaving(false)
     }

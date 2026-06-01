@@ -29,22 +29,22 @@ export default function Appointments() {
 
   const loadAppts = () => {
     setLoading(true)
-    appointmentsApi.list({ date, limit: 100 })
-      .then(r => setAppointments(r.data || []))
+    appointmentsApi.list({ appointment_date: date, limit: 100 })
+      .then(r => setAppointments(Array.isArray(r) ? r : []))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => { loadAppts() }, [date])
 
   useEffect(() => {
-    clinicApi.getDoctors().then(r => setDoctors(r.data || []))
+    clinicApi.getDoctors().then(r => setDoctors(Array.isArray(r) ? r : []))
   }, [])
 
   useEffect(() => {
     if (!patientSearch || patientSearch.length < 2) return
     const t = setTimeout(() => {
       patientsApi.list({ search: patientSearch, limit: 10 })
-        .then(r => setPatients(r.data || []))
+        .then(r => setPatients(Array.isArray(r) ? r : []))
     }, 300)
     return () => clearTimeout(t)
   }, [patientSearch])
@@ -64,7 +64,7 @@ export default function Appointments() {
       setWalkin({ patient_id: '', doctor_id: '', appointment_time: '', reason: '', mode: 'offline' })
       loadAppts()
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to create appointment')
+      setError(err.message || 'Failed to create appointment')
     } finally {
       setSaving(false)
     }

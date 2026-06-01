@@ -14,7 +14,7 @@ export default function PatientList() {
     const timer = setTimeout(() => {
       setLoading(true)
       patientsApi.list({ search, limit: 50 })
-        .then(r => setPatients(r.data || []))
+        .then(r => setPatients(Array.isArray(r) ? r : []))
         .finally(() => setLoading(false))
     }, 300)
     return () => clearTimeout(timer)

@@ -12,9 +12,14 @@ class Settings(BaseSettings):
     FAST2SMS_API_KEY: str = ""
 
     CORS_ORIGINS: str = (
-        "http://localhost:5173,http://localhost:5174,http://localhost:5175,"
+        "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5175,"
         "https://bharatcliniq.com,https://www.bharatcliniq.com,"
-        "https://provider.bharatcliniq.com,https://my.bharatcliniq.com"
+        "https://provider.bharatcliniq.com,https://my.bharatcliniq.com,"
+        "https://bharatcliniq-public.vercel.app,https://bharatcliniq-provider.vercel.app,"
+        "https://bharatcliniq-patient.vercel.app,"
+        "https://bharatcliniq-public-sumankonda282-cybers-projects.vercel.app,"
+        "https://bharatcliniq-provider-sumankonda282-cybers-projects.vercel.app,"
+        "https://bharatcliniq-patient-sumankonda282-cybers-projects.vercel.app"
     )
 
     DEBUG: bool = False

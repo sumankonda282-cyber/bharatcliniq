@@ -22,8 +22,8 @@ export default function Pharmacy() {
       pharmacyApi.getMedicines({ search, limit: 100 }),
       pharmacyApi.getPending(),
     ]).then(([m, p]) => {
-      setMedicines(m.data || [])
-      setPending(p.data || [])
+      setMedicines(Array.isArray(m) ? m : [])
+      setPending(Array.isArray(p) ? p : [])
     }).finally(() => setLoading(false))
   }
 
@@ -60,7 +60,7 @@ export default function Pharmacy() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
         <div className="card p-4 flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center"><Pill size={18} className="text-blue-600" /></div>
           <div><div className="text-xl font-bold">{medicines.length}</div><div className="text-xs text-gray-500">Total Medicines</div></div>

@@ -20,7 +20,7 @@ export default function Lab() {
   const load = () => {
     setLoading(true)
     labApi.getOrders({ status: filter, limit: 50 })
-      .then(r => setOrders(r.data || []))
+      .then(r => setOrders(Array.isArray(r) ? r : []))
       .finally(() => setLoading(false))
   }
 

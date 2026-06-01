@@ -51,15 +51,13 @@ export const doctorApi = {
   getQueue:           (params) => api.get('/doctor/queue', { params }),
   getEncounter:       (id) => api.get(`/doctor/encounter/${id}`),
   completeEncounter:  (id, data) => api.post(`/doctor/encounter/${id}/complete`, data),
-  createPrescription: (data) => api.post('/doctor/prescriptions', data),
-  createLabOrder:     (data) => api.post('/doctor/lab-orders', data),
 }
 
 // ── Pharmacy ──────────────────────────────────────────────────────
 export const pharmacyApi = {
   getMedicines:      (params) => api.get('/pharmacy/medicines', { params }),
   addMedicine:       (branchId, data) => api.post('/pharmacy/medicines', data, { params: { branch_id: branchId } }),
-  getPending:        () => api.get('/pharmacy/prescriptions/pending'),
+  getPending:        () => api.get('/pharmacy/pending'),
   dispense:          (id) => api.post(`/pharmacy/prescriptions/${id}/dispense`),
 }
 
@@ -89,7 +87,7 @@ export const referralsApi = {
   create:   (data) => api.post('/referrals', data),
   getSent:  () => api.get('/referrals/sent'),
   getReceived: () => api.get('/referrals/received'),
-  accept:   (id) => api.put(`/referrals/${id}/accept`),
+  accept:   (id) => api.put(`/referrals/${id}/complete`),
 }
 
 // ── Platform Admin ────────────────────────────────────────────────

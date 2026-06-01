@@ -22,7 +22,7 @@ const ALL_NAV = [
   { to: '/platform',     label: 'Platform',     icon: ShieldCheck,     userType: 'platform_admin' },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ onClose }) {
   const { user, logout, isPlatformAdmin } = useAuth()
   const navigate = useNavigate()
 
@@ -40,7 +40,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="fixed left-0 top-0 h-screen w-60 flex flex-col z-40 shadow-xl"
+      className="relative left-0 top-0 h-screen w-60 flex flex-col z-40 shadow-xl"
       style={{ background: '#0F2557' }}
     >
       {/* Logo */}
@@ -70,6 +70,7 @@ export default function Sidebar() {
           <NavLink
             key={item.to}
             to={item.to}
+            onClick={onClose}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium mb-0.5 transition-all group ${
                 isActive

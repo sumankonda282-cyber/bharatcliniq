@@ -299,6 +299,7 @@ def set_doctor_schedule(
     if existing:
         for k, v in payload.model_dump().items():
             setattr(existing, k, v)
+        existing.is_active = payload.is_active
         db.commit()
         return existing
 

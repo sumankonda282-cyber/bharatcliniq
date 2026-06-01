@@ -24,11 +24,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     Promise.all([
-      appointmentsApi.list({ date: today, limit: 20 }),
+      appointmentsApi.list({ appointment_date: today, limit: 20 }),
       patientsApi.list({ limit: 1 }),
       billingApi.getInvoices({ status: 'paid', limit: 1 }),
     ]).then(([appts, pts, bills]) => {
-      const a = appts.data || []
+      const a = Array.isArray(appts) ? appts : []
       setQueue(a.slice(0, 10))
       setStats({
         todayAppts: a.length,

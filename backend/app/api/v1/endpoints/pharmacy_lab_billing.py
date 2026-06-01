@@ -510,18 +510,24 @@ def list_imaging_orders(
         patient = db.query(Pt).filter(Pt.id == o.patient_id).first()
         doctor  = db.query(St).filter(St.id == o.ordered_by).first()
         result.append({
-            "id":            o.id,
-            "patient_id":    o.patient_id,
-            "patient_name":  patient.full_name if patient else "Unknown",
-            "patient_uhid":  patient.uhid if patient else None,
-            "doctor_name":   doctor.full_name if doctor else None,
-            "modality":      o.modality,
-            "body_part":     o.body_part,
-            "clinical_notes":o.clinical_notes,
-            "report":        o.report,
-            "report_url":    o.report_url,
-            "status":        o.status,
-            "created_at":    str(o.created_at),
+            "id":               o.id,
+            "patient_id":       o.patient_id,
+            "patient_name":     patient.full_name if patient else "Unknown",
+            "patient_uhid":     patient.uhid if patient else None,
+            "doctor_name":      doctor.full_name if doctor else None,
+            "modality":         o.modality,
+            "body_part":        o.body_part,
+            "clinical_notes":   o.clinical_notes,
+            "report":           o.report,
+            "report_url":       o.report_url,
+            "findings":         o.findings,
+            "impression":       o.impression,
+            "recommendation":   o.recommendation,
+            "technique":        o.technique,
+            "radiologist_name": o.radiologist_name,
+            "report_status":    o.report_status,
+            "status":           o.status,
+            "created_at":       str(o.created_at),
         })
     return result
 
@@ -570,16 +576,11 @@ def update_imaging_order(
     ).first()
     if not order:
         raise HTTPException(404, "Order not found")
-    if "status" in body:
-        order.status = body["status"]
-    if "report" in body:
-        order.report = body["report"]
-    if "report_url" in body:
-        order.report_url = body["report_url"]
-    if "body_part" in body:
-        order.body_part = body["body_part"]
-    if "modality" in body:
-        order.modality = body["modality"]
+    for field in ["status", "report", "report_url", "body_part", "modality",
+                  "findings", "impression", "recommendation", "technique",
+                  "radiologist_name", "report_status", "clinical_notes"]:
+        if field in body:
+            setattr(order, field, body[field])
     db.commit()
     return {"message": "Updated successfully"}
 
@@ -600,11 +601,23 @@ def get_imaging_order(
     patient = db.query(Pt).filter(Pt.id == order.patient_id).first()
     doctor  = db.query(St).filter(St.id == order.ordered_by).first()
     return {
-        "id": order.id, "modality": order.modality, "body_part": order.body_part,
-        "clinical_notes": order.clinical_notes, "report": order.report,
-        "status": order.status, "created_at": str(order.created_at),
-        "patient_name": patient.full_name if patient else None,
-        "doctor_name":  doctor.full_name if doctor else None,
+        "id":               order.id,
+        "patient_id":       order.patient_id,
+        "patient_name":     patient.full_name if patient else None,
+        "doctor_name":      doctor.full_name if doctor else None,
+        "modality":         order.modality,
+        "body_part":        order.body_part,
+        "clinical_notes":   order.clinical_notes,
+        "report":           order.report,
+        "report_url":       order.report_url,
+        "findings":         order.findings,
+        "impression":       order.impression,
+        "recommendation":   order.recommendation,
+        "technique":        order.technique,
+        "radiologist_name": order.radiologist_name,
+        "report_status":    order.report_status,
+        "status":           order.status,
+        "created_at":       str(order.created_at),
     }
 
 

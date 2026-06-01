@@ -174,8 +174,9 @@ class DoctorScheduleCreate(BaseModel):
     day_of_week: str
     start_time: str
     end_time: str
-    slot_minutes: int = 15
+    slot_minutes: int = 30
     max_patients: int = 20
+    is_active: bool = True
 
 
 # ── Patient ───────────────────────────────────────────────────────────────────
@@ -261,12 +262,14 @@ class AppointmentOut(BaseModel):
     doctor_id: int
     appointment_date: date
     appointment_time: str
-    token_number: Optional[int]
+    token_number: Optional[int] = None
     status: str
     mode: str
-    reason: Optional[str]
-    notes: Optional[str]
+    reason: Optional[str] = None
+    notes: Optional[str] = None
     created_at: datetime
+    patient_name: Optional[str] = None
+    doctor_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -312,8 +315,8 @@ class OnlineBookingCreate(BaseModel):
 class OnlineBookingOut(BaseModel):
     id: int
     clinic_id: int
-    branch_id: int
-    doctor_id: int
+    branch_id: Optional[int] = None
+    doctor_id: Optional[int] = None
     patient_name: str
     patient_mobile: str
     booking_date: date
