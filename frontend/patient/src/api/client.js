@@ -14,7 +14,12 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) { localStorage.clear(); window.location.href = '/login' }
-    return Promise.reject(err)
+    const message =
+      err.response?.data?.detail ||
+      err.response?.data?.message ||
+      err.message ||
+      'Something went wrong'
+    return Promise.reject(new Error(message))
   }
 )
 

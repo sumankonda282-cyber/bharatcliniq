@@ -24,7 +24,7 @@ export default function Login() {
       if (user.user_type === 'platform_admin') navigate('/platform')
       else navigate('/dashboard')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Login failed. Check your credentials.')
+      setError(err.message || 'Login failed. Check your credentials.')
     } finally {
       setLoading(false)
     }
