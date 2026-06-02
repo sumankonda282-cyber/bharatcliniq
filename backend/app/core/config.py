@@ -15,11 +15,12 @@ class Settings(BaseSettings):
         "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5175,"
         "https://bharatcliniq.com,https://www.bharatcliniq.com,"
         "https://provider.bharatcliniq.com,https://my.bharatcliniq.com,"
+        "https://lab.bharatcliniq.com,https://pharmacy.bharatcliniq.com,"
+        "https://receptionist.bharatcliniq.com,"
         "https://bharatcliniq-public.vercel.app,https://bharatcliniq-provider.vercel.app,"
-        "https://bharatcliniq-patient.vercel.app,"
-        "https://bharatcliniq-public-sumankonda282-cybers-projects.vercel.app,"
-        "https://bharatcliniq-provider-sumankonda282-cybers-projects.vercel.app,"
-        "https://bharatcliniq-patient-sumankonda282-cybers-projects.vercel.app"
+        "https://bharatcliniq-patient.vercel.app,https://bharatcliniq-lab.vercel.app,"
+        "https://bharatcliniq-imaging.vercel.app,https://bharatcliniq-pharmacy.vercel.app,"
+        "https://bharatcliniq-receptionist.vercel.app,https://bharatcliniq-admin.vercel.app"
     )
 
     DEBUG: bool = False
