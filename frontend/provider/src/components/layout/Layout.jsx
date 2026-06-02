@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Sidebar from './Sidebar'
 import { Outlet } from 'react-router-dom'
 import { Menu } from 'lucide-react'
+import BrandLogo from '../BrandLogo'
 
 export default function Layout() {
   const [open, setOpen] = useState(false)
@@ -31,7 +32,7 @@ export default function Layout() {
           <button onClick={() => setOpen(true)} className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100">
             <Menu size={22} />
           </button>
-          <span className="font-bold text-sm" style={{ color: '#0F2557' }}>BHaratCliniq Provider</span>
+          <BrandLogo size="sm" />
         </div>
         <div className="p-4 md:p-6 min-h-full">
           <Outlet />

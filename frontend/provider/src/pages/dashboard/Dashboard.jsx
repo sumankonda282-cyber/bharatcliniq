@@ -45,7 +45,7 @@ export default function Dashboard() {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Good morning, {user?.full_name?.split(' ')[0]} 👋</h1>
+          <h1 className="page-title">Good morning, {user?.full_name} 👋</h1>
           <p className="text-sm text-gray-500 mt-0.5">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
         </div>
         <Link to="/appointments" className="btn-primary">
