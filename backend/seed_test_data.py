@@ -17,6 +17,13 @@ import argparse
 API_BASE = "https://bharatcliniq-api.onrender.com"
 
 
+def _parse(raw):
+    try:
+        return json.loads(raw) if raw else {}
+    except Exception:
+        return {"detail": raw.decode(errors="replace") if raw else "empty response"}
+
+
 def post(url, data):
     body = json.dumps(data).encode()
     req = urllib.request.Request(
@@ -26,9 +33,9 @@ def post(url, data):
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
-            return json.loads(r.read()), r.status
+            return _parse(r.read()), r.status
     except urllib.error.HTTPError as e:
-        return json.loads(e.read()), e.code
+        return _parse(e.read()), e.code
 
 
 def put(url, data, token):
@@ -40,9 +47,9 @@ def put(url, data, token):
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
-            return json.loads(r.read()), r.status
+            return _parse(r.read()), r.status
     except urllib.error.HTTPError as e:
-        return json.loads(e.read()), e.code
+        return _parse(e.read()), e.code
 
 
 def get(url, token=None):
@@ -52,9 +59,9 @@ def get(url, token=None):
     req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
-            return json.loads(r.read()), r.status
+            return _parse(r.read()), r.status
     except urllib.error.HTTPError as e:
-        return json.loads(e.read()), e.code
+        return _parse(e.read()), e.code
 
 
 def ok(label, res, status):
