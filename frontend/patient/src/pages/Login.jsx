@@ -33,7 +33,7 @@ function HeroPanel() {
       <div style={{ position:'absolute', top:'-80px', right:'-80px', width:'320px', height:'320px', borderRadius:'50%', background:'rgba(204,20,20,0.08)' }} />
       <div style={{ position:'absolute', bottom:'-60px', left:'-60px', width:'260px', height:'260px', borderRadius:'50%', background:'rgba(245,130,30,0.08)' }} />
       <div className="relative">
-        <BrandLogo size="md" />
+        <BrandLogo size="md" light />
         <div className="text-xs font-semibold mt-2 tracking-wider uppercase" style={{ color: '#F5821E' }}>
           My Health Portal
         </div>

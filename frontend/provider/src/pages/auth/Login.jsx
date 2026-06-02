@@ -48,7 +48,7 @@ export default function Login() {
         }} />
 
         <div className="relative">
-          <BrandLogo size="md" />
+          <BrandLogo size="md" light />
           <div className="text-xs font-semibold mt-2 tracking-wider uppercase" style={{ color: '#F5821E' }}>
             Provider Portal
           </div>

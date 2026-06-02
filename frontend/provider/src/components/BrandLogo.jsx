@@ -6,7 +6,7 @@ const SIZES = {
   lg: { img: 56, fontSize: 'text-3xl', gap: 'gap-3' },
 }
 
-export default function BrandLogo({ size = 'md', showText = true }) {
+export default function BrandLogo({ size = 'md', showText = true, light = false }) {
   const s = SIZES[size] || SIZES.md
   return (
     <div className={`inline-flex items-center ${s.gap}`}>
@@ -21,7 +21,7 @@ export default function BrandLogo({ size = 'md', showText = true }) {
           style={{ letterSpacing: '-0.02em' }}
         >
           <span style={{ color: '#CC1414' }}>BH</span>
-          <span style={{ color: '#0F2557' }}>aratCliniq</span>
+          <span style={{ color: light ? '#ffffff' : '#0F2557' }}>aratCliniq</span>
         </span>
       )}
     </div>
