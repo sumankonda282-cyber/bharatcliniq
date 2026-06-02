@@ -7,6 +7,7 @@ export const authApi = {
   platformLogin: (identifier, password) =>
     api.post('/auth/platform/login', { identifier, password }),
   me: () => api.get('/auth/staff/me'),
+  platformMe: () => api.get('/auth/platform/me'),
   changePassword: (current_password, new_password) =>
     api.post('/auth/staff/change-password', { current_password, new_password }),
 }
