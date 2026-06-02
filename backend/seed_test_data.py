@@ -73,15 +73,19 @@ def main(api_base):
     # ── Step 1: Register test clinic ────────────────────────────────
     print("1. Registering test clinic...")
     res, status = post(f"{api_base}/api/v1/public/register-clinic", {
-        "clinic_name":    "BharatCliniq Test Clinic",
-        "specialty":      "General Medicine",
-        "phone":          "9876543210",
-        "email":          "clinic@test.bharatcliniq.com",
-        "address":        "123 MG Road",
-        "city":           "Bangalore",
-        "state":          "Karnataka",
-        "pincode":        "560001",
-        "admin_name":     "Test Admin",
+        "clinic": {
+            "name":      "BharatCliniq Test Clinic",
+            "specialty": "General Medicine",
+            "phone":     "9876543210",
+            "email":     "clinic@test.bharatcliniq.com",
+            "address":   "123 MG Road",
+            "city":      "Bangalore",
+            "state":     "Karnataka",
+            "pincode":   "560001",
+        },
+        "doctor": {
+            "full_name": "Test Admin",
+        },
         "admin_email":    "admin@test.bharatcliniq.com",
         "admin_password": "Test@1234",
     })
