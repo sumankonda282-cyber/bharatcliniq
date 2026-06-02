@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Eye, EyeOff, AlertCircle, Shield, Users, Building2 } from 'lucide-react'
 import BrandLogo from '../../components/BrandLogo'
@@ -11,7 +10,6 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
-  const navigate = useNavigate()
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
@@ -20,12 +18,10 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      const user = await login(form.identifier, form.password, isPlatform)
-      if (user.user_type === 'platform_admin') navigate('/platform')
-      else navigate('/dashboard')
+      await login(form.identifier, form.password, isPlatform)
+      // Route redirect is handled by App.jsx: user ? <Navigate to="/dashboard"> : <Login>
     } catch (err) {
       setError(err.message || 'Login failed. Check your credentials.')
-    } finally {
       setLoading(false)
     }
   }
