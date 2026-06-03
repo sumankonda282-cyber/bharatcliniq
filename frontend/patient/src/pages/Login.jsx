@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../api/client'
 import {
-  Phone, AlertCircle, Heart, Shield, FileText,
-  ArrowLeft, User, ChevronRight, Plus, CheckCircle
+  Phone, Mail, Hash, AlertCircle, Heart, Shield, FileText,
+  ArrowLeft, User, ChevronRight, Plus, CheckCircle, Smartphone
 } from 'lucide-react'
 import BrandLogo from '../components/BrandLogo'
 
@@ -17,7 +17,7 @@ const INDIAN_STATES = [
   'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry',
 ]
 
-// ── Reusable hero left panel ──────────────────────────────────────────────
+// ── Hero left panel ────────────────────────────────────────────────────────
 function HeroPanel() {
   const features = [
     { icon: Heart,    text: 'Complete health history in one place' },
@@ -56,6 +56,10 @@ function HeroPanel() {
             </div>
           ))}
         </div>
+        <div className="mt-8 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.08)' }}>
+          <p className="text-blue-100 text-sm font-medium">New to BharatCliniq?</p>
+          <p className="text-blue-200 text-xs mt-1">Enter your mobile number → verify OTP → create your free health profile and get a permanent BH ID in under a minute.</p>
+        </div>
       </div>
       <div className="relative text-xs" style={{ color: '#93c5fd' }}>
         BharatCliniq · India's Digital Health Network
@@ -64,21 +68,34 @@ function HeroPanel() {
   )
 }
 
-// ── Step 1: Enter mobile number ───────────────────────────────────────────
-function StepMobile({ onNext }) {
-  const [mobile, setMobile] = useState('')
+// ── Login method tabs ──────────────────────────────────────────────────────
+const LOGIN_METHODS = [
+  { key: 'mobile',  label: 'Mobile',  icon: Smartphone },
+  { key: 'email',   label: 'Email',   icon: Mail },
+  { key: 'bh_id',  label: 'BH ID',   icon: Hash },
+]
+
+// ── Step 1: Identifier input (mobile / email / BH ID) ────────────────────
+function StepIdentifier({ onNext }) {
+  const [method, setMethod] = useState('mobile')
+  const [value, setValue] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    const m = mobile.replace(/\D/g, '')
-    if (m.length !== 10) { setError('Please enter a valid 10-digit mobile number.'); return }
     setLoading(true)
     try {
-      const res = await api.post('/auth/patient/send-otp', { mobile: m })
-      onNext({ mobile: m, devOtp: res.dev_otp || res.data?.dev_otp })
+      if (method === 'mobile') {
+        const m = value.replace(/\D/g, '')
+        if (m.length !== 10) { setError('Please enter a valid 10-digit mobile number.'); setLoading(false); return }
+        const res = await api.post('/auth/patient/send-otp', { mobile: m })
+        onNext({ mobile: m, maskedMobile: `+91 ${m}`, devOtp: res.dev_otp })
+      } else {
+        const res = await api.post('/auth/patient/lookup', { identifier: value.trim(), type: method })
+        onNext({ mobile: res.mobile, maskedMobile: res.masked_mobile, devOtp: res.dev_otp })
+      }
     } catch (err) {
       setError(err.message || 'Failed to send OTP. Please try again.')
     } finally {
@@ -86,33 +103,79 @@ function StepMobile({ onNext }) {
     }
   }
 
+  const placeholder = method === 'mobile' ? '10-digit mobile number'
+    : method === 'email' ? 'Registered email address'
+    : 'Your BH ID (e.g. BH9000001234)'
+
   return (
     <>
-      <h2 className="text-2xl font-extrabold mb-1" style={{ color: '#0F2557' }}>Sign In</h2>
-      <p className="text-gray-500 text-sm mb-6">Enter your mobile number to receive an OTP</p>
+      <h2 className="text-2xl font-extrabold mb-1" style={{ color: '#0F2557' }}>Sign In / Register</h2>
+      <p className="text-gray-500 text-sm mb-5">OTP will be sent to your registered mobile number</p>
+
+      {/* Method tabs */}
+      <div className="flex rounded-xl border border-gray-200 p-1 mb-5 gap-1">
+        {LOGIN_METHODS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => { setMethod(key); setValue(''); setError('') }}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all"
+            style={method === key
+              ? { background: '#0F2557', color: '#fff' }
+              : { color: '#6B7280' }}
+          >
+            <Icon size={14} /> {label}
+          </button>
+        ))}
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Mobile Number</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 font-medium">+91</span>
+        {method === 'mobile' ? (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Mobile Number</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 font-medium">+91</span>
+              <input
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 transition-all"
+                placeholder={placeholder}
+                type="tel"
+                inputMode="numeric"
+                maxLength={10}
+                value={value}
+                onChange={e => setValue(e.target.value.replace(/\D/g, ''))}
+                required autoFocus
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-1.5">New user? Just enter your mobile — you'll create a profile after verification.</p>
+          </div>
+        ) : (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              {method === 'email' ? 'Email Address' : 'BH ID'}
+            </label>
             <input
-              className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 transition-all"
-              placeholder="10-digit mobile number"
-              type="tel"
-              inputMode="numeric"
-              maxLength={10}
-              value={mobile}
-              onChange={e => setMobile(e.target.value.replace(/\D/g, ''))}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 transition-all"
+              placeholder={placeholder}
+              type={method === 'email' ? 'email' : 'text'}
+              value={value}
+              onChange={e => setValue(e.target.value)}
               required autoFocus
             />
+            <p className="text-xs text-gray-400 mt-1.5">
+              {method === 'email'
+                ? 'OTP will be sent to the mobile number linked to this email.'
+                : 'OTP will be sent to the mobile number linked to this BH ID.'}
+            </p>
           </div>
-        </div>
+        )}
+
         {error && (
           <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
             <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
         )}
+
         <button
           type="submit"
           disabled={loading}
@@ -128,8 +191,8 @@ function StepMobile({ onNext }) {
   )
 }
 
-// ── Step 2: Enter OTP ─────────────────────────────────────────────────────
-function StepOTP({ mobile, devOtp, onNext, onBack }) {
+// ── Step 2: OTP verification ───────────────────────────────────────────────
+function StepOTP({ mobile, maskedMobile, devOtp, onNext, onBack }) {
   const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -169,7 +232,7 @@ function StepOTP({ mobile, devOtp, onNext, onBack }) {
         <ArrowLeft size={14} /> Back
       </button>
       <h2 className="text-2xl font-extrabold mb-1" style={{ color: '#0F2557' }}>Enter OTP</h2>
-      <p className="text-gray-500 text-sm mb-1">OTP sent to <strong>+91 {mobile}</strong></p>
+      <p className="text-gray-500 text-sm mb-1">OTP sent to <strong>{maskedMobile}</strong></p>
       {devOtp && (
         <div className="text-xs mb-4 px-3 py-1.5 rounded-lg" style={{ background: '#F5821E20', color: '#F5821E' }}>
           Dev mode — OTP: <strong>{devOtp}</strong>
@@ -218,7 +281,7 @@ function StepOTP({ mobile, devOtp, onNext, onBack }) {
   )
 }
 
-// ── Step 3: Profile selection ─────────────────────────────────────────────
+// ── Step 3: Profile selection ──────────────────────────────────────────────
 function StepSelectProfile({ verifiedToken, profiles, canAddProfile, onSelect, onCreateNew }) {
   return (
     <>
@@ -295,8 +358,8 @@ function StepCreateProfile({ verifiedToken, onBack, onCreated }) {
       <button onClick={onBack} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4">
         <ArrowLeft size={14} /> Back to profiles
       </button>
-      <h2 className="text-2xl font-extrabold mb-1" style={{ color: '#0F2557' }}>Create New Profile</h2>
-      <p className="text-gray-500 text-sm mb-6">A permanent BH ID will be assigned to this profile</p>
+      <h2 className="text-2xl font-extrabold mb-1" style={{ color: '#0F2557' }}>Create Your Health Profile</h2>
+      <p className="text-gray-500 text-sm mb-6">A permanent BH ID will be assigned — free for life</p>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -368,17 +431,18 @@ function StepCreateProfile({ verifiedToken, onBack, onCreated }) {
         >
           {loading
             ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Creating profile…</>
-            : 'Create Profile & Get BH ID'}
+            : <><CheckCircle size={16} /> Create Profile & Get BH ID</>}
         </button>
       </form>
     </>
   )
 }
 
-// ── Main Login component ──────────────────────────────────────────────────
+// ── Main Login component ───────────────────────────────────────────────────
 export default function Login() {
-  const [step, setStep] = useState('mobile')   // mobile | otp | select | create
+  const [step, setStep] = useState('identifier')   // identifier | otp | select | create
   const [mobile, setMobile] = useState('')
+  const [maskedMobile, setMaskedMobile] = useState('')
   const [devOtp, setDevOtp] = useState(null)
   const [verifiedToken, setVerifiedToken] = useState('')
   const [profiles, setProfiles] = useState([])
@@ -388,8 +452,9 @@ export default function Login() {
 
   const { loginWithToken } = useAuth()
 
-  const handleMobileNext = ({ mobile: m, devOtp: d }) => {
+  const handleIdentifierNext = ({ mobile: m, maskedMobile: mm, devOtp: d }) => {
     setMobile(m)
+    setMaskedMobile(mm)
     setDevOtp(d)
     setStep('otp')
   }
@@ -411,7 +476,6 @@ export default function Login() {
       })
       const data = res.data || res
       await loginWithToken(data.access_token, data.bh_profile_id)
-      // App.jsx route guard handles redirect once user state is set
     } catch (err) {
       setError(err.message || 'Failed to sign in.')
       setFinalizing(false)
@@ -420,7 +484,6 @@ export default function Login() {
 
   const handleCreated = async (data) => {
     await loginWithToken(data.access_token, data.bh_profile_id)
-    // App.jsx route guard handles redirect once user state is set
   }
 
   return (
@@ -438,14 +501,15 @@ export default function Login() {
                 <div className="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#0F2557', borderTopColor: 'transparent' }} />
                 <p className="text-gray-600 font-medium">Signing you in…</p>
               </div>
-            ) : step === 'mobile' ? (
-              <StepMobile onNext={handleMobileNext} />
+            ) : step === 'identifier' ? (
+              <StepIdentifier onNext={handleIdentifierNext} />
             ) : step === 'otp' ? (
               <StepOTP
                 mobile={mobile}
+                maskedMobile={maskedMobile}
                 devOtp={devOtp}
                 onNext={handleOtpNext}
-                onBack={() => setStep('mobile')}
+                onBack={() => setStep('identifier')}
               />
             ) : step === 'select' ? (
               <>
@@ -473,7 +537,7 @@ export default function Login() {
           </div>
 
           <p className="text-center text-xs text-gray-400 mt-4">
-            BharatCliniq · My Health Portal
+            BharatCliniq · My Health Portal · Your data is private & secure
           </p>
         </div>
       </div>
