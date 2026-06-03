@@ -189,6 +189,10 @@ class OTPVerifyRequest(BaseModel):
     mobile: str
     otp: str
 
+class OTPLookupRequest(BaseModel):
+    identifier: str   # email address or BH ID
+    type: str         # "email" | "bh_id"
+
 class ProfileSelectRequest(BaseModel):
     verified_token: str
     bh_profile_id: int
@@ -200,6 +204,40 @@ class ProfileCreateRequest(BaseModel):
     gender: Optional[str] = None
     date_of_birth: Optional[str] = None  # "YYYY-MM-DD"
     state: Optional[str] = None
+
+
+@router.post("/patient/lookup")
+def patient_lookup(payload: OTPLookupRequest, db: Session = Depends(get_db)):
+    """Lookup patient by email or BH ID, send OTP to their registered mobile."""
+    identifier = payload.identifier.strip()
+    if not identifier:
+        raise HTTPException(status_code=400, detail="Please enter a valid email or BH ID.")
+
+    user = None
+    if payload.type == "email":
+        user = db.query(PatientUser).filter(
+            PatientUser.email == identifier.lower()
+        ).first()
+    elif payload.type == "bh_id":
+        profile = db.query(BHProfile).filter(
+            BHProfile.bh_id == identifier.upper(), BHProfile.is_active == True
+        ).first()
+        if profile:
+            user = db.query(PatientUser).filter(PatientUser.id == profile.patient_user_id).first()
+    else:
+        raise HTTPException(status_code=400, detail="Invalid lookup type.")
+
+    if not user or not user.mobile:
+        raise HTTPException(status_code=404, detail="No account found. Check your entry or sign in with mobile number.")
+
+    otp = _generate_otp()
+    user.otp_code   = otp
+    user.otp_expiry = datetime.utcnow() + timedelta(minutes=10)
+    db.commit()
+
+    m = user.mobile
+    masked = f"+91 {m[:2]}***{m[-4:]}" if len(m) == 10 else f"***{m[-4:]}"
+    return {"masked_mobile": masked, "mobile": user.mobile, "dev_otp": otp}
 
 
 @router.post("/patient/send-otp")
