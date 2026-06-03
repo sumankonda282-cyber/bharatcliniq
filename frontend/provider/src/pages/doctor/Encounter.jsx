@@ -1,38 +1,50 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { doctorApi, appointmentsApi, pharmacyApi, labApi } from '../../api'
+import { doctorApi, appointmentsApi, pharmacyApi, labApi, encountersApi } from '../../api'
 import { PageLoader } from '../../components/ui/Spinner'
 import SearchDropdown from '../../components/SearchDropdown'
 import {
   ArrowLeft, Activity, FileText, Pill, FlaskConical,
-  Save, CheckCircle, Plus, Trash2, Scan
+  Save, CheckCircle, Plus, Trash2, Scan, Lock, PenLine,
 } from 'lucide-react'
+
+const FIELD_LABELS = [
+  ['reason_for_visit',        'Reason for Visit',           3],
+  ['patient_complaints',      'Patient Complaints',         4],
+  ['past_history',            'Past History',               3],
+  ['investigations_findings', 'Investigations & Findings',  4],
+  ['medications_prescribed',  'Medications Prescribed',     4],
+  ['discharge_assessment',    'Discharge Assessment',       3],
+  ['cautions_followup',       'Cautions & Follow-up',       3],
+]
 
 export default function Encounter() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [data, setData] = useState(null)
+  const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('soap')
-  const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState('')
+  const [tab, setTab]         = useState('notes')
+  const [saving, setSaving]   = useState(false)
+  const [msg, setMsg]         = useState('')
+  const [addendumMode, setAddendumMode] = useState(false)
+  const [addendumText, setAddendumText] = useState('')
+  const autoSaveRef = useRef(null)
 
-  // SOAP
-  const [soap, setSoap] = useState({ subjective: '', objective: '', assessment: '', plan: '', follow_up_days: '' })
-
-  // Vitals
-  const [vitals, setVitals] = useState({
-    blood_pressure_systolic: '', blood_pressure_diastolic: '', pulse_rate: '',
-    temperature: '', weight_kg: '', height_cm: '', oxygen_saturation: '', blood_sugar: ''
+  // Clinical notes (7 fields)
+  const [notes, setNotes] = useState({
+    reason_for_visit: '', patient_complaints: '', past_history: '',
+    investigations_findings: '', medications_prescribed: '',
+    discharge_assessment: '', cautions_followup: '',
   })
+  const [isLocked, setIsLocked] = useState(false)
 
   // Prescription
   const [rxItems, setRxItems] = useState([{ medicine_id: null, medicine_name: '', dosage: '', frequency: '', duration: '', instructions: '' }])
   const [rxNotes, setRxNotes] = useState('')
 
   // Lab
-  const [labTests, setLabTests] = useState([{ test_id: null, test_name: '' }])
-  const [labNotes, setLabNotes] = useState('')
+  const [labTests, setLabTests]   = useState([{ test_id: null, test_name: '' }])
+  const [labNotes, setLabNotes]   = useState('')
 
   // Imaging
   const [imagingTests, setImagingTests] = useState([{ test_id: null, test_name: '' }])
@@ -42,60 +54,137 @@ export default function Encounter() {
     doctorApi.getEncounter(id)
       .then(r => {
         setData(r)
-        if (r.soap_note) setSoap({ ...soap, ...r.soap_note })
-        if (r.vitals) setVitals({ ...vitals, ...r.vitals })
+        if (r.soap_note) {
+          const sn = r.soap_note
+          setNotes({
+            reason_for_visit:        sn.reason_for_visit        || sn.subjective || '',
+            patient_complaints:      sn.patient_complaints      || '',
+            past_history:            sn.past_history            || '',
+            investigations_findings: sn.investigations_findings || sn.objective  || '',
+            medications_prescribed:  sn.medications_prescribed  || '',
+            discharge_assessment:    sn.discharge_assessment    || sn.assessment || '',
+            cautions_followup:       sn.cautions_followup       || sn.plan       || '',
+          })
+          setIsLocked(!!sn.is_locked)
+        } else if (r.triage_complaint) {
+          setNotes(n => ({ ...n, reason_for_visit: r.triage_complaint }))
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [id])
 
-  const saveVitals = async () => {
-    setSaving(true)
+  // Auto-save draft every 30s
+  useEffect(() => {
+    if (isLocked) return
+    autoSaveRef.current = setInterval(() => saveDraft(false), 30000)
+    return () => clearInterval(autoSaveRef.current)
+  }, [notes, isLocked])
+
+  const flash = (text) => { setMsg(text); setTimeout(() => setMsg(''), 3000) }
+
+  const saveDraft = async (showMsg = true) => {
+    if (isLocked || !data) return
     try {
-      await appointmentsApi.addVitals({ appointment_id: parseInt(id), patient_id: data.patient.id, ...vitals })
-      setSuccess('Vitals saved')
-    } catch (err) {
-      setSuccess('Error: ' + (err.message || 'Failed'))
-    } finally {
-      setSaving(false)
-      setTimeout(() => setSuccess(''), 3000)
+      await encountersApi.save({ appointment_id: parseInt(id), ...notes, lock: false })
+      if (showMsg) flash('Draft saved')
+    } catch (e) {
+      if (showMsg) flash('Error: ' + e.message)
     }
   }
 
-  const completeEncounter = async () => {
+  const endConsultation = async () => {
+    if (!window.confirm('End consultation and lock the record? This cannot be undone.')) return
+    setSaving(true)
+    try {
+      await encountersApi.save({ appointment_id: parseInt(id), ...notes, lock: true })
+
+      // Save prescription if any
+      if (rxItems.some(i => i.medicine_name)) {
+        const payload = {
+          soap: { appointment_id: parseInt(id) },
+          prescription: { notes: rxNotes, items: rxItems.filter(i => i.medicine_name) },
+        }
+        await doctorApi.completeEncounter(id, payload)
+      }
+
+      setIsLocked(true)
+      flash('Consultation completed and locked')
+      setTimeout(() => navigate('/doctor-desk'), 1500)
+    } catch (e) {
+      flash('Error: ' + e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const submitAddendum = async () => {
+    if (!addendumText.trim()) return
+    setSaving(true)
+    try {
+      await encountersApi.addendum({ appointment_id: parseInt(id), addendum: addendumText })
+      setNotes(n => ({
+        ...n,
+        cautions_followup: (n.cautions_followup || '') +
+          `\n\n[ADDENDUM]\n${addendumText}`,
+      }))
+      setAddendumText('')
+      setAddendumMode(false)
+      flash('Addendum added')
+    } catch (e) {
+      flash('Error: ' + e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Rx helpers
+  const addRx = () => setRxItems(i => [...i, { medicine_id: null, medicine_name: '', dosage: '', frequency: '', duration: '', instructions: '' }])
+  const rmRx  = (idx) => setRxItems(i => i.filter((_, j) => j !== idx))
+  const setRx = (idx, k, v) => setRxItems(i => i.map((item, j) => j === idx ? { ...item, [k]: v } : item))
+
+  // Lab helpers
+  const addLab = () => setLabTests(t => [...t, { test_id: null, test_name: '' }])
+  const rmLab  = (idx) => setLabTests(t => t.filter((_, j) => j !== idx))
+  const setLab = (idx, k, v) => setLabTests(t => t.map((item, j) => j === idx ? { ...item, [k]: v } : item))
+
+  // Imaging helpers
+  const addImg = () => setImagingTests(t => [...t, { test_id: null, test_name: '' }])
+  const rmImg  = (idx) => setImagingTests(t => t.filter((_, j) => j !== idx))
+  const setImg = (idx, k, v) => setImagingTests(t => t.map((item, j) => j === idx ? { ...item, [k]: v } : item))
+
+  const saveLabImaging = async () => {
     setSaving(true)
     try {
       const payload = {
-        soap: { ...soap, appointment_id: parseInt(id) },
-        prescription: rxItems.some(i => i.medicine_name) ? { notes: rxNotes, items: rxItems.filter(i => i.medicine_name) } : null,
-        lab_order: labTests.some(t => t.test_name) ? { notes: labNotes, tests: labTests.filter(t => t.test_name) } : null,
+        soap: { appointment_id: parseInt(id) },
+        lab_order:     labTests.some(t => t.test_name)     ? { notes: labNotes,     tests: labTests.filter(t => t.test_name) }     : null,
         imaging_order: imagingTests.some(t => t.test_name) ? { notes: imagingNotes, tests: imagingTests.filter(t => t.test_name) } : null,
       }
       await doctorApi.completeEncounter(id, payload)
-      setSuccess('Encounter completed!')
-      setTimeout(() => navigate('/doctor-desk'), 1500)
-    } catch (err) {
-      setSuccess('Error: ' + (err.message || 'Failed'))
+      flash('Orders saved')
+    } catch (e) {
+      flash('Error: ' + e.message)
     } finally {
       setSaving(false)
     }
   }
 
-  const addRxItem = () => setRxItems(i => [...i, { medicine_id: null, medicine_name: '', dosage: '', frequency: '', duration: '', instructions: '' }])
-  const removeRxItem = (idx) => setRxItems(i => i.filter((_, j) => j !== idx))
-  const setRx = (idx, k, v) => setRxItems(i => i.map((item, j) => j === idx ? { ...item, [k]: v } : item))
-
-  const addLabTest = () => setLabTests(t => [...t, { test_id: null, test_name: '' }])
-  const setLab = (idx, k, v) => setLabTests(t => t.map((item, j) => j === idx ? { ...item, [k]: v } : item))
-
-  const addImagingTest = () => setImagingTests(t => [...t, { test_id: null, test_name: '' }])
-  const removeImagingTest = (idx) => setImagingTests(t => t.filter((_, j) => j !== idx))
-  const setImaging = (idx, k, v) => setImagingTests(t => t.map((item, j) => j === idx ? { ...item, [k]: v } : item))
-
   if (loading) return <PageLoader />
-  if (!data) return <div className="text-gray-500">Encounter not found</div>
+  if (!data)   return <div className="text-gray-500">Encounter not found</div>
 
   const patient = data.patient || {}
+  const age = patient.date_of_birth
+    ? Math.floor((Date.now() - new Date(patient.date_of_birth)) / (365.25 * 24 * 60 * 60 * 1000))
+    : null
+
+  const TABS = [
+    { key: 'notes',   label: 'Clinical Notes', icon: FileText },
+    { key: 'rx',      label: 'Prescription',   icon: Pill },
+    { key: 'lab',     label: 'Lab Orders',     icon: FlaskConical },
+    { key: 'imaging', label: 'Imaging',         icon: Scan },
+    { key: 'vitals',  label: 'Vitals',          icon: Activity },
+  ]
 
   return (
     <div className="max-w-4xl">
@@ -104,108 +193,127 @@ export default function Encounter() {
           <button onClick={() => navigate(-1)} className="btn-secondary p-2"><ArrowLeft size={16} /></button>
           <div>
             <h1 className="page-title">{patient.full_name}</h1>
-            <p className="text-sm text-gray-500">{patient.uhid || `Patient #${patient.id}`} · {data.appointment_date} {data.appointment_time}</p>
+            <p className="text-sm text-gray-500 font-mono">
+              {patient.clinic_patient_id || `#${patient.id}`} · {data.appointment_date} {data.appointment_time}
+            </p>
           </div>
         </div>
-        <button onClick={completeEncounter} disabled={saving} className="btn-success">
-          <CheckCircle size={16} />
-          {saving ? 'Saving…' : 'Complete Encounter'}
-        </button>
+        <div className="flex gap-2">
+          {isLocked ? (
+            <button
+              onClick={() => setAddendumMode(v => !v)}
+              className="btn-secondary"
+            >
+              <PenLine size={15} />Addendum
+            </button>
+          ) : (
+            <>
+              <button onClick={() => saveDraft(true)} disabled={saving} className="btn-secondary">
+                <Save size={15} />{saving ? '…' : 'Save Draft'}
+              </button>
+              <button onClick={endConsultation} disabled={saving} className="btn-success">
+                <CheckCircle size={15} />{saving ? 'Saving…' : 'End Consultation'}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {success && (
-        <div className={`mb-4 p-3 rounded-lg text-sm ${success.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-          {success}
+      {msg && (
+        <div className={`mb-4 p-3 rounded-lg text-sm ${msg.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+          {msg}
         </div>
       )}
 
-      {/* Patient summary */}
-      <div className="card p-4 mb-5 flex items-center gap-6 text-sm">
-        <div><span className="text-gray-400">Age:</span> <span className="font-medium">{patient.date_of_birth ? `${new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear()} yrs` : '—'}</span></div>
-        <div><span className="text-gray-400">Gender:</span> <span className="font-medium">{patient.gender || '—'}</span></div>
-        <div><span className="text-gray-400">Blood:</span> <span className="font-medium text-red-600">{patient.blood_group || '—'}</span></div>
-        <div><span className="text-gray-400">Allergies:</span> <span className="font-medium text-orange-600">{patient.allergies || 'None'}</span></div>
-        <div><span className="text-gray-400">Reason:</span> <span className="font-medium">{data.reason || '—'}</span></div>
+      {/* Locked banner */}
+      {isLocked && (
+        <div className="mb-4 flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+          <Lock size={15} className="shrink-0" />
+          This encounter record is locked. Use Addendum to add notes.
+        </div>
+      )}
+
+      {/* Addendum box */}
+      {addendumMode && (
+        <div className="card p-4 mb-4 space-y-3">
+          <div className="text-sm font-medium text-gray-700">Add Addendum</div>
+          <textarea
+            className="input resize-none w-full"
+            rows={3}
+            value={addendumText}
+            onChange={e => setAddendumText(e.target.value)}
+            placeholder="Enter addendum note…"
+            autoFocus
+          />
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => { setAddendumMode(false); setAddendumText('') }} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={submitAddendum} disabled={!addendumText.trim() || saving} className="btn-primary text-sm">
+              Submit Addendum
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Patient summary bar */}
+      <div className="card p-4 mb-5">
+        <div className="flex flex-wrap gap-5 text-sm">
+          <div><span className="text-gray-400">Age</span> <span className="font-medium ml-1">{age != null ? `${age} yrs` : '—'}</span></div>
+          <div><span className="text-gray-400">Gender</span> <span className="font-medium ml-1">{patient.gender || '—'}</span></div>
+          <div><span className="text-gray-400">Blood</span> <span className="font-semibold text-red-600 ml-1">{patient.blood_group || '—'}</span></div>
+          {patient.allergies && <div><span className="text-gray-400">Allergies</span> <span className="font-medium text-orange-600 ml-1">{patient.allergies}</span></div>}
+          {data.triage_complaint && <div><span className="text-gray-400">Complaint</span> <span className="font-medium ml-1">{data.triage_complaint}</span></div>}
+          {/* Triage vitals inline */}
+          {data.vitals && (
+            <div className="flex gap-3 text-gray-500 font-mono text-xs items-center">
+              {data.vitals.blood_pressure_systolic && <span>BP {data.vitals.blood_pressure_systolic}/{data.vitals.blood_pressure_diastolic}</span>}
+              {data.vitals.pulse_rate && <span>P {data.vitals.pulse_rate}</span>}
+              {data.vitals.oxygen_saturation && <span>SpO₂ {data.vitals.oxygen_saturation}%</span>}
+              {data.vitals.temperature && <span>T {data.vitals.temperature}°F</span>}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg mb-5 w-fit">
-        {[
-          { key: 'soap', label: 'SOAP Notes', icon: FileText },
-          { key: 'vitals', label: 'Vitals', icon: Activity },
-          { key: 'rx', label: 'Prescription', icon: Pill },
-          { key: 'lab', label: 'Lab Orders', icon: FlaskConical },
-          { key: 'imaging', label: 'Imaging', icon: Scan },
-        ].map(t => (
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg mb-5 w-fit overflow-x-auto">
+        {TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${tab === t.key ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-all ${tab === t.key ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
           >
             <t.icon size={14} />{t.label}
           </button>
         ))}
       </div>
 
-      {/* SOAP */}
-      {tab === 'soap' && (
-        <div className="card p-6 space-y-4">
-          {[
-            ['subjective', 'S — Subjective (Chief complaint, history)', 5],
-            ['objective', 'O — Objective (Examination findings)', 4],
-            ['assessment', 'A — Assessment / Diagnosis', 4],
-            ['plan', 'P — Plan (Treatment, advice)', 4],
-          ].map(([key, label, rows]) => (
+      {/* ── Clinical Notes (7 fields) ── */}
+      {tab === 'notes' && (
+        <div className="card p-6 space-y-5">
+          {FIELD_LABELS.map(([key, label, rows]) => (
             <div key={key}>
               <label className="label">{label}</label>
               <textarea
                 className="input resize-none"
                 rows={rows}
-                value={soap[key]}
-                onChange={e => setSoap(s => ({ ...s, [key]: e.target.value }))}
-                placeholder={`Enter ${key} notes…`}
+                value={notes[key]}
+                disabled={isLocked}
+                onChange={e => setNotes(n => ({ ...n, [key]: e.target.value }))}
+                placeholder={isLocked ? '—' : `Enter ${label.toLowerCase()}…`}
               />
             </div>
           ))}
-          <div className="w-32">
-            <label className="label">Follow-up (days)</label>
-            <input className="input" type="number" value={soap.follow_up_days} onChange={e => setSoap(s => ({ ...s, follow_up_days: e.target.value }))} placeholder="7" />
-          </div>
+          {!isLocked && (
+            <div className="flex justify-end">
+              <button onClick={() => saveDraft(true)} disabled={saving} className="btn-secondary text-sm">
+                <Save size={14} />{saving ? '…' : 'Save Draft'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Vitals */}
-      {tab === 'vitals' && (
-        <div className="card p-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            {[
-              ['BP Systolic',  'blood_pressure_systolic',  'number', 'mmHg'],
-              ['BP Diastolic', 'blood_pressure_diastolic', 'number', 'mmHg'],
-              ['Pulse Rate',   'pulse_rate',               'number', 'bpm'],
-              ['Temperature',  'temperature',              'number', '°F'],
-              ['Weight',       'weight_kg',                'number', 'kg'],
-              ['Height',       'height_cm',                'number', 'cm'],
-              ['SpO2',         'oxygen_saturation',        'number', '%'],
-              ['Blood Sugar',  'blood_sugar',              'number', 'mg/dL'],
-            ].map(([label, key, type, unit]) => (
-              <div key={key}>
-                <label className="label">{label} <span className="text-gray-400 font-normal">{unit}</span></label>
-                <input
-                  className="input"
-                  type={type}
-                  value={vitals[key]}
-                  onChange={e => setVitals(v => ({ ...v, [key]: e.target.value }))}
-                />
-              </div>
-            ))}
-          </div>
-          <button onClick={saveVitals} disabled={saving} className="btn-primary">
-            <Save size={15} />Save Vitals
-          </button>
-        </div>
-      )}
-
-      {/* Prescription */}
+      {/* ── Prescription ── */}
       {tab === 'rx' && (
         <div className="card p-6">
           <div className="space-y-3 mb-4">
@@ -230,9 +338,7 @@ export default function Encounter() {
                   <input className="input text-sm" placeholder="5 days" value={item.duration} onChange={e => setRx(idx, 'duration', e.target.value)} />
                 </div>
                 <div className="flex items-end">
-                  <button onClick={() => removeRxItem(idx)} className="btn-secondary p-2 text-red-500 hover:text-red-700 mt-5">
-                    <Trash2 size={14} />
-                  </button>
+                  <button onClick={() => rmRx(idx)} className="btn-secondary p-2 text-red-500 hover:text-red-700 mt-5"><Trash2 size={14} /></button>
                 </div>
                 <div className="col-span-5">
                   <label className="label text-xs">Instructions</label>
@@ -241,7 +347,7 @@ export default function Encounter() {
               </div>
             ))}
           </div>
-          <button onClick={addRxItem} className="btn-secondary text-sm mb-4"><Plus size={14} />Add Medicine</button>
+          <button onClick={addRx} className="btn-secondary text-sm mb-4"><Plus size={14} />Add Medicine</button>
           <div>
             <label className="label">Prescription Notes</label>
             <textarea className="input resize-none" rows={2} value={rxNotes} onChange={e => setRxNotes(e.target.value)} placeholder="General notes…" />
@@ -249,7 +355,7 @@ export default function Encounter() {
         </div>
       )}
 
-      {/* Lab Orders */}
+      {/* ── Lab Orders ── */}
       {tab === 'lab' && (
         <div className="card p-6">
           <div className="space-y-2 mb-4">
@@ -263,18 +369,22 @@ export default function Encounter() {
                   placeholder="Search lab test…"
                   className="flex-1"
                 />
-                <button onClick={() => setLabTests(t => t.filter((_, j) => j !== idx))} className="btn-secondary p-2 text-red-500 hover:text-red-700"><Trash2 size={14}/></button>
+                <button onClick={() => rmLab(idx)} className="btn-secondary p-2 text-red-500 hover:text-red-700"><Trash2 size={14} /></button>
               </div>
             ))}
           </div>
-          <button onClick={addLabTest} className="btn-secondary text-sm mb-4"><Plus size={14} />Add Test</button>
-          <div>
+          <button onClick={addLab} className="btn-secondary text-sm mb-4"><Plus size={14} />Add Test</button>
+          <div className="mb-4">
             <label className="label">Clinical Notes</label>
             <textarea className="input resize-none" rows={2} value={labNotes} onChange={e => setLabNotes(e.target.value)} placeholder="Reason for tests…" />
           </div>
+          <button onClick={saveLabImaging} disabled={saving} className="btn-primary text-sm">
+            <Save size={14} />{saving ? '…' : 'Save Orders'}
+          </button>
         </div>
       )}
-      {/* Imaging */}
+
+      {/* ── Imaging ── */}
       {tab === 'imaging' && (
         <div className="card p-6">
           <div className="space-y-2 mb-4">
@@ -282,21 +392,53 @@ export default function Encounter() {
               <div key={idx} className="flex gap-2">
                 <SearchDropdown
                   value={t.test_name}
-                  onChange={v => setImaging(idx, 'test_name', v)}
-                  onSelect={s => { setImaging(idx, 'test_name', s.name); setImaging(idx, 'test_id', s.id) }}
+                  onChange={v => setImg(idx, 'test_name', v)}
+                  onSelect={s => { setImg(idx, 'test_name', s.name); setImg(idx, 'test_id', s.id) }}
                   fetchSuggestions={q => labApi.searchTests(q, 'imaging')}
                   placeholder="Search imaging study…"
                   className="flex-1"
                 />
-                <button onClick={() => removeImagingTest(idx)} className="btn-secondary p-2 text-red-500 hover:text-red-700"><Trash2 size={14}/></button>
+                <button onClick={() => rmImg(idx)} className="btn-secondary p-2 text-red-500 hover:text-red-700"><Trash2 size={14} /></button>
               </div>
             ))}
           </div>
-          <button onClick={() => setImagingTests(t => [...t, { test_id: null, test_name: '' }])} className="btn-secondary text-sm mb-4"><Plus size={14}/>Add Imaging</button>
-          <div>
+          <button onClick={addImg} className="btn-secondary text-sm mb-4"><Plus size={14} />Add Imaging</button>
+          <div className="mb-4">
             <label className="label">Clinical Notes</label>
-            <textarea className="input resize-none" rows={2} value={imagingNotes} onChange={e => setImagingNotes(e.target.value)} placeholder="Reason for imaging…"/>
+            <textarea className="input resize-none" rows={2} value={imagingNotes} onChange={e => setImagingNotes(e.target.value)} placeholder="Reason for imaging…" />
           </div>
+          <button onClick={saveLabImaging} disabled={saving} className="btn-primary text-sm">
+            <Save size={14} />{saving ? '…' : 'Save Orders'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Vitals (read-only from triage; receptionist manages this) ── */}
+      {tab === 'vitals' && (
+        <div className="card p-6">
+          {data.vitals ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                ['Blood Pressure', data.vitals.blood_pressure_systolic ? `${data.vitals.blood_pressure_systolic}/${data.vitals.blood_pressure_diastolic} mmHg` : null],
+                ['Pulse Rate',     data.vitals.pulse_rate        ? `${data.vitals.pulse_rate} bpm`  : null],
+                ['Temperature',    data.vitals.temperature        ? `${data.vitals.temperature} °F`  : null],
+                ['SpO₂',           data.vitals.oxygen_saturation  ? `${data.vitals.oxygen_saturation}%` : null],
+                ['Weight',         data.vitals.weight_kg          ? `${data.vitals.weight_kg} kg`   : null],
+                ['Height',         data.vitals.height_cm          ? `${data.vitals.height_cm} cm`   : null],
+                ['Blood Sugar',    data.vitals.blood_sugar        ? `${data.vitals.blood_sugar} mg/dL` : null],
+              ].filter(([, v]) => v).map(([label, value]) => (
+                <div key={label} className="bg-gray-50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-gray-400 mb-1">{label}</div>
+                  <div className="font-semibold text-gray-800">{value}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center text-gray-400 py-8">
+              <Activity size={32} className="mx-auto mb-2 opacity-30" />
+              <p>No vitals recorded yet — receptionist records vitals during triage</p>
+            </div>
+          )}
         </div>
       )}
     </div>
