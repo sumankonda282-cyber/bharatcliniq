@@ -30,7 +30,7 @@ export default function Login() {
         <div>
           <div className="text-2xl font-extrabold">BHaratCliniq</div>
           <div className="text-xs font-semibold mt-1 tracking-wider uppercase" style={{ color: '#F5821E' }}>
-            {tab === 0 ? 'Reception Portal' : 'Manager Portal'}
+            {tab === 0 ? 'Staff Portal' : 'Manager Portal'}
           </div>
         </div>
         <div>
@@ -66,17 +66,17 @@ export default function Login() {
               ))
           }
         </div>
-        <div className="text-xs" style={{ color: '#93c5fd' }}>BHaratCliniq · {tab === 0 ? 'Reception Portal' : 'Manager Portal'}</div>
+        <div className="text-xs" style={{ color: '#93c5fd' }}>BHaratCliniq · {tab === 0 ? 'Staff Portal' : 'Manager Portal'}</div>
       </div>
 
       <div className="flex-1 flex items-center justify-center p-6 bg-gray-50">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-8">
             <h2 className="text-2xl font-extrabold mb-1" style={{ color: '#0F2557' }}>
-              {tab === 0 ? 'Reception Sign In' : 'Manager Sign In'}
+              {tab === 0 ? 'Staff Sign In' : 'Manager Sign In'}
             </h2>
             <p className="text-gray-500 text-sm mb-5">
-              {tab === 0 ? 'Front desk access' : 'Clinic operations & staff management'}
+              {tab === 0 ? 'Front desk & staff access' : 'Clinic operations & staff management'}
             </p>
 
             {/* Tab toggle */}

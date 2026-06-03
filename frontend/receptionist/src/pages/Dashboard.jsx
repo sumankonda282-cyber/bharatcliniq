@@ -34,7 +34,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div className="page-header"><h1 className="page-title">Reception Dashboard</h1><span className="text-sm text-gray-500">{new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' })}</span></div>
+      <div className="page-header"><h1 className="page-title">Staff Dashboard</h1><span className="text-sm text-gray-500">{new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' })}</span></div>
       {loading ? <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-gray-400" /></div> : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
