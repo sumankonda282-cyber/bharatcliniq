@@ -66,7 +66,7 @@ export default function PatientList() {
               <tbody className="divide-y divide-gray-100">
                 {patients.map(p => (
                   <tr key={p.id} className="tr-hover cursor-pointer" onClick={() => navigate(`/patients/${p.id}`)}>
-                    <td className="td font-mono text-xs text-gray-500">
+                    <td className="td font-mono text-xs text-gray-500 whitespace-nowrap">
                       {p.uhid || p.bh_id || `#${p.id}`}
                     </td>
                     <td className="td">
@@ -79,15 +79,19 @@ export default function PatientList() {
                         {p.mobile || '—'}
                       </div>
                     </td>
-                    <td className="td">
+                    <td className="td whitespace-nowrap">
                       {p.date_of_birth
-                        ? `${new Date().getFullYear() - new Date(p.date_of_birth).getFullYear()} yrs`
+                        ? (() => {
+                            const dob = new Date(p.date_of_birth)
+                            const age = Math.floor((Date.now() - dob) / (365.25 * 24 * 60 * 60 * 1000))
+                            return age > 0 ? `${age} yrs` : '< 1 yr'
+                          })()
                         : '—'} / {p.gender || '—'}
                     </td>
                     <td className="td">
                       {p.blood_group
                         ? <span className="badge badge-red">{p.blood_group}</span>
-                        : '—'}
+                        : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="td text-xs text-gray-400">
                       {p.created_at ? new Date(p.created_at).toLocaleDateString('en-IN') : '—'}

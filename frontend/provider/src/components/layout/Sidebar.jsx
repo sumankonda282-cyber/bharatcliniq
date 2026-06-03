@@ -47,7 +47,7 @@ export default function Sidebar({ onClose }) {
       <div className="px-5 py-4 border-b border-white/10">
         <BrandLogo size="sm" light />
         <div className="text-xs font-semibold mt-1.5 tracking-wider uppercase" style={{ color: '#F5821E' }}>
-          Provider Portal
+          Doctor Portal
         </div>
       </div>
 
