@@ -36,7 +36,29 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> List[str]:
-        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        defaults = [
+            "https://bharatcliniq.com",
+            "https://www.bharatcliniq.com",
+            "https://bharatcliniq-provider.vercel.app",
+            "https://bharatcliniq-patient.vercel.app",
+            "https://bharatcliniq-admin.vercel.app",
+            "https://bharatcliniq-public.vercel.app",
+            "https://bharatcliniq-pharmacy.vercel.app",
+            "https://bharatcliniq-lab.vercel.app",
+            "https://bharatcliniq-receptionist.vercel.app",
+            "https://bharatcliniq-imaging.vercel.app",
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175",
+            "http://localhost:5176",
+            "http://localhost:5177",
+            "http://localhost:5178",
+            "http://localhost:5179",
+        ]
+        if self.CORS_ORIGINS:
+            extras = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+            return list(set(defaults + extras))
+        return defaults
 
     class Config:
         env_file = ".env"
