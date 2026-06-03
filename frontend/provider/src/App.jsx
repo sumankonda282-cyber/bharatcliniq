@@ -20,7 +20,7 @@ const Billing        = lazy(() => import('./pages/billing/Billing'))
 const Analytics      = lazy(() => import('./pages/analytics/Analytics'))
 const Referrals      = lazy(() => import('./pages/referrals/Referrals'))
 const ClinicAdmin    = lazy(() => import('./pages/admin/ClinicAdmin'))
-const DutyRoster     = lazy(() => import('./pages/admin/DutyRoster'))
+const BranchOverview = lazy(() => import('./pages/admin/BranchOverview'))
 const PlatformAdmin  = lazy(() => import('./pages/platform/PlatformAdmin'))
 
 function ProtectedRoute({ children, roles }) {
@@ -56,9 +56,9 @@ function AppRoutes() {
         <Route path="/billing"     element={<Suspense fallback={<PageLoader />}><Billing /></Suspense>} />
         <Route path="/analytics"   element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
         <Route path="/referrals"   element={<Suspense fallback={<PageLoader />}><Referrals /></Suspense>} />
-        <Route path="/admin"         element={<Suspense fallback={<PageLoader />}><ClinicAdmin /></Suspense>} />
-        <Route path="/duty-roster"   element={<Suspense fallback={<PageLoader />}><DutyRoster /></Suspense>} />
-        <Route path="/platform"      element={<Suspense fallback={<PageLoader />}><PlatformAdmin /></Suspense>} />
+        <Route path="/admin"            element={<Suspense fallback={<PageLoader />}><ClinicAdmin /></Suspense>} />
+        <Route path="/branch-overview" element={<Suspense fallback={<PageLoader />}><BranchOverview /></Suspense>} />
+        <Route path="/platform"        element={<Suspense fallback={<PageLoader />}><PlatformAdmin /></Suspense>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
