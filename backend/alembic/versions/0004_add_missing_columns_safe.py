@@ -8,7 +8,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = '0004_add_missing_columns_safe'
-down_revision = '0003_add_guardian_fields_to_patients'
+down_revision = '0002_add_disclosure_pin'
 branch_labels = None
 depends_on = None
 
