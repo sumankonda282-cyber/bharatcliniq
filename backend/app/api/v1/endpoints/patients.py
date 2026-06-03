@@ -10,7 +10,7 @@ from app.models.models import (
     Patient, Staff, PatientUser,
     Appointment, SoapNote, Prescription, PrescriptionItem,
     LabOrder, LabOrderItem, DoctorProfile, Clinic,
-    BHStateGroup, BHIDSequence,
+    BHStateGroup, BHIDSequence, PatientTag,
 )
 from app.api.v1.endpoints.encounters import _assign_clinic_patient_id
 from app.schemas.schemas import PatientCreate, PatientUpdate, PatientOut
@@ -97,22 +97,30 @@ def list_patients(
         q = q.filter(Patient.gender == gender)
 
     patients = q.order_by(Patient.created_at.desc()).offset(skip).limit(limit).all()
-    return [{
-        "id":               p.id,
-        "clinic_patient_id": p.clinic_patient_id or p.uhid or f"#{p.id}",
-        "bh_id":            p.bh_id,
-        "full_name":        p.full_name,
-        "mobile":           p.mobile,
-        "email":            p.email,
-        "date_of_birth":    str(p.date_of_birth) if p.date_of_birth else None,
-        "age":              _age(p),
-        "gender":           p.gender,
-        "blood_group":      p.blood_group,
-        "allergies":        p.allergies,
-        "branch_id":        p.branch_id,
-        "is_active":        p.is_active,
-        "created_at":       str(p.created_at),
-    } for p in patients]
+    result = []
+    for p in patients:
+        tags = db.query(PatientTag).filter(
+            PatientTag.patient_id == p.id,
+            PatientTag.clinic_id  == current.clinic_id,
+        ).all()
+        result.append({
+            "id":                p.id,
+            "clinic_patient_id": p.clinic_patient_id or p.uhid or f"#{p.id}",
+            "bh_id":             p.bh_id,
+            "full_name":         p.full_name,
+            "mobile":            p.mobile,
+            "email":             p.email,
+            "date_of_birth":     str(p.date_of_birth) if p.date_of_birth else None,
+            "age":               _age(p),
+            "gender":            p.gender,
+            "blood_group":       p.blood_group,
+            "allergies":         p.allergies,
+            "branch_id":         p.branch_id,
+            "is_active":         p.is_active,
+            "created_at":        str(p.created_at),
+            "tags":              [{"id": t.id, "tag_name": t.tag_name, "icd10_code": t.icd10_code} for t in tags],
+        })
+    return result
 
 
 @router.get("/{patient_id}", response_model=PatientOut)

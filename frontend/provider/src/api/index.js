@@ -34,10 +34,26 @@ export const clinicApi = {
 
 // ── Patients ──────────────────────────────────────────────────────
 export const patientsApi = {
-  list:   (params) => api.get('/patients', { params }),
-  get:    (id) => api.get(`/patients/${id}`),
-  create: (data) => api.post('/patients', data),
-  update: (id, data) => api.put(`/patients/${id}`, data),
+  list:          (params) => api.get('/patients', { params }),
+  listClinical:  (params) => api.get('/patients/list', { params }),
+  get:           (id) => api.get(`/patients/${id}`),
+  getClinical:   (id) => api.get(`/patients/${id}/clinical`),
+  create:        (data) => api.post('/patients', data),
+  update:        (id, data) => api.put(`/patients/${id}`, data),
+  assignTag:     (id, data) => api.post(`/patients/${id}/tags`, data),
+  removeTag:     (id, tagId) => api.delete(`/patients/${id}/tags/${tagId}`),
+}
+
+export const tagsApi = {
+  getSuggestions: () => api.get('/clinic/tags'),
+  saveTag:        (data) => api.post('/clinic/tags', data),
+  deleteTag:      (id) => api.delete(`/clinic/tags/${id}`),
+}
+
+export const encountersApi = {
+  save:      (data) => api.post('/encounters/save', data),
+  addendum:  (data) => api.post('/encounters/addendum', data),
+  triage:    (data) => api.post('/triage', data),
 }
 
 // ── Appointments ──────────────────────────────────────────────────
