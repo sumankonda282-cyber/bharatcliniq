@@ -1,13 +1,13 @@
 """add guardian fields to patients
 
-Revision ID: 0003_add_guardian_fields_to_patients
+Revision ID: 0003_guardian_fields
 Revises: 0006_staff_credentials
 Create Date: 2026-06-03
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = '0003_add_guardian_fields_to_patients'
+revision = '0003_guardian_fields'
 down_revision = '0006_staff_credentials'
 branch_labels = None
 depends_on = None
