@@ -3,6 +3,7 @@ import Sidebar from './Sidebar'
 import { Outlet } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import BrandLogo from '../BrandLogo'
+import ChatWidget from '../ChatWidget'
 
 export default function Layout() {
   const [open, setOpen] = useState(false)
@@ -38,6 +39,7 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
+      <ChatWidget />
     </div>
   )
 }

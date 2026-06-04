@@ -52,6 +52,10 @@ safe_cols = [
     \"ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10,2) DEFAULT 0\",
     \"ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS mrp NUMERIC(10,2)\",
     \"CREATE TABLE IF NOT EXISTS stock_transactions (id SERIAL PRIMARY KEY, clinic_id INTEGER REFERENCES clinics(id), branch_id INTEGER REFERENCES branches(id), medicine_id INTEGER REFERENCES medicines(id) NOT NULL, transaction_type VARCHAR(20) NOT NULL, quantity INTEGER NOT NULL, quantity_before INTEGER NOT NULL, quantity_after INTEGER NOT NULL, batch_number VARCHAR(50), expiry_date DATE, unit_cost NUMERIC(10,2), supplier_name VARCHAR(200), notes TEXT, performed_by INTEGER REFERENCES staff(id), created_at TIMESTAMP DEFAULT NOW())\",
+    \"CREATE TABLE IF NOT EXISTS chat_rooms (id SERIAL PRIMARY KEY, clinic_id INTEGER REFERENCES clinics(id), room_type VARCHAR(20) DEFAULT 'direct', name VARCHAR(200), created_at TIMESTAMP DEFAULT NOW())\",
+    \"CREATE TABLE IF NOT EXISTS chat_room_members (id SERIAL PRIMARY KEY, room_id INTEGER REFERENCES chat_rooms(id), staff_id INTEGER REFERENCES staff(id), joined_at TIMESTAMP DEFAULT NOW(), UNIQUE(room_id, staff_id))\",
+    \"CREATE TABLE IF NOT EXISTS internal_messages (id SERIAL PRIMARY KEY, room_id INTEGER REFERENCES chat_rooms(id), sender_id INTEGER REFERENCES staff(id), body TEXT NOT NULL, msg_type VARCHAR(20) DEFAULT 'text', created_at TIMESTAMP DEFAULT NOW())\",
+    \"CREATE TABLE IF NOT EXISTS message_reads (id SERIAL PRIMARY KEY, message_id INTEGER REFERENCES internal_messages(id), staff_id INTEGER REFERENCES staff(id), read_at TIMESTAMP DEFAULT NOW(), UNIQUE(message_id, staff_id))\",
 ]
 try:
     with engine.begin() as conn:

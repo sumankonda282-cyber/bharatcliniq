@@ -179,7 +179,7 @@ class Patient(Base):
     portal_user   = relationship("PatientUser", back_populates="patients")
     appointments  = relationship("Appointment", back_populates="patient")
     prescriptions = relationship("Prescription", back_populates="patient")
-    lab_orders    = relationship("LabOrder", back_populates="patient")
+    lab_orders    = relationship("LabOrder", foreign_keys="LabOrder.patient_id", viewonly=True)
     invoices      = relationship("Invoice", back_populates="patient")
     patient_tags  = relationship("PatientTag", back_populates="patient", cascade="all, delete-orphan")
 
@@ -275,7 +275,7 @@ class Appointment(Base):
     vitals        = relationship("Vitals", back_populates="appointment", uselist=False)
     soap_note     = relationship("SoapNote", back_populates="appointment", uselist=False)
     prescriptions = relationship("Prescription", back_populates="appointment")
-    lab_orders    = relationship("LabOrder", back_populates="appointment")
+    lab_orders    = relationship("LabOrder", foreign_keys="LabOrder.appointment_id", viewonly=True)
     invoices      = relationship("Invoice", back_populates="appointment")
 
 
@@ -458,63 +458,6 @@ class LabTest(Base):
     turnaround_hours = Column(Integer, nullable=True)
     is_active        = Column(Boolean, default=True)
 
-    order_items = relationship("LabOrderItem", back_populates="test")
-
-
-class LabOrder(Base):
-    __tablename__ = "lab_orders"
-    id                  = Column(Integer, primary_key=True, index=True)
-    clinic_id           = Column(Integer, ForeignKey("clinics.id"), nullable=False)
-    patient_id          = Column(Integer, ForeignKey("patients.id"), nullable=False)
-    appointment_id      = Column(Integer, ForeignKey("appointments.id"), nullable=True)
-    ordered_by          = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    status              = Column(String(50), default="ordered")
-    sample_collected_at = Column(DateTime, nullable=True)
-    notes               = Column(Text, nullable=True)
-    created_at          = Column(DateTime, server_default=func.now())
-    updated_at          = Column(DateTime, server_default=func.now(), onupdate=func.now())
-
-    patient     = relationship("Patient", back_populates="lab_orders")
-    appointment = relationship("Appointment", back_populates="lab_orders")
-    items       = relationship("LabOrderItem", back_populates="order")
-
-
-class LabOrderItem(Base):
-    __tablename__ = "lab_order_items"
-    id           = Column(Integer, primary_key=True, index=True)
-    order_id     = Column(Integer, ForeignKey("lab_orders.id"), nullable=False)
-    test_id      = Column(Integer, ForeignKey("lab_tests.id"), nullable=True)
-    test_name    = Column(String(200), nullable=True)
-    result_value = Column(Text, nullable=True)
-    result_notes = Column(Text, nullable=True)
-    is_abnormal  = Column(Boolean, default=False)
-    completed_at = Column(DateTime, nullable=True)
-
-    order = relationship("LabOrder", back_populates="items")
-    test  = relationship("LabTest", back_populates="order_items")
-
-
-class ImagingOrder(Base):
-    __tablename__ = "imaging_orders"
-    id             = Column(Integer, primary_key=True, index=True)
-    clinic_id      = Column(Integer, ForeignKey("clinics.id"), nullable=False)
-    patient_id     = Column(Integer, ForeignKey("patients.id"), nullable=False)
-    appointment_id = Column(Integer, ForeignKey("appointments.id"), nullable=True)
-    ordered_by     = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    modality          = Column(String(50), nullable=True)
-    body_part         = Column(String(200), nullable=True)
-    clinical_notes    = Column(Text, nullable=True)
-    report            = Column(Text, nullable=True)
-    report_url        = Column(String(500), nullable=True)
-    findings          = Column(Text, nullable=True)
-    impression        = Column(Text, nullable=True)
-    recommendation    = Column(Text, nullable=True)
-    technique         = Column(Text, nullable=True)
-    radiologist_name  = Column(String(200), nullable=True)
-    report_status     = Column(String(30), default="draft")
-    status            = Column(String(50), default="ordered")
-    created_at        = Column(DateTime, server_default=func.now())
-    updated_at        = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
 class Invoice(Base):
@@ -767,3 +710,53 @@ class StockTransaction(Base):
 
     medicine = relationship("Medicine")
 
+
+# ── Internal Clinic Chat ───────────────────────────────────────────────────────
+
+class ChatRoom(Base):
+    __tablename__ = "chat_rooms"
+    id         = Column(Integer, primary_key=True, index=True)
+    clinic_id  = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    room_type  = Column(String(20), default="direct")  # direct | group
+    name       = Column(String(200), nullable=True)    # for group rooms
+    created_at = Column(DateTime, server_default=func.now())
+
+    members  = relationship("ChatRoomMember", back_populates="room")
+    messages = relationship("InternalMessage", back_populates="room")
+
+
+class ChatRoomMember(Base):
+    __tablename__ = "chat_room_members"
+    id        = Column(Integer, primary_key=True, index=True)
+    room_id   = Column(Integer, ForeignKey("chat_rooms.id"), nullable=False)
+    staff_id  = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    joined_at = Column(DateTime, server_default=func.now())
+    __table_args__ = (UniqueConstraint("room_id", "staff_id"),)
+
+    room  = relationship("ChatRoom", back_populates="members")
+    staff = relationship("Staff")
+
+
+class InternalMessage(Base):
+    __tablename__ = "internal_messages"
+    id         = Column(Integer, primary_key=True, index=True)
+    room_id    = Column(Integer, ForeignKey("chat_rooms.id"), nullable=False)
+    sender_id  = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    body       = Column(Text, nullable=False)
+    msg_type   = Column(String(20), default="text")  # text | shortcut
+    created_at = Column(DateTime, server_default=func.now())
+
+    room   = relationship("ChatRoom", back_populates="messages")
+    sender = relationship("Staff")
+    reads  = relationship("MessageRead", back_populates="message")
+
+
+class MessageRead(Base):
+    __tablename__ = "message_reads"
+    id         = Column(Integer, primary_key=True, index=True)
+    message_id = Column(Integer, ForeignKey("internal_messages.id"), nullable=False)
+    staff_id   = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    read_at    = Column(DateTime, server_default=func.now())
+    __table_args__ = (UniqueConstraint("message_id", "staff_id"),)
+
+    message = relationship("InternalMessage", back_populates="reads")

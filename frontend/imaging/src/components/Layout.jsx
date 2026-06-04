@@ -1,3 +1,4 @@
+import ChatWidget from './ChatWidget'
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { LayoutDashboard, ScanLine, LogOut, AlertCircle, FileEdit, CreditCard, BarChart2, Users, Menu, X } from 'lucide-react'
@@ -68,6 +69,7 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
+      <ChatWidget />
     </div>
   )
 }
