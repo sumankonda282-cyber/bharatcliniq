@@ -4,6 +4,9 @@ import { doctorApi, appointmentsApi, pharmacyApi, labApi, encountersApi } from '
 import { PageLoader } from '../../components/ui/Spinner'
 import SearchDropdown from '../../components/SearchDropdown'
 import DiagnosisInput from '../../components/DiagnosisInput'
+import InputModeSelector from '../../components/InputModeSelector'
+import SmartTextarea from '../../components/SmartTextarea'
+import { useInputMode } from '../../hooks/useInputMode'
 import {
   ArrowLeft, Activity, FileText, Pill, FlaskConical,
   Save, CheckCircle, Plus, Trash2, Scan, Lock, PenLine,
@@ -179,6 +182,8 @@ export default function Encounter() {
     ? Math.floor((Date.now() - new Date(patient.date_of_birth)) / (365.25 * 24 * 60 * 60 * 1000))
     : null
 
+  const { mode, setMode } = useInputMode()
+
   const TABS = [
     { key: 'notes',   label: 'Clinical Notes', icon: FileText },
     { key: 'rx',      label: 'Prescription',   icon: Pill },
@@ -199,12 +204,10 @@ export default function Encounter() {
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <InputModeSelector mode={mode} setMode={setMode} />
           {isLocked ? (
-            <button
-              onClick={() => setAddendumMode(v => !v)}
-              className="btn-secondary"
-            >
+            <button onClick={() => setAddendumMode(v => !v)} className="btn-secondary">
               <PenLine size={15} />Addendum
             </button>
           ) : (
@@ -238,11 +241,11 @@ export default function Encounter() {
       {addendumMode && (
         <div className="card p-4 mb-4 space-y-3">
           <div className="text-sm font-medium text-gray-700">Add Addendum</div>
-          <textarea
-            className="input resize-none w-full"
+          <SmartTextarea
+            mode={mode}
             rows={3}
             value={addendumText}
-            onChange={e => setAddendumText(e.target.value)}
+            onChange={val => setAddendumText(val)}
             placeholder="Enter addendum note…"
             autoFocus
           />
@@ -291,15 +294,25 @@ export default function Encounter() {
       {/* ── Clinical Notes (7 fields) ── */}
       {tab === 'notes' && (
         <div className="card p-6 space-y-5">
+          {mode === 'handwriting' && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-blue-700 bg-blue-50 border border-blue-100">
+              ✍️ Handwriting mode — use your S Pen or stylus in any field below. Samsung keyboard will convert writing to text automatically.
+            </div>
+          )}
+          {mode === 'voice' && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-green-700 bg-green-50 border border-green-100">
+              🎤 Voice mode — tap and hold the mic button on any field, then speak. Release when done.
+            </div>
+          )}
           {FIELD_LABELS.map(([key, label, rows]) => (
             <div key={key}>
               <label className="label">{label}</label>
-              <textarea
-                className="input resize-none"
+              <SmartTextarea
+                mode={isLocked ? 'type' : mode}
                 rows={rows}
                 value={notes[key]}
                 disabled={isLocked}
-                onChange={e => setNotes(n => ({ ...n, [key]: e.target.value }))}
+                onChange={val => setNotes(n => ({ ...n, [key]: val }))}
                 placeholder={isLocked ? '—' : `Enter ${label.toLowerCase()}…`}
               />
             </div>

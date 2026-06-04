@@ -25,6 +25,7 @@ safe_cols = [
     \"UPDATE staff SET is_first_login = FALSE WHERE is_first_login IS NULL\",
     \"ALTER TABLE clinics ADD COLUMN IF NOT EXISTS bridge_api_key VARCHAR(64)\",
     "ALTER TABLE clinics ADD COLUMN IF NOT EXISTS brand_name VARCHAR(200)",
+    \"ALTER TABLE doctor_profiles ADD COLUMN IF NOT EXISTS input_mode VARCHAR(20) DEFAULT 'type'\",
     "ALTER TABLE clinics ADD COLUMN IF NOT EXISTS brand_color VARCHAR(20)",
     \"CREATE TABLE IF NOT EXISTS lab_orders (id SERIAL PRIMARY KEY, order_id VARCHAR(20) UNIQUE NOT NULL, clinic_id INTEGER REFERENCES clinics(id), patient_id INTEGER REFERENCES patients(id), appointment_id INTEGER REFERENCES appointments(id), ordered_by INTEGER REFERENCES staff(id), test_names JSONB DEFAULT '[]', clinical_notes TEXT, priority VARCHAR(20) DEFAULT 'routine', specimen_type VARCHAR(100), status VARCHAR(30) DEFAULT 'pending', collected_at TIMESTAMP, abha_id VARCHAR(50), created_at TIMESTAMP DEFAULT NOW())\",
     \"CREATE TABLE IF NOT EXISTS lab_results (id SERIAL PRIMARY KEY, order_id INTEGER UNIQUE REFERENCES lab_orders(id), raw_format VARCHAR(20), observations JSONB DEFAULT '[]', fhir_report JSONB, pdf_b64 TEXT, interpretation TEXT, status VARCHAR(30) DEFAULT 'pending_review', signed_by INTEGER REFERENCES staff(id), signed_at TIMESTAMP, report_hash VARCHAR(64), source VARCHAR(30) DEFAULT 'bridge', created_at TIMESTAMP DEFAULT NOW())\",

@@ -120,6 +120,7 @@ class DoctorProfile(Base):
     telehealth_enabled = Column(Boolean, default=False)
     telehealth_fee     = Column(Numeric(10, 2), nullable=True)
     telehealth_slots   = Column(JSON, nullable=True)
+    input_mode         = Column(String(20), default='type')   # type | voice | handwriting
     created_at         = Column(DateTime, server_default=func.now())
 
     staff        = relationship("Staff", back_populates="doctor_profile")

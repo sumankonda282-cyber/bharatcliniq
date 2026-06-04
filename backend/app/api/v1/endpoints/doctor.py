@@ -287,6 +287,7 @@ def get_my_doctor_profile(db: Session = Depends(get_db), current: Staff = Depend
         "languages":          profile.languages if profile else None,
         "telehealth_enabled": profile.telehealth_enabled if profile else False,
         "doctor_profile_id":  profile.id if profile else None,
+        "input_mode":         profile.input_mode if profile else 'type',
     }
 
 
@@ -298,7 +299,7 @@ def update_my_doctor_profile(body: dict, db: Session = Depends(get_db), current:
     if not profile:
         profile = DoctorProfile(staff_id=current.id, clinic_id=current.clinic_id)
         db.add(profile)
-    for field in ["specialty", "qualification", "mci_number", "experience_years", "consultation_fee", "bio", "languages", "telehealth_enabled"]:
+    for field in ["specialty", "qualification", "mci_number", "experience_years", "consultation_fee", "bio", "languages", "telehealth_enabled", "input_mode"]:
         if field in body:
             setattr(profile, field, body[field])
     db.commit()
