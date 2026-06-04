@@ -10,7 +10,7 @@ from app.core.limiter import limiter
 from app.models.models import (
     Patient, Staff, PatientUser,
     Appointment, SoapNote, Prescription, PrescriptionItem,
-    LabOrder, LabOrderItem, DoctorProfile, Clinic,
+    LabOrder, DoctorProfile, Clinic,
     BHStateGroup, BHIDSequence, PatientTag, AuditLog,
 )
 from app.api.v1.endpoints.encounters import _assign_clinic_patient_id
