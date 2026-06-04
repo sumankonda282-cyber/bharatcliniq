@@ -5,12 +5,13 @@ import { Link } from 'react-router-dom'
 
 function StatCard({ label, value, icon: Icon, color, to }) {
   const colors = {
-    indigo:  'bg-indigo-500/10 text-indigo-400',
-    emerald: 'bg-emerald-500/10 text-emerald-400',
-    amber:   'bg-amber-500/10 text-amber-400',
-    red:     'bg-red-500/10 text-red-400',
-    blue:    'bg-blue-500/10 text-blue-400',
-    purple:  'bg-purple-500/10 text-purple-400',
+    navy:    'bg-[#0F2557]/10 text-[#0F2557]',
+    indigo:  'bg-[#0F2557]/10 text-[#0F2557]',
+    emerald: 'bg-green-500/10 text-green-500',
+    amber:   'bg-[#F5821E]/10 text-[#F5821E]',
+    red:     'bg-[#CC1414]/10 text-[#CC1414]',
+    blue:    'bg-[#0F2557]/10 text-[#0F2557]',
+    purple:  'bg-[#0F2557]/10 text-[#0F2557]',
   }
   const card = (
     <div className="card-p flex items-start gap-4">
@@ -38,7 +39,7 @@ export default function Dashboard() {
 
   if (loading) return (
     <div className="flex items-center justify-center py-32">
-      <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#0F2557', borderTopColor: 'transparent' }} />
     </div>
   )
 
@@ -66,12 +67,12 @@ export default function Dashboard() {
             <div className="text-xs text-gray-500 mt-1">With active subscription</div>
           </div>
           <div className="bg-gray-800 rounded-2xl p-5 border border-gray-700/50">
-            <div className="text-xs font-semibold text-purple-400 uppercase tracking-wider mb-1">Total Patients</div>
+            <div className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: '#0F2557' }}>Total Patients</div>
             <div className="text-3xl font-extrabold text-white">{data.total_patients ?? '—'}</div>
             <div className="text-xs text-gray-500 mt-1">Registered on platform</div>
           </div>
           <div className="bg-gray-800 rounded-2xl p-5 border border-gray-700/50">
-            <div className="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">Revenue This Month</div>
+            <div className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: '#F5821E' }}>Revenue This Month</div>
             <div className="text-3xl font-extrabold text-white">₹{data.mrr?.toLocaleString('en-IN') ?? '—'}</div>
             <div className="text-xs text-gray-500 mt-1">Platform MRR</div>
           </div>
@@ -79,25 +80,25 @@ export default function Dashboard() {
       </div>
 
       {/* MRR Banner */}
-      <div className="bg-indigo-600/10 border border-indigo-500/30 rounded-2xl p-5 mb-6 flex items-center justify-between">
+      <div className="rounded-2xl p-5 mb-6 flex items-center justify-between" style={{ background: 'rgba(245,130,30,0.1)', border: '1px solid rgba(245,130,30,0.3)' }}>
         <div>
-          <div className="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">Estimated Monthly Revenue</div>
+          <div className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: '#F5821E' }}>Estimated Monthly Revenue</div>
           <div className="text-3xl font-extrabold text-white">₹{data.mrr?.toLocaleString('en-IN')}</div>
           <div className="text-xs text-gray-500 mt-1">Based on active doctors × plan rate</div>
         </div>
-        <IndianRupee size={40} className="text-indigo-500/30" />
+        <IndianRupee size={40} style={{ color: 'rgba(245,130,30,0.3)' }} />
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Total Clinics"      value={data.total_clinics}    icon={Building2}    color="indigo" to="/clinics" />
+        <StatCard label="Total Clinics"      value={data.total_clinics}    icon={Building2}    color="navy" to="/clinics" />
         <StatCard label="Active"             value={data.active_clinics}   icon={CheckCircle}  color="emerald" to="/clinics?status=active" />
         <StatCard label="Pending Approval"   value={data.pending_clinics}  icon={Clock}        color="amber" to="/pending" />
         <StatCard label="Suspended/Revoked"  value={(data.suspended_clinics || 0) + (data.revoked_clinics || 0)} icon={ShieldAlert} color="red" to="/clinics?status=suspended" />
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Active Doctors"     value={data.total_doctors}    icon={Users}        color="blue" />
-        <StatCard label="Total Patients"     value={data.total_patients}   icon={Users}        color="purple" />
+        <StatCard label="Active Doctors"     value={data.total_doctors}    icon={Users}        color="navy" />
+        <StatCard label="Total Patients"     value={data.total_patients}   icon={Users}        color="navy" />
         <StatCard label="Staff Pending Verification" value={data.pending_staff} icon={ShieldCheck} color="amber" to="/staff" />
         <StatCard label="New This Month"     value={data.new_this_month}   icon={TrendingUp}   color="emerald" />
       </div>

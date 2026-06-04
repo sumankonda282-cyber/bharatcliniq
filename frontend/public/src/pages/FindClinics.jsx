@@ -71,7 +71,7 @@ function ClinicCard({ clinic }) {
           </h3>
           <div className="flex items-center gap-1 text-gray-500 text-xs mt-1">
             <Stethoscope className="w-3 h-3 flex-shrink-0" style={{ color: '#F5821E' }} />
-            <span className="truncate">{clinic.specialty || 'Multi-Specialty'}</span>
+            <span className="truncate" title={clinic.specialty || 'Multi-Specialty'}>{clinic.specialty || 'Multi-Specialty'}</span>
           </div>
           <div className="flex items-center gap-1 text-gray-500 text-xs mt-0.5">
             <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: '#CC1414' }} />

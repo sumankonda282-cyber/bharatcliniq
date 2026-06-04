@@ -45,8 +45,8 @@ export default function Dashboard() {
       <div className="rounded-2xl p-6 text-white relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #0F2557 0%, #1a3a7a 60%, #0a1a3e 100%)' }}>
         {/* Decorative */}
-        <div style={{ position:'absolute', top:'-40px', right:'-40px', width:'220px', height:'220px', borderRadius:'50%', background:'rgba(245,130,30,0.12)' }} />
-        <div style={{ position:'absolute', bottom:'-30px', left:'30%', width:'160px', height:'160px', borderRadius:'50%', background:'rgba(204,20,20,0.10)' }} />
+        <div className="absolute -top-10 -right-10 w-56 h-56 rounded-full pointer-events-none" style={{ background:'rgba(245,130,30,0.12)' }} />
+        <div className="absolute -bottom-8 left-1/3 w-40 h-40 rounded-full pointer-events-none" style={{ background:'rgba(204,20,20,0.10)' }} />
 
         <div className="relative">
           <div className="flex items-center justify-between mb-6">

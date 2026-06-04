@@ -37,7 +37,7 @@ export default function Dashboard() {
       <div className="page-header"><h1 className="page-title">Staff Dashboard</h1><span className="text-sm text-gray-500">{new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' })}</span></div>
       {loading ? <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-gray-400" /></div> : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
             <StatCard icon={CalendarDays} label="Total Today"   value={appts.length} color="#0F2557" />
             <StatCard icon={Clock}        label="Waiting"       value={waiting}      color="#F5821E" />
             <StatCard icon={CheckCircle}  label="Completed"     value={completed}    color="#16A34A" />

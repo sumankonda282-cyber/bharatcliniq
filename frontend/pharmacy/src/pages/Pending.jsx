@@ -2,17 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import api from '../api/client'
 import { Pill, CheckCircle, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
 
-function StockBadge({ name }) {
-  const [qty, setQty] = useState(null)
-  useEffect(() => {
-    if (!name) return
-    api.get('/pharmacy/medicines', { params: { search: name, limit: 3 } })
-      .then(r => {
-        const found = (Array.isArray(r) ? r : []).find(m => m.name?.toLowerCase() === name?.toLowerCase())
-        setQty(found ? (found.stock_quantity ?? 0) : null)
-      }).catch(() => {})
-  }, [name])
-  if (qty === null) return null
+function StockBadge({ name, stockMap }) {
+  if (!name) return null
+  const qty = stockMap[name.toLowerCase()]
+  if (qty === undefined) return null
   const color = qty <= 0 ? '#991b1b' : qty <= 10 ? '#92400e' : '#166534'
   const bg    = qty <= 0 ? '#fee2e2' : qty <= 10 ? '#fef3c7' : '#dcfce7'
   return (
@@ -24,12 +17,28 @@ function StockBadge({ name }) {
 
 export default function Pending() {
   const [prescriptions, setPrescriptions] = useState([])
+  const [stockMap, setStockMap] = useState({})
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(null)
   const [dispensing, setDispensing] = useState(null)
   const load = useCallback(() => {
     setLoading(true)
-    api.get('/pharmacy/pending').then(r => setPrescriptions(Array.isArray(r) ? r : [])).finally(() => setLoading(false))
+    api.get('/pharmacy/pending').then(r => {
+      const rxList = Array.isArray(r) ? r : []
+      setPrescriptions(rxList)
+      // Batch fetch all medicine names from pending prescriptions
+      const names = [...new Set(
+        rxList.flatMap(rx => (rx.items || []).map(item => item.medicine_name || item.drug_name).filter(Boolean))
+      )]
+      if (names.length === 0) return
+      api.get('/pharmacy/medicines', { params: { limit: 500 } })
+        .then(res => {
+          const meds = Array.isArray(res) ? res : []
+          const map = {}
+          meds.forEach(m => { if (m.name) map[m.name.toLowerCase()] = m.stock_quantity ?? 0 })
+          setStockMap(map)
+        }).catch(() => {})
+    }).finally(() => setLoading(false))
   }, [])
   useEffect(() => { load() }, [load])
   const dispense = async id => {
@@ -64,7 +73,7 @@ export default function Pending() {
               <div className="space-y-2 mb-4">
                 {(rx.items || []).map((item, i) => (
                   <div key={i} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2 text-sm">
-                    <span className="font-medium">{item.medicine_name || item.drug_name}<StockBadge name={item.medicine_name || item.drug_name} /></span>
+                    <span className="font-medium">{item.medicine_name || item.drug_name}<StockBadge name={item.medicine_name || item.drug_name} stockMap={stockMap} /></span>
                     <span className="text-gray-500">{item.dosage} · {item.frequency} · {item.duration}</span>
                   </div>
                 ))}

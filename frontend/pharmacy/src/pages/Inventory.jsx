@@ -35,12 +35,12 @@ export default function Inventory() {
         <h1 className="page-title">Medicine Inventory</h1>
         <button onClick={() => setShowAdd(true)} className="btn-primary"><Plus size={16}/>Add Medicine</button>
       </div>
-      {lowStock.length > 0 && <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-2 text-orange-700 text-sm"><AlertTriangle size={16}/><span><strong>{lowStock.length}</strong> medicines are running low on stock</span></div>}
+      {lowStock.length > 0 && <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-2 text-amber-800 text-sm"><AlertTriangle size={16}/><span><strong>{lowStock.length}</strong> medicines are running low on stock</span></div>}
       <div className="relative mb-4"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/><input className="input pl-9" placeholder="Search medicines…" value={search} onChange={e => setSearch(e.target.value)}/></div>
       {showAdd && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold mb-4" style={{ color: '#0F2557' }}>Add Medicine</h3>
+            <h3 className="text-lg font-bold mb-4 text-[#0F2557]">Add Medicine</h3>
             <form onSubmit={addMed} className="space-y-3">
               <div>
                 <label className="label">Name *</label>

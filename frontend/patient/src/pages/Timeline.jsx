@@ -203,7 +203,7 @@ export default function Timeline() {
       ) : (
         <div className="relative">
           {/* Vertical line */}
-          <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gray-200" style={{ marginLeft: '-1px' }} />
+          <div className="absolute top-0 bottom-0 w-0.5 bg-gray-200 left-5" />
 
           <div className="space-y-4">
             {filtered.map((entry, idx) => {

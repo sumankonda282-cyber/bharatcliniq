@@ -246,14 +246,8 @@ export default function HomePage() {
           position: 'absolute', inset: 0, opacity: 0.06,
           backgroundImage: 'radial-gradient(circle at 20% 50%, #F5821E 0%, transparent 50%), radial-gradient(circle at 80% 20%, #CC1414 0%, transparent 40%)',
         }} />
-        <div style={{
-          position: 'absolute', top: '-60px', right: '-60px', width: '300px', height: '300px',
-          borderRadius: '50%', background: 'rgba(245,130,30,0.08)',
-        }} />
-        <div style={{
-          position: 'absolute', bottom: '-80px', left: '-40px', width: '250px', height: '250px',
-          borderRadius: '50%', background: 'rgba(204,20,20,0.08)',
-        }} />
+        <div className="absolute -top-16 -right-16 w-72 h-72 rounded-full pointer-events-none" style={{ background: 'rgba(245,130,30,0.08)' }} />
+        <div className="absolute -bottom-20 -left-10 w-64 h-64 rounded-full pointer-events-none" style={{ background: 'rgba(204,20,20,0.08)' }} />
 
         <div className="max-w-5xl mx-auto text-center relative">
           <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium mb-8"

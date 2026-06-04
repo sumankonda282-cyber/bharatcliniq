@@ -65,7 +65,7 @@ export default function Dashboard() {
   return (
     <div>
       <div className="page-header"><h1 className="page-title">Pharmacy Dashboard</h1></div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
         <div className="card p-5 flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{background:'#CC141418'}}><Pill size={22} style={{color:'#CC1414'}}/></div>
           <div><div className="text-2xl font-bold" style={{color:'#0F2557'}}>{pending.length}</div><div className="text-xs text-gray-500">Pending Rx</div></div>

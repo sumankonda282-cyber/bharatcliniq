@@ -72,7 +72,7 @@ function DayReport({ invoices }) {
                         <span className="font-medium text-gray-700">{g.label}</span>
                         <span className="ml-2 text-xs text-gray-400">{g.count} invoice{g.count !== 1 ? 's' : ''}</span>
                       </div>
-                      <span className="font-semibold text-gray-800">₹{g.total.toFixed(2)}</span>
+                      <span className="font-semibold text-gray-800">₹ {g.total.toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
@@ -80,12 +80,12 @@ function DayReport({ invoices }) {
 
               <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: '#0F2557' }}>
                 <span className="font-bold text-white">Grand Total</span>
-                <span className="font-extrabold text-white text-lg">₹{grandTotal.toFixed(2)}</span>
+                <span className="font-extrabold text-white text-lg">₹ {grandTotal.toFixed(2)}</span>
               </div>
 
               <div className="flex items-center justify-between px-4 py-3 rounded-xl border border-red-100 bg-red-50">
                 <span className="font-medium text-red-700 text-sm">Pending Amount (Today)</span>
-                <span className="font-bold text-red-700">₹{pendingTotal.toFixed(2)}</span>
+                <span className="font-bold text-red-700">₹ {pendingTotal.toFixed(2)}</span>
               </div>
             </div>
 
@@ -145,7 +145,7 @@ export default function Billing() {
             <tbody className="divide-y divide-gray-100">{invoices.slice(0, 50).map(inv => <tr key={inv.id} className="tr-hover">
               <td className="td font-mono text-xs">INV-{String(inv.id).padStart(4,'0')}</td>
               <td className="td font-medium">{inv.patient_name || inv.patient?.full_name || '—'}</td>
-              <td className="td font-semibold">₹{inv.total_amount}</td>
+              <td className="td font-semibold">₹ {Number(inv.total_amount).toLocaleString('en-IN')}</td>
               <td className="td"><span className={`badge ${inv.status === 'paid' ? 'badge-green' : inv.status === 'partial' ? 'badge-yellow' : 'badge-red'}`}>{inv.status}</span></td>
               <td className="td">{(inv.status === 'pending' || inv.status === 'partial') && (
                 <button onClick={() => collectPayment(inv.id)} disabled={paying === inv.id} className="btn-success text-xs py-1 px-3">{paying === inv.id ? 'Processing…' : 'Collect Cash'}</button>

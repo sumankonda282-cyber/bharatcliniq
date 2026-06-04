@@ -140,7 +140,7 @@ export default function Appointments() {
           )}
           {past.length > 0 && (
             <div>
-              <h2 className="text-sm font-bold uppercase tracking-wider mb-3 text-gray-400">Past Appointments</h2>
+              <h2 className="text-sm font-bold uppercase tracking-wider mb-3" style={{ color: '#0F2557' }}>Past Appointments</h2>
               <div className="space-y-3">{past.map(a => <ApptCard key={a.id} a={a} />)}</div>
             </div>
           )}
