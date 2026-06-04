@@ -1,3 +1,4 @@
+import InstallPrompt from './components/InstallPrompt'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
@@ -24,7 +25,9 @@ function LoginRoute() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <>
+        <InstallPrompt appName="BH Lab" />
+        <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginRoute/>}/>
           <Route element={<Guard><Layout/></Guard>}>
@@ -40,6 +43,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace/>}/>
         </Routes>
       </BrowserRouter>
+      </>
     </AuthProvider>
   )
 }

@@ -1,3 +1,4 @@
+import InstallPrompt from './components/InstallPrompt'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import HomePage from './pages/HomePage'
 import FindClinics from './pages/FindClinics'
@@ -9,7 +10,9 @@ import TelehealthPage from './pages/Telehealth'
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <>
+      <InstallPrompt appName="BharatCliniq" />
+      <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/clinics" element={<FindClinics />} />
@@ -20,5 +23,4 @@ export default function App() {
         <Route path="/telehealth" element={<TelehealthPage />} />
       </Routes>
     </BrowserRouter>
-  )
-}
+    </>

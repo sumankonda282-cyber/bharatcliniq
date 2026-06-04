@@ -1,3 +1,4 @@
+import InstallPrompt from './components/InstallPrompt'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
@@ -20,7 +21,9 @@ function PrivateRoute({ children }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <>
+      <InstallPrompt appName="BH Admin" />
+      <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
@@ -38,5 +41,4 @@ export default function App() {
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
-  )
-}
+    </>
