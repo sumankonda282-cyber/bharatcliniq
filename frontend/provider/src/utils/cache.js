@@ -3,9 +3,10 @@ const DB_VERSION = 1
 const STORE = 'cache'
 
 export const TTL = {
-  SHORT:     10 * 60 * 1000,  // 10 min  — patient history, queues
-  MEDIUM:    60 * 60 * 1000,  // 1 hour  — doctor list, tag suggestions
-  LONG:  24 * 60 * 60 * 1000, // 24 hours — reference catalogs (medicines, tests, ICD-10)
+  QUEUE:          2 * 60 * 1000,  // 2 min   — dashboard queue snapshot
+  SHORT:         10 * 60 * 1000,  // 10 min  — patient history, referrals
+  MEDIUM:        60 * 60 * 1000,  // 1 hour  — doctor list, tag suggestions
+  LONG:  24 * 60 * 60 * 1000,     // 24 hours — reference catalogs (medicines, tests, ICD-10)
 }
 
 function openDB() {

@@ -41,7 +41,7 @@ export default function Dashboard() {
         })
         setLoading(false)
       },
-      TTL.SHORT
+      TTL.QUEUE
     ).catch(() => { setStats({ todayAppts: 0, waiting: 0, completed: 0 }); setLoading(false) })
   }, [today])
 

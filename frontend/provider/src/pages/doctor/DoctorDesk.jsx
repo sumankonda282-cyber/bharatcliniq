@@ -76,10 +76,17 @@ export default function DoctorDesk() {
   const [telehealthAppt, setTelehealthAppt] = useState(null)
 
   useEffect(() => {
+    const fetch = () => {
+      doctorApi.getQueue({ date })
+        .then(r => { setQueue(Array.isArray(r) ? r : []); setLoading(false) })
+        .catch(() => setLoading(false))
+    }
     setLoading(true)
-    doctorApi.getQueue({ date })
-      .then(r => setQueue(Array.isArray(r) ? r : []))
-      .finally(() => setLoading(false))
+    fetch()
+    if (date === today) {
+      const interval = setInterval(fetch, 30_000)
+      return () => clearInterval(interval)
+    }
   }, [date])
 
   const waiting  = queue.filter(a => ['pending', 'confirmed'].includes(a.status))
