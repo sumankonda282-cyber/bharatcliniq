@@ -198,8 +198,6 @@ class PatientCreate(BaseModel):
     emergency_contact_name: Optional[str] = None
     emergency_contact_phone: Optional[str] = None
     abha_id: Optional[str] = None
-    guardian_name: Optional[str] = None
-    guardian_mobile: Optional[str] = None
 
 
 class PatientUpdate(BaseModel):
@@ -217,8 +215,6 @@ class PatientUpdate(BaseModel):
     emergency_contact_name: Optional[str] = None
     emergency_contact_phone: Optional[str] = None
     abha_id: Optional[str] = None
-    guardian_name: Optional[str] = None
-    guardian_mobile: Optional[str] = None
 
 
 class PatientOut(BaseModel):
@@ -235,10 +231,7 @@ class PatientOut(BaseModel):
     address: Optional[str]
     city: Optional[str]
     state: Optional[str]
-    pincode: Optional[str] = None
     abha_id: Optional[str]
-    guardian_name: Optional[str] = None
-    guardian_mobile: Optional[str] = None
     branch_id: Optional[int]
     is_active: bool
     created_at: datetime
@@ -352,6 +345,10 @@ class MedicineCreate(BaseModel):
     reorder_level: Optional[int] = 10
     expiry_date: Optional[date] = None
     batch_number: Optional[str] = None
+    hsn_code: Optional[str] = None
+    schedule: Optional[str] = None
+    gst_rate: Optional[Decimal] = None
+    mrp: Optional[Decimal] = None
 
 
 class MedicineOut(BaseModel):
@@ -361,10 +358,17 @@ class MedicineOut(BaseModel):
     category: Optional[str]
     form: Optional[str]
     strength: Optional[str]
-    unit_price: Decimal
+    manufacturer: Optional[str] = None
+    unit_price: Optional[Decimal] = None
     stock_quantity: int
     reorder_level: int
     is_active: bool
+    hsn_code: Optional[str] = None
+    schedule: Optional[str] = None
+    gst_rate: Optional[Decimal] = None
+    mrp: Optional[Decimal] = None
+    expiry_date: Optional[date] = None
+    batch_number: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -418,26 +422,35 @@ class LabResultUpdate(BaseModel):
 # ── Billing ───────────────────────────────────────────────────────────────────
 
 class InvoiceItemCreate(BaseModel):
-    description: str
-    item_type: str
+    description: Optional[str] = None
+    item_type: Optional[str] = None
     quantity: int = 1
     unit_price: Decimal
+    hsn_code: Optional[str] = None
+    gst_rate: Optional[Decimal] = None
+    medicine_id: Optional[int] = None
+    discount_amount: Optional[Decimal] = Decimal("0")
+    mrp: Optional[Decimal] = None
 
 
 class InvoiceCreate(BaseModel):
-    patient_id: int
+    patient_id: Optional[int] = None
     appointment_id: Optional[int] = None
     discount: Optional[Decimal] = Decimal("0")
     tax: Optional[Decimal] = Decimal("0")
     payment_method: Optional[str] = None
     notes: Optional[str] = None
     items: List[InvoiceItemCreate]
+    customer_name: Optional[str] = None
+    customer_mobile: Optional[str] = None
+    sale_type: Optional[str] = 'prescription'
+    prescription_ref: Optional[str] = None
 
 
 class InvoiceOut(BaseModel):
     id: int
-    invoice_number: str
-    patient_id: int
+    invoice_number: Optional[str] = None
+    patient_id: Optional[int] = None
     status: str
     subtotal: Decimal
     discount: Decimal
@@ -446,6 +459,10 @@ class InvoiceOut(BaseModel):
     amount_paid: Decimal
     payment_method: Optional[str]
     created_at: datetime
+    customer_name: Optional[str] = None
+    customer_mobile: Optional[str] = None
+    sale_type: Optional[str] = None
+    gst_amount: Optional[Decimal] = None
 
     class Config:
         from_attributes = True

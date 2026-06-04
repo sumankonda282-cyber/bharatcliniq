@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime
@@ -9,7 +10,7 @@ from app.core.security import get_current_staff, require_billing_waive
 from app.models.models import (
     Medicine, Prescription, PrescriptionItem,
     LabTest, LabOrder, LabOrderItem,
-    Invoice, InvoiceItem, Staff
+    Invoice, InvoiceItem, Staff, StockTransaction
 )
 from app.schemas.schemas import (
     MedicineCreate, MedicineOut,
@@ -38,6 +39,40 @@ def add_medicine(
     return med
 
 
+@pharmacy_router.put("/medicines/{med_id}")
+def edit_medicine(
+    med_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    allowed = ['clinic_admin', 'pharmacist']
+    if current.role not in allowed:
+        raise HTTPException(status_code=403, detail="Access denied")
+    med = db.query(Medicine).filter(Medicine.id == med_id).first()
+    if not med:
+        raise HTTPException(status_code=404, detail="Medicine not found")
+    editable = [
+        'name', 'generic_name', 'category', 'form', 'strength',
+        'manufacturer', 'unit_price', 'mrp', 'hsn_code', 'schedule',
+        'gst_rate', 'reorder_level', 'is_active',
+    ]
+    for field in editable:
+        if field in body:
+            setattr(med, field, body[field])
+    db.commit()
+    db.refresh(med)
+    return {
+        "id": med.id, "name": med.name, "generic_name": med.generic_name,
+        "category": med.category, "form": med.form, "strength": med.strength,
+        "manufacturer": med.manufacturer, "unit_price": float(med.unit_price) if med.unit_price else None,
+        "mrp": float(med.mrp) if med.mrp else None, "hsn_code": med.hsn_code,
+        "schedule": med.schedule, "gst_rate": float(med.gst_rate) if med.gst_rate else None,
+        "stock_quantity": med.stock_quantity, "reorder_level": med.reorder_level,
+        "is_active": med.is_active,
+    }
+
+
 @pharmacy_router.get("/medicines/search")
 def search_medicines(
     q: str = Query(""),
@@ -62,10 +97,43 @@ def search_medicines(
             "generic_name": m.generic_name,
             "form": m.form,
             "strength": m.strength,
+            "unit_price": float(m.unit_price) if m.unit_price else None,
+            "mrp": float(m.mrp) if m.mrp else None,
+            "stock_quantity": m.stock_quantity,
+            "schedule": m.schedule,
+            "gst_rate": float(m.gst_rate) if m.gst_rate else None,
+            "hsn_code": m.hsn_code,
             "in_stock": (m.stock_quantity or 0) > 0,
         }
         for m in results
     ]
+
+
+@pharmacy_router.get("/medicines/suggest-generic")
+def suggest_generic(
+    name: str = Query(""),
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    source = db.query(Medicine).filter(
+        Medicine.name.ilike(f"%{name}%"),
+        Medicine.is_active == True,
+    ).first()
+    if not source or not source.generic_name:
+        return []
+    alternatives = db.query(Medicine).filter(
+        Medicine.generic_name.ilike(f"%{source.generic_name}%"),
+        Medicine.is_active == True,
+        Medicine.id != source.id,
+    ).all()
+    result = []
+    for m in alternatives:
+        if m.unit_price and source.unit_price and m.unit_price < source.unit_price:
+            result.append({
+                "id": m.id, "name": m.name, "generic_name": m.generic_name,
+                "unit_price": float(m.unit_price), "stock_quantity": m.stock_quantity,
+            })
+    return result
 
 
 @pharmacy_router.get("/medicines", response_model=List[MedicineOut])
@@ -91,25 +159,107 @@ def list_medicines(
     return q.order_by(Medicine.name).all()
 
 
+class StockUpdateBody(BaseModel):
+    quantity: int
+    operation: Optional[str] = "add"
+    batch_number: Optional[str] = None
+    expiry_date: Optional[str] = None
+    notes: Optional[str] = None
+    unit_cost: Optional[Decimal] = None
+    supplier_name: Optional[str] = None
+
+
 @pharmacy_router.put("/medicines/{med_id}/stock")
 def update_stock(
     med_id: int,
-    quantity: int,
-    operation: str = Query("add"),
+    body: StockUpdateBody,
     db: Session = Depends(get_db),
     current: Staff = Depends(get_current_staff),
 ):
     med = db.query(Medicine).filter(Medicine.id == med_id).first()
     if not med:
         raise HTTPException(status_code=404, detail="Medicine not found")
-    if operation == "add":
-        med.stock_quantity += quantity
-    else:
-        if med.stock_quantity < quantity:
+    qty_before = med.stock_quantity or 0
+    if body.operation == "set":
+        med.stock_quantity = body.quantity
+    elif body.operation == "subtract":
+        if qty_before < body.quantity:
             raise HTTPException(status_code=400, detail="Insufficient stock")
-        med.stock_quantity -= quantity
+        med.stock_quantity = qty_before - body.quantity
+    else:
+        med.stock_quantity = qty_before + body.quantity
+    qty_after = med.stock_quantity
+
+    from datetime import date as dt_date
+    expiry = None
+    if body.expiry_date:
+        try:
+            expiry = dt_date.fromisoformat(body.expiry_date)
+        except Exception:
+            pass
+
+    txn = StockTransaction(
+        clinic_id=current.clinic_id,
+        branch_id=current.branch_id,
+        medicine_id=med.id,
+        transaction_type=body.operation or "add",
+        quantity=body.quantity,
+        quantity_before=qty_before,
+        quantity_after=qty_after,
+        batch_number=body.batch_number,
+        expiry_date=expiry,
+        unit_cost=body.unit_cost,
+        supplier_name=body.supplier_name,
+        notes=body.notes,
+        performed_by=current.id,
+    )
+    db.add(txn)
     db.commit()
-    return {"id": med.id, "stock_quantity": med.stock_quantity}
+    db.refresh(txn)
+    return {
+        "id": med.id,
+        "stock_quantity": med.stock_quantity,
+        "transaction_id": txn.id,
+        "quantity_before": qty_before,
+        "quantity_after": qty_after,
+    }
+
+
+@pharmacy_router.get("/stock-transactions")
+def list_stock_transactions(
+    branch_id: Optional[int] = None,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    q = db.query(StockTransaction).filter(
+        StockTransaction.clinic_id == current.clinic_id
+    )
+    if branch_id:
+        q = q.filter(StockTransaction.branch_id == branch_id)
+    elif current.branch_id:
+        q = q.filter(StockTransaction.branch_id == current.branch_id)
+    txns = q.order_by(StockTransaction.created_at.desc()).limit(limit).all()
+    result = []
+    for t in txns:
+        med = db.query(Medicine).filter(Medicine.id == t.medicine_id).first()
+        staff = db.query(Staff).filter(Staff.id == t.performed_by).first() if t.performed_by else None
+        result.append({
+            "id": t.id,
+            "medicine_name": med.name if med else "Unknown",
+            "transaction_type": t.transaction_type,
+            "quantity": t.quantity,
+            "quantity_before": t.quantity_before,
+            "quantity_after": t.quantity_after,
+            "batch_number": t.batch_number,
+            "expiry_date": str(t.expiry_date) if t.expiry_date else None,
+            "unit_cost": float(t.unit_cost) if t.unit_cost else None,
+            "supplier_name": t.supplier_name,
+            "notes": t.notes,
+            "performed_by_name": staff.full_name if staff else None,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+        })
+    return result
 
 
 @pharmacy_router.get("/prescriptions/{pres_id}")
@@ -164,7 +314,7 @@ lab_router = APIRouter(prefix="/lab", tags=["laboratory"])
 @lab_router.get("/tests/search")
 def search_lab_tests(
     q: str = Query(""),
-    type: str = Query("lab"),  # "lab" or "imaging"
+    type: str = Query("lab"),
     branch_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current: Staff = Depends(get_current_staff),
@@ -173,9 +323,7 @@ def search_lab_tests(
     query = db.query(LabTest).filter(LabTest.is_active == True)
     if effective_branch:
         query = query.filter(LabTest.branch_id == effective_branch)
-    # imaging tests have category containing "imaging", "radiology", "scan", "xray" etc
-    # lab tests are everything else
-    from sqlalchemy import or_, and_
+    from sqlalchemy import or_
     imaging_keywords = ['imaging', 'radiology', 'scan', 'x-ray', 'xray', 'mri', 'ct', 'ultrasound']
     imaging_filter = or_(*[LabTest.category.ilike(f"%{kw}%") for kw in imaging_keywords])
     if type == "imaging":
@@ -314,27 +462,86 @@ def create_invoice(
 ):
     if not branch_id:
         branch_id = current.branch_id or 1
-    allowed = ['clinic_admin', 'receptionist']
+    allowed = ['clinic_admin', 'receptionist', 'pharmacist']
     if current.role not in allowed:
         raise HTTPException(status_code=403, detail="Access denied")
-    subtotal = sum(i.unit_price * i.quantity for i in payload.items)
+
+    sale_type = payload.sale_type or 'prescription'
+    if sale_type == 'prescription' and not payload.patient_id:
+        raise HTTPException(status_code=400, detail="patient_id required for prescription sale")
+
+    total_gst = Decimal("0")
+    item_rows = []
+    subtotal = Decimal("0")
+    for item in payload.items:
+        item_subtotal = item.unit_price * item.quantity
+        item_disc = item.discount_amount or Decimal("0")
+        taxable = item_subtotal - item_disc
+        gst_rate = item.gst_rate or Decimal("0")
+        item_gst = (taxable * gst_rate / 100).quantize(Decimal("0.01"))
+        item_total = taxable + item_gst
+        subtotal += item_subtotal
+        total_gst += item_gst
+        item_rows.append((item, item_gst, item_total))
+
     disc = payload.discount or Decimal("0")
     tax = payload.tax or Decimal("0")
-    total = subtotal - disc + tax
+    total = subtotal - disc + tax + total_gst
+
     inv = Invoice(
         clinic_id=current.clinic_id,
         branch_id=branch_id,
+        patient_id=payload.patient_id,
+        appointment_id=payload.appointment_id,
         invoice_number=_invoice_number(db, current.clinic_id),
-        subtotal=subtotal, discount=disc, tax=tax, total=total,
-        **{k: v for k, v in payload.model_dump().items() if k not in ("items", "discount", "tax")},
+        status='pending',
+        subtotal=subtotal,
+        discount=disc,
+        tax=tax,
+        total=total,
+        payment_method=payload.payment_method,
+        notes=payload.notes,
+        customer_name=payload.customer_name,
+        customer_mobile=payload.customer_mobile,
+        sale_type=sale_type,
+        gst_amount=total_gst,
+        prescription_ref=payload.prescription_ref,
     )
     db.add(inv)
     db.flush()
-    for item in payload.items:
+
+    for item, item_gst, item_total in item_rows:
         db.add(InvoiceItem(
-            invoice_id=inv.id, total=item.unit_price * item.quantity,
-            **item.model_dump()
+            invoice_id=inv.id,
+            description=item.description,
+            item_type=item.item_type,
+            quantity=item.quantity,
+            unit_price=item.unit_price,
+            total=item_total,
+            hsn_code=item.hsn_code,
+            gst_rate=item.gst_rate,
+            gst_amount=item_gst,
+            medicine_id=item.medicine_id,
+            discount_amount=item.discount_amount or Decimal("0"),
+            mrp=item.mrp,
         ))
+        if item.medicine_id and sale_type == 'otc':
+            med = db.query(Medicine).filter(Medicine.id == item.medicine_id).first()
+            if med:
+                qty_before = med.stock_quantity or 0
+                med.stock_quantity = max(0, qty_before - item.quantity)
+                db.add(StockTransaction(
+                    clinic_id=current.clinic_id,
+                    branch_id=branch_id,
+                    medicine_id=med.id,
+                    transaction_type='dispense',
+                    quantity=item.quantity,
+                    quantity_before=qty_before,
+                    quantity_after=med.stock_quantity,
+                    notes=f"OTC invoice {inv.invoice_number}",
+                    performed_by=current.id,
+                ))
+
     db.commit()
     db.refresh(inv)
     return inv
@@ -356,20 +563,24 @@ def list_invoices(
     result = []
     for inv in invoices:
         from app.models.models import Patient
-        patient = db.query(Patient).filter(Patient.id == inv.patient_id).first()
+        patient = db.query(Patient).filter(Patient.id == inv.patient_id).first() if inv.patient_id else None
         result.append({
             "id": inv.id,
             "invoice_number": inv.invoice_number,
             "patient_id": inv.patient_id,
-            "patient_name": patient.full_name if patient else "-",
+            "patient_name": patient.full_name if patient else (inv.customer_name or "Walk-in"),
+            "customer_name": inv.customer_name,
+            "customer_mobile": inv.customer_mobile,
+            "sale_type": inv.sale_type,
             "status": str(inv.status) if inv.status else "pending",
             "payment_status": str(inv.status) if inv.status else "pending",
-            "subtotal": float(inv.subtotal),
-            "discount": float(inv.discount),
-            "tax": float(inv.tax),
-            "total": float(inv.total),
-            "total_amount": float(inv.total),
-            "amount_paid": float(inv.amount_paid),
+            "subtotal": float(inv.subtotal or 0),
+            "discount": float(inv.discount or 0),
+            "tax": float(inv.tax or 0),
+            "gst_amount": float(inv.gst_amount or 0),
+            "total": float(inv.total or 0),
+            "total_amount": float(inv.total or 0),
+            "amount_paid": float(inv.amount_paid or 0),
             "payment_method": inv.payment_method,
             "created_at": str(inv.created_at),
         })
@@ -383,8 +594,54 @@ def get_invoice(inv_id: int, db: Session = Depends(get_db), current: Staff = Dep
     ).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Not found")
-    return {**{c.name: getattr(inv, c.name) for c in inv.__table__.columns},
-            "items": [{c.name: getattr(i, c.name) for c in i.__table__.columns} for i in inv.items]}
+    from app.models.models import Patient
+    patient = db.query(Patient).filter(Patient.id == inv.patient_id).first() if inv.patient_id else None
+    items_out = []
+    for i in inv.items:
+        med = db.query(Medicine).filter(Medicine.id == i.medicine_id).first() if i.medicine_id else None
+        items_out.append({
+            "id": i.id, "description": i.description, "item_type": i.item_type,
+            "quantity": i.quantity, "unit_price": float(i.unit_price) if i.unit_price else 0,
+            "total": float(i.total) if i.total else 0,
+            "hsn_code": i.hsn_code, "gst_rate": float(i.gst_rate) if i.gst_rate else 0,
+            "gst_amount": float(i.gst_amount) if i.gst_amount else 0,
+            "discount_amount": float(i.discount_amount) if i.discount_amount else 0,
+            "mrp": float(i.mrp) if i.mrp else None,
+            "medicine_id": i.medicine_id,
+            "medicine_name": med.name if med else None,
+        })
+    gst_breakup = {}
+    for i in inv.items:
+        rate = str(float(i.gst_rate) if i.gst_rate else 0)
+        if rate not in gst_breakup:
+            gst_breakup[rate] = {"taxable": 0, "gst": 0}
+        taxable = float(i.unit_price or 0) * (i.quantity or 1) - float(i.discount_amount or 0)
+        gst_breakup[rate]["taxable"] += taxable
+        gst_breakup[rate]["gst"] += float(i.gst_amount or 0)
+    return {
+        "id": inv.id,
+        "invoice_number": inv.invoice_number,
+        "patient_id": inv.patient_id,
+        "patient_name": patient.full_name if patient else None,
+        "patient_mobile": patient.mobile if patient else None,
+        "customer_name": inv.customer_name,
+        "customer_mobile": inv.customer_mobile,
+        "sale_type": inv.sale_type,
+        "prescription_ref": inv.prescription_ref,
+        "status": str(inv.status),
+        "subtotal": float(inv.subtotal or 0),
+        "discount": float(inv.discount or 0),
+        "tax": float(inv.tax or 0),
+        "gst_amount": float(inv.gst_amount or 0),
+        "total": float(inv.total or 0),
+        "amount_paid": float(inv.amount_paid or 0),
+        "payment_method": inv.payment_method,
+        "notes": inv.notes,
+        "created_at": inv.created_at.isoformat() if inv.created_at else None,
+        "paid_at": inv.paid_at.isoformat() if inv.paid_at else None,
+        "items": items_out,
+        "gst_breakup": gst_breakup,
+    }
 
 
 @billing_router.post("/invoices/{inv_id}/pay")
@@ -422,7 +679,6 @@ def apply_waiver(
     db:     Session = Depends(get_db),
     current: Staff = Depends(require_billing_waive),
 ):
-    """Doctor or manager applies a fee waiver with mandatory reason and audit trail."""
     if body.reason not in WAIVER_REASONS:
         raise HTTPException(400, f'reason must be one of: {", ".join(WAIVER_REASONS)}')
 
@@ -460,20 +716,18 @@ def list_waivers(
     db:      Session = Depends(get_db),
     current: Staff = Depends(require_billing_waive),
 ):
-    """Monthly waiver report for manager review."""
     from app.models.models import BillingWaiverLog, Patient
-    from datetime import date
     rows = db.query(BillingWaiverLog).filter_by(clinic_id=current.clinic_id)\
         .order_by(BillingWaiverLog.created_at.desc()).limit(200).all()
     result = []
     for r in rows:
         inv = db.query(Invoice).filter_by(id=r.invoice_id).first()
-        patient = db.query(Patient).filter_by(id=inv.patient_id).first() if inv else None
+        patient = db.query(Patient).filter_by(id=inv.patient_id).first() if inv and inv.patient_id else None
         staff = db.query(Staff).filter_by(id=r.waived_by).first()
         result.append({
             'id':            r.id,
             'invoice_id':    r.invoice_id,
-            'patient_name':  patient.full_name if patient else '—',
+            'patient_name':  patient.full_name if patient else (inv.customer_name if inv else '—'),
             'waived_by':     staff.full_name if staff else '—',
             'waiver_amount': float(r.waiver_amount),
             'reason':        r.reason,
@@ -483,7 +737,52 @@ def list_waivers(
     return result
 
 
-# ── Lab orders list (missing endpoint) ───────────────────────────
+@billing_router.get("/revenue")
+def get_revenue(
+    month: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    from sqlalchemy import text
+    params = {"clinic_id": current.clinic_id}
+    date_filter = ""
+    if month:
+        params["month_start"] = f"{month}-01"
+        params["month_end"]   = f"{month}-31"
+        date_filter = " AND i.created_at BETWEEN :month_start AND :month_end"
+
+    total_sql = text(f"""
+        SELECT
+            COALESCE(SUM(i.total), 0) as total_revenue,
+            COALESCE(SUM(i.amount_paid), 0) as collected,
+            COALESCE(SUM(i.total - COALESCE(i.amount_paid,0)), 0) as outstanding
+        FROM invoices i
+        WHERE i.clinic_id = :clinic_id{date_filter}
+        AND i.status != 'cancelled'
+    """)
+    totals = db.execute(total_sql, params).fetchone()
+
+    pay_sql = text(f"""
+        SELECT i.payment_method, COUNT(*) as count, COALESCE(SUM(i.amount_paid),0) as revenue
+        FROM invoices i
+        WHERE i.clinic_id = :clinic_id{date_filter}
+        AND i.status = 'paid' AND i.payment_method IS NOT NULL
+        GROUP BY i.payment_method ORDER BY revenue DESC
+    """)
+    by_payment = [dict(r._mapping) for r in db.execute(pay_sql, params).fetchall()]
+
+    return {
+        "total_revenue":     float(totals.total_revenue) if totals else 0,
+        "collected":         float(totals.collected) if totals else 0,
+        "outstanding":       float(totals.outstanding) if totals else 0,
+        "by_doctor":         [],
+        "by_service":        [],
+        "by_payment_method": by_payment,
+        "top_patients":      [],
+    }
+
+
+# ── Lab orders list ───────────────────────────────────────────────
 
 @lab_router.get("/orders")
 def list_lab_orders(
@@ -569,7 +868,7 @@ def complete_lab_order(
     return {"message": "Order completed"}
 
 
-# ── Pharmacy pending list (missing endpoint) ──────────────────────
+# ── Pharmacy pending list ──────────────────────────────────────────
 
 @pharmacy_router.get("/pending")
 def list_pending_prescriptions(
@@ -591,12 +890,12 @@ def list_pending_prescriptions(
         for item in rx.items:
             med = db.query(Medicine).filter(Medicine.id == item.medicine_id).first()
             items.append({
-                "id":           item.id,
+                "id":            item.id,
                 "medicine_name": med.name if med else "Unknown",
-                "dosage":       item.dosage,
-                "frequency":    item.frequency,
-                "duration":     item.duration,
-                "instructions": item.instructions,
+                "dosage":        item.dosage,
+                "frequency":     item.frequency,
+                "duration":      item.duration,
+                "instructions":  item.instructions,
             })
         result.append({
             "id":           rx.id,
@@ -624,10 +923,30 @@ def dispense_prescription_by_id(
     if not rx:
         raise HTTPException(status_code=404, detail="Prescription not found")
     rx.status = 'dispensed'
-    from datetime import datetime
     rx.dispensed_at = datetime.utcnow()
     db.commit()
     return {"message": "Dispensed successfully"}
+
+
+@pharmacy_router.get("/all")
+def get_all_prescriptions(
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    from sqlalchemy import text
+    sql = text("""
+        SELECT p.id, p.status, p.notes, p.created_at,
+               pat.full_name as patient_name, pat.id as patient_id,
+               s.full_name as doctor_name
+        FROM prescriptions p
+        JOIN patients pat ON p.patient_id = pat.id
+        LEFT JOIN staff s ON p.prescribed_by = s.id
+        WHERE p.clinic_id = :clinic_id
+        ORDER BY p.created_at DESC
+        LIMIT 100
+    """)
+    rows = db.execute(sql, {"clinic_id": current.clinic_id}).fetchall()
+    return [dict(r._mapping) for r in rows]
 
 
 # ══════════════════════════════════════════════════════════════
@@ -665,14 +984,6 @@ def list_imaging_orders(
             "modality":         o.modality,
             "body_part":        o.body_part,
             "clinical_notes":   o.clinical_notes,
-            "report":           o.report,
-            "report_url":       o.report_url,
-            "findings":         o.findings,
-            "impression":       o.impression,
-            "recommendation":   o.recommendation,
-            "technique":        o.technique,
-            "radiologist_name": o.radiologist_name,
-            "report_status":    o.report_status,
             "status":           o.status,
             "created_at":       str(o.created_at),
         })
@@ -723,9 +1034,7 @@ def update_imaging_order(
     ).first()
     if not order:
         raise HTTPException(404, "Order not found")
-    for field in ["status", "report", "report_url", "body_part", "modality",
-                  "findings", "impression", "recommendation", "technique",
-                  "radiologist_name", "report_status", "clinical_notes"]:
+    for field in ["status", "body_part", "modality", "clinical_notes"]:
         if field in body:
             setattr(order, field, body[field])
     db.commit()
@@ -748,130 +1057,13 @@ def get_imaging_order(
     patient = db.query(Pt).filter(Pt.id == order.patient_id).first()
     doctor  = db.query(St).filter(St.id == order.ordered_by).first()
     return {
-        "id":               order.id,
-        "patient_id":       order.patient_id,
-        "patient_name":     patient.full_name if patient else None,
-        "doctor_name":      doctor.full_name if doctor else None,
-        "modality":         order.modality,
-        "body_part":        order.body_part,
-        "clinical_notes":   order.clinical_notes,
-        "report":           order.report,
-        "report_url":       order.report_url,
-        "findings":         order.findings,
-        "impression":       order.impression,
-        "recommendation":   order.recommendation,
-        "technique":        order.technique,
-        "radiologist_name": order.radiologist_name,
-        "report_status":    order.report_status,
-        "status":           order.status,
-        "created_at":       str(order.created_at),
-    }
-
-
-
-
-@pharmacy_router.get("/all")
-def get_all_prescriptions(
-    db: Session = Depends(get_db),
-    current: Staff = Depends(get_current_staff),
-):
-    """Get all prescriptions including dispensed ones."""
-    from sqlalchemy import text
-    sql = text("""
-        SELECT p.id, p.status, p.notes, p.created_at,
-               pat.full_name as patient_name, pat.id as patient_id,
-               s.full_name as doctor_name
-        FROM prescriptions p
-        JOIN patients pat ON p.patient_id = pat.id
-        LEFT JOIN staff s ON p.doctor_id = s.id
-        WHERE pat.clinic_id = :clinic_id
-        ORDER BY p.created_at DESC
-        LIMIT 100
-    """)
-    rows = db.execute(sql, {"clinic_id": current.clinic_id}).fetchall()
-    return [dict(r._mapping) for r in rows]
-
-
-@billing_router.get("/revenue")
-def get_revenue(
-    month: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current: Staff = Depends(get_current_staff),
-):
-    """Revenue analytics for clinic."""
-    from sqlalchemy import text
-    params = {"clinic_id": current.clinic_id}
-    date_filter = ""
-    if month:
-        params["month_start"] = f"{month}-01"
-        params["month_end"]   = f"{month}-31"
-        date_filter = " AND i.created_at BETWEEN :month_start AND :month_end"
-
-    # Total revenue
-    total_sql = text(f"""
-        SELECT
-            COALESCE(SUM(i.total_amount), 0) as total_revenue,
-            COALESCE(SUM(i.amount_paid), 0) as collected,
-            COALESCE(SUM(i.total_amount - COALESCE(i.amount_paid,0)), 0) as outstanding
-        FROM invoices i
-        JOIN patients p ON i.patient_id = p.id
-        WHERE p.clinic_id = :clinic_id{date_filter}
-        AND i.status != 'cancelled'
-    """)
-    totals = db.execute(total_sql, params).fetchone()
-
-    # By doctor
-    doc_sql = text(f"""
-        SELECT s.full_name as doctor_name, COALESCE(SUM(i.total_amount),0) as revenue
-        FROM invoices i
-        JOIN patients p ON i.patient_id = p.id
-        LEFT JOIN staff s ON i.doctor_id = s.id
-        WHERE p.clinic_id = :clinic_id{date_filter}
-        AND i.status != 'cancelled' AND s.full_name IS NOT NULL
-        GROUP BY s.full_name ORDER BY revenue DESC LIMIT 10
-    """)
-    by_doctor = [dict(r._mapping) for r in db.execute(doc_sql, params).fetchall()]
-
-    # By service type
-    svc_sql = text(f"""
-        SELECT ii.service_type, COALESCE(SUM(ii.amount),0) as revenue
-        FROM invoice_items ii
-        JOIN invoices i ON ii.invoice_id = i.id
-        JOIN patients p ON i.patient_id = p.id
-        WHERE p.clinic_id = :clinic_id{date_filter}
-        AND i.status != 'cancelled'
-        GROUP BY ii.service_type ORDER BY revenue DESC
-    """)
-    by_service = [dict(r._mapping) for r in db.execute(svc_sql, params).fetchall()]
-
-    # By payment method
-    pay_sql = text(f"""
-        SELECT i.payment_method, COUNT(*) as count, COALESCE(SUM(i.amount_paid),0) as revenue
-        FROM invoices i
-        JOIN patients p ON i.patient_id = p.id
-        WHERE p.clinic_id = :clinic_id{date_filter}
-        AND i.status = 'paid' AND i.payment_method IS NOT NULL
-        GROUP BY i.payment_method ORDER BY revenue DESC
-    """)
-    by_payment = [dict(r._mapping) for r in db.execute(pay_sql, params).fetchall()]
-
-    # Top patients
-    pat_sql = text(f"""
-        SELECT p.full_name as patient_name, COALESCE(SUM(i.total_amount),0) as total_billed
-        FROM invoices i
-        JOIN patients p ON i.patient_id = p.id
-        WHERE p.clinic_id = :clinic_id{date_filter}
-        AND i.status != 'cancelled'
-        GROUP BY p.full_name ORDER BY total_billed DESC LIMIT 5
-    """)
-    top_patients = [dict(r._mapping) for r in db.execute(pat_sql, params).fetchall()]
-
-    return {
-        "total_revenue":      float(totals.total_revenue) if totals else 0,
-        "collected":          float(totals.collected) if totals else 0,
-        "outstanding":        float(totals.outstanding) if totals else 0,
-        "by_doctor":          by_doctor,
-        "by_service":         by_service,
-        "by_payment_method":  by_payment,
-        "top_patients":       top_patients,
+        "id":             order.id,
+        "patient_id":     order.patient_id,
+        "patient_name":   patient.full_name if patient else None,
+        "doctor_name":    doctor.full_name if doctor else None,
+        "modality":       order.modality,
+        "body_part":      order.body_part,
+        "clinical_notes": order.clinical_notes,
+        "status":         order.status,
+        "created_at":     str(order.created_at),
     }

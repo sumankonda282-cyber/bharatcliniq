@@ -1,20 +1,37 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../api/client'
-import { PackagePlus, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { PackagePlus, Loader2, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react'
 
 const TYPES = [
-  { value: 'receive_stock', label: 'Receive Stock', desc: 'Adds to current stock' },
-  { value: 'adjustment',    label: 'Adjustment',    desc: 'Overrides to new total' },
-  { value: 'return',        label: 'Return',        desc: 'Adds returned stock' },
+  { value: 'add',      label: 'Receive Stock', desc: 'Adds to current stock' },
+  { value: 'set',      label: 'Adjustment',    desc: 'Overrides to new total' },
+  { value: 'subtract', label: 'Return/Remove', desc: 'Removes from stock' },
 ]
 
 const EMPTY_FORM = {
   medicine_id: '',
-  transaction_type: 'receive_stock',
+  operation: 'add',
   quantity: '',
   batch_number: '',
   expiry_date: '',
   notes: '',
+  unit_cost: '',
+  supplier_name: '',
+}
+
+function txnTypeBadge(type) {
+  if (type === 'add') return 'badge badge-green'
+  if (type === 'set') return 'badge badge-blue'
+  if (type === 'subtract' || type === 'dispense') return 'badge badge-yellow'
+  return 'badge badge-gray'
+}
+
+function txnTypeLabel(type) {
+  if (type === 'add') return 'Receive'
+  if (type === 'set') return 'Adjustment'
+  if (type === 'subtract') return 'Return/Remove'
+  if (type === 'dispense') return 'Dispensed'
+  return type
 }
 
 export default function StockIn() {
@@ -24,7 +41,8 @@ export default function StockIn() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [recentTransactions, setRecentTransactions] = useState([])
+  const [transactions, setTransactions] = useState([])
+  const [loadingTxns, setLoadingTxns] = useState(true)
 
   const loadMedicines = useCallback(() => {
     setLoadingMeds(true)
@@ -33,7 +51,15 @@ export default function StockIn() {
       .finally(() => setLoadingMeds(false))
   }, [])
 
-  useEffect(() => { loadMedicines() }, [loadMedicines])
+  const loadTransactions = useCallback(() => {
+    setLoadingTxns(true)
+    api.get('/pharmacy/stock-transactions', { params: { limit: 50 } })
+      .then(r => setTransactions(Array.isArray(r) ? r : []))
+      .catch(() => setTransactions([]))
+      .finally(() => setLoadingTxns(false))
+  }, [])
+
+  useEffect(() => { loadMedicines(); loadTransactions() }, [loadMedicines, loadTransactions])
 
   const selectedMed = medicines.find(m => String(m.id) === String(form.medicine_id))
 
@@ -49,56 +75,25 @@ export default function StockIn() {
     const qty = Number(form.quantity)
     if (!qty || qty <= 0) { setError('Please enter a valid quantity.'); return }
 
-    const currentStock = selectedMed?.stock_quantity || 0
-    let newTotal
-    if (form.transaction_type === 'adjustment') {
-      newTotal = qty
-    } else {
-      // receive_stock and return both add to current
-      newTotal = currentStock + qty
-    }
-
     setSaving(true)
     try {
-      const payload = {
-        quantity: newTotal,
-      }
+      const payload = { quantity: qty, operation: form.operation }
       if (form.batch_number) payload.batch_number = form.batch_number
       if (form.expiry_date) payload.expiry_date = form.expiry_date
       if (form.notes) payload.notes = form.notes
+      if (form.unit_cost) payload.unit_cost = Number(form.unit_cost)
+      if (form.supplier_name) payload.supplier_name = form.supplier_name
 
-      await api.put(`/pharmacy/medicines/${form.medicine_id}/stock`, payload)
-
-      const txn = {
-        id: Date.now(),
-        medicine: selectedMed?.name || `Medicine #${form.medicine_id}`,
-        type: form.transaction_type,
-        qty,
-        newTotal,
-        batch: form.batch_number || '—',
-        notes: form.notes || '—',
-        time: new Date().toLocaleTimeString('en-IN', { timeStyle: 'short' }),
-      }
-      setRecentTransactions(prev => [txn, ...prev])
-      setSuccess(`Stock updated. ${selectedMed?.name} now has ${newTotal} units.`)
+      const result = await api.put(`/pharmacy/medicines/${form.medicine_id}/stock`, payload)
+      setSuccess(`Stock updated. ${selectedMed?.name} now has ${result.quantity_after} units.`)
       setForm(EMPTY_FORM)
       loadMedicines()
+      loadTransactions()
     } catch (ex) {
       setError(ex.message || 'Failed to update stock')
     } finally {
       setSaving(false)
     }
-  }
-
-  function txnTypeBadge(type) {
-    if (type === 'receive_stock') return 'badge badge-green'
-    if (type === 'adjustment') return 'badge badge-blue'
-    if (type === 'return') return 'badge badge-yellow'
-    return 'badge badge-gray'
-  }
-
-  function txnTypeLabel(type) {
-    return TYPES.find(t => t.value === type)?.label || type
   }
 
   return (
@@ -108,7 +103,6 @@ export default function StockIn() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-        {/* Form */}
         <div className="col-span-3">
           <div className="card p-6">
             <div className="flex items-center gap-2 mb-5">
@@ -117,7 +111,6 @@ export default function StockIn() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Medicine selector */}
               <div>
                 <label className="label">Medicine *</label>
                 {loadingMeds ? (
@@ -125,12 +118,7 @@ export default function StockIn() {
                     <Loader2 size={14} className="animate-spin" />Loading medicines…
                   </div>
                 ) : (
-                  <select
-                    className="input"
-                    value={form.medicine_id}
-                    onChange={set('medicine_id')}
-                    required
-                  >
+                  <select className="input" value={form.medicine_id} onChange={set('medicine_id')} required>
                     <option value="">— Select Medicine —</option>
                     {medicines.map(m => (
                       <option key={m.id} value={m.id}>{m.name}{m.generic_name ? ` (${m.generic_name})` : ''}</option>
@@ -140,7 +128,7 @@ export default function StockIn() {
                 {selectedMed && (
                   <div className="mt-2 px-3 py-2 bg-blue-50 rounded-xl text-sm flex items-center gap-3">
                     <span className="text-gray-500">Current Stock:</span>
-                    <span className="font-bold" style={{ color: '#0F2557' }}>{selectedMed.stock_quantity ?? 0} {selectedMed.unit || 'units'}</span>
+                    <span className="font-bold" style={{ color: '#0F2557' }}>{selectedMed.stock_quantity ?? 0} {selectedMed.form || 'units'}</span>
                     <span className={`badge ml-auto ${(selectedMed.stock_quantity || 0) === 0 ? 'badge-red' : (selectedMed.stock_quantity || 0) <= (selectedMed.reorder_level || 10) ? 'badge-yellow' : 'badge-green'}`}>
                       {(selectedMed.stock_quantity || 0) === 0 ? 'Out of Stock' : (selectedMed.stock_quantity || 0) <= (selectedMed.reorder_level || 10) ? 'Low Stock' : 'In Stock'}
                     </span>
@@ -148,7 +136,6 @@ export default function StockIn() {
                 )}
               </div>
 
-              {/* Transaction type */}
               <div>
                 <label className="label">Transaction Type *</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
@@ -156,17 +143,17 @@ export default function StockIn() {
                     <label
                       key={t.value}
                       className="flex flex-col items-center gap-1 p-3 rounded-xl border-2 cursor-pointer transition-all text-center"
-                      style={form.transaction_type === t.value
+                      style={form.operation === t.value
                         ? { borderColor: '#0F2557', background: '#0F255708' }
                         : { borderColor: '#e5e7eb' }
                       }
                     >
                       <input
                         type="radio"
-                        name="transaction_type"
+                        name="operation"
                         value={t.value}
-                        checked={form.transaction_type === t.value}
-                        onChange={set('transaction_type')}
+                        checked={form.operation === t.value}
+                        onChange={set('operation')}
                         className="sr-only"
                       />
                       <span className="text-sm font-semibold text-gray-700">{t.label}</span>
@@ -176,33 +163,29 @@ export default function StockIn() {
                 </div>
               </div>
 
-              {/* Quantity */}
               <div>
                 <label className="label">
                   Quantity *
-                  {form.transaction_type !== 'adjustment' && selectedMed && form.quantity && (
+                  {form.operation === 'add' && selectedMed && form.quantity && (
                     <span className="ml-2 text-green-600 font-normal">
                       → New total: {(selectedMed.stock_quantity || 0) + Number(form.quantity || 0)}
                     </span>
                   )}
-                  {form.transaction_type === 'adjustment' && form.quantity && (
-                    <span className="ml-2 text-blue-600 font-normal">
-                      → Will set to: {form.quantity}
-                    </span>
+                  {form.operation === 'set' && form.quantity && (
+                    <span className="ml-2 text-blue-600 font-normal">→ Will set to: {form.quantity}</span>
                   )}
                 </label>
                 <input
                   type="number"
                   className="input"
                   min="1"
-                  placeholder={form.transaction_type === 'adjustment' ? 'Enter new total stock' : 'Enter quantity to add'}
+                  placeholder={form.operation === 'set' ? 'Enter new total stock' : 'Enter quantity'}
                   value={form.quantity}
                   onChange={set('quantity')}
                   required
                 />
               </div>
 
-              {/* Batch + Expiry */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">Batch Number</label>
@@ -214,7 +197,17 @@ export default function StockIn() {
                 </div>
               </div>
 
-              {/* Notes */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Supplier Name <span className="text-gray-400 font-normal">(Optional)</span></label>
+                  <input className="input" placeholder="Supplier or distributor name" value={form.supplier_name} onChange={set('supplier_name')} />
+                </div>
+                <div>
+                  <label className="label">Unit Cost ₹ <span className="text-gray-400 font-normal">(Optional)</span></label>
+                  <input type="number" className="input" min="0" step="0.01" placeholder="Purchase price per unit" value={form.unit_cost} onChange={set('unit_cost')} />
+                </div>
+              </div>
+
               <div>
                 <label className="label">Notes</label>
                 <input className="input" placeholder="Reason or notes for this transaction" value={form.notes} onChange={set('notes')} />
@@ -247,32 +240,42 @@ export default function StockIn() {
           </div>
         </div>
 
-        {/* Recent Transactions */}
         <div className="col-span-2">
           <div className="card overflow-hidden h-fit">
-            <div className="px-5 py-4 border-b border-gray-100 font-semibold text-gray-700 text-sm flex items-center gap-2">
-              <CheckCircle size={15} style={{ color: '#16a34a' }} />
-              Recent Transactions (this session)
+            <div className="px-5 py-4 border-b border-gray-100 font-semibold text-gray-700 text-sm flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle size={15} style={{ color: '#16a34a' }} />
+                Transaction History
+              </div>
+              <button onClick={loadTransactions} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
+                <RefreshCw size={13} className={loadingTxns ? 'animate-spin' : ''} />
+              </button>
             </div>
-            {recentTransactions.length === 0 ? (
+            {loadingTxns ? (
+              <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-gray-400" /></div>
+            ) : transactions.length === 0 ? (
               <div className="p-8 text-center text-gray-400 text-sm">
                 <PackagePlus size={28} className="mx-auto mb-2 opacity-30" />
                 <p>No transactions yet</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
-                {recentTransactions.map(txn => (
+              <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
+                {transactions.map(txn => (
                   <div key={txn.id} className="px-4 py-3">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="font-medium text-sm text-gray-800 truncate">{txn.medicine}</span>
-                      <span className="text-xs text-gray-400 ml-2 flex-shrink-0">{txn.time}</span>
+                      <span className="font-medium text-sm text-gray-800 truncate">{txn.medicine_name}</span>
+                      <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
+                        {txn.created_at ? new Date(txn.created_at).toLocaleDateString('en-IN', { dateStyle: 'short' }) : ''}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={txnTypeBadge(txn.type)}>{txnTypeLabel(txn.type)}</span>
-                      <span className="text-xs text-gray-500">qty: <strong>{txn.qty}</strong></span>
-                      <span className="text-xs text-gray-500">→ stock: <strong>{txn.newTotal}</strong></span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={txnTypeBadge(txn.transaction_type)}>{txnTypeLabel(txn.transaction_type)}</span>
+                      <span className="text-xs text-gray-500">qty: <strong>{txn.quantity}</strong></span>
+                      <span className="text-xs text-gray-500">→ stock: <strong>{txn.quantity_after}</strong></span>
                     </div>
-                    {txn.batch !== '—' && <p className="text-xs text-gray-400 mt-1">Batch: {txn.batch}</p>}
+                    {txn.supplier_name && <p className="text-xs text-gray-400 mt-1">Supplier: {txn.supplier_name}</p>}
+                    {txn.batch_number && <p className="text-xs text-gray-400">Batch: {txn.batch_number}</p>}
+                    {txn.performed_by_name && <p className="text-xs text-gray-400">By: {txn.performed_by_name}</p>}
                   </div>
                 ))}
               </div>
