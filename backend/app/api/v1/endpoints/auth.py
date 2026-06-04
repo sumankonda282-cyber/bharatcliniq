@@ -73,7 +73,7 @@ def staff_login(payload: StaffLoginRequest, db: Session = Depends(get_db)):
         if datetime.utcnow() > user.temp_pw_expiry:
             raise HTTPException(status_code=401, detail="Your temporary password has expired. Contact your administrator to issue a new one.")
 
-    force_reset = bool(user.is_first_login)
+    force_reset = user.is_first_login is True
 
     token_data = {"sub": str(user.id), "role": str(user.role), "user_type": "staff",
                   "clinic_id": user.clinic_id}
@@ -176,7 +176,7 @@ def staff_me(current=Depends(get_current_staff), db: Session = Depends(get_db)):
         "clinic_name":  clinic.name if clinic else None,
         "clinic_verified": clinic.is_verified if clinic else False,
         "clinic_plan":  str(clinic.subscription_plan) if clinic else "free",
-        "force_reset":  bool(current.is_first_login),
+        "force_reset":  current.is_first_login is True,
     }
 
 
