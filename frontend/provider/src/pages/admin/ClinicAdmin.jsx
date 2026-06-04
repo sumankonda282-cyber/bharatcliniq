@@ -70,7 +70,7 @@ function BrandingTab({ clinicId, profile }) {
     fd.append('file', file)
     setUploading(true)
     try {
-      const r = await api.post('/clinic-admin/profile/logo', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      const r = await api.post('/clinic/profile/logo', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       setLogoUrl(r.data.logo_url)
       setMsg('Logo uploaded!')
     } catch { setMsg('Upload failed') } finally { setUploading(false) }
@@ -79,7 +79,7 @@ function BrandingTab({ clinicId, profile }) {
   const saveBranding = async () => {
     setSaving(true)
     try {
-      await api.put('/clinic-admin/profile', { brand_name: brandName, brand_color: brandColor })
+      await api.put('/clinic/profile', { brand_name: brandName, brand_color: brandColor })
       setMsg('Branding saved! Reload to see changes in the sidebar.')
     } catch { setMsg('Save failed') } finally { setSaving(false) }
   }
