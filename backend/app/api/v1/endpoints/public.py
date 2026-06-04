@@ -544,3 +544,19 @@ def register_clinic(body: dict, db: Session = Depends(get_db)):
         "login_email": admin_email,
         "message": "Registration successful! Your clinic is pending approval. Login at provider.bharatcliniq.com once approved."
     }
+
+
+@router.get("/branding/{clinic_id}")
+def get_clinic_branding(clinic_id: int, db: Session = Depends(get_db)):
+    """Public endpoint — returns clinic branding for portal headers."""
+    from app.models.models import Clinic
+    clinic = db.query(Clinic).filter_by(id=clinic_id, is_active=True).first()
+    if not clinic:
+        raise HTTPException(404, 'Clinic not found')
+    return {
+        'clinic_id':   clinic.id,
+        'name':        clinic.name,
+        'brand_name':  clinic.brand_name or clinic.name,
+        'brand_color': clinic.brand_color or '#0F2557',
+        'logo_url':    clinic.logo_url,
+    }

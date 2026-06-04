@@ -35,6 +35,8 @@ class Clinic(Base):
     pincode                 = Column(String(10))
     google_maps_url         = Column(Text, nullable=True)
     logo_url                = Column(String(500), nullable=True)
+    brand_name              = Column(String(200), nullable=True)  # display name shown in portals
+    brand_color             = Column(String(20), nullable=True)   # hex color e.g. #0F2557
     is_active               = Column(Boolean, default=True)
     is_verified             = Column(Boolean, default=False)
     status                  = Column(String(20), default="pending")  # pending|active|suspended|revoked

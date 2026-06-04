@@ -55,6 +55,8 @@ def get_clinic_profile(db: Session = Depends(get_db), current=Depends(get_curren
         "pincode":           clinic.pincode,
         "description":       clinic.description,
         "logo_url":          clinic.logo_url,
+        "brand_name":        clinic.brand_name,
+        "brand_color":       clinic.brand_color,
         "is_active":         clinic.is_active,
         "is_verified":       clinic.is_verified,
         "subscription_plan": clinic.subscription_plan,

@@ -22,8 +22,10 @@ const ALL_NAV = [
   { to: '/platform',     label: 'Platform',     icon: ShieldCheck,     userType: 'platform_admin' },
 ]
 
+const API_BASE = import.meta.env.VITE_API_URL || 'https://bharatcliniq.onrender.com'
+
 export default function Sidebar({ onClose }) {
-  const { user, logout, isPlatformAdmin } = useAuth()
+  const { user, branding, logout, isPlatformAdmin } = useAuth()
   const navigate = useNavigate()
 
   const visible = ALL_NAV.filter(item => {
@@ -43,9 +45,20 @@ export default function Sidebar({ onClose }) {
       className="relative left-0 top-0 h-screen w-60 flex flex-col z-40 shadow-xl"
       style={{ background: '#0F2557' }}
     >
-      {/* Logo */}
+      {/* Logo / Brand */}
       <div className="px-5 py-4 border-b border-white/10">
-        <BrandLogo size="sm" light />
+        {branding?.logo_url ? (
+          <div className="flex items-center gap-2">
+            <img
+              src={branding.logo_url.startsWith('/') ? `${API_BASE}${branding.logo_url}` : branding.logo_url}
+              alt={branding.brand_name}
+              style={{ height: 32, width: 'auto', objectFit: 'contain', borderRadius: 4 }}
+            />
+            <span className="font-extrabold text-white text-sm leading-tight">{branding.brand_name}</span>
+          </div>
+        ) : (
+          <BrandLogo size="sm" light />
+        )}
         <div className="text-xs font-semibold mt-1.5 tracking-wider uppercase" style={{ color: '#F5821E' }}>
           Doctor Portal
         </div>

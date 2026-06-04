@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { clinicApi } from '../../api'
 import { PageLoader } from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
-import { Settings, Users, UserPlus, Building2, Calendar, Plus, Edit2, ToggleLeft, ToggleRight, Clock, CheckCircle, Video } from 'lucide-react'
+import { Settings, Users, UserPlus, Building2, Calendar, Plus, Edit2, ToggleLeft, ToggleRight, Clock, CheckCircle, Video, Palette, Upload } from 'lucide-react'
+import api from '../../api/client'
 
 const ROLES = ['doctor', 'receptionist', 'pharmacist', 'lab_technician', 'clinic_admin']
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
@@ -51,6 +52,84 @@ function TelehealthFeeInput({ doc, saving, onSave }) {
     </div>
   )
 }
+
+const API_BASE = import.meta.env.VITE_API_URL || 'https://bharatcliniq.onrender.com'
+
+function BrandingTab({ clinicId, profile }) {
+  const [brandName, setBrandName]   = useState(profile.brand_name || '')
+  const [brandColor, setBrandColor] = useState(profile.brand_color || '#0F2557')
+  const [logoUrl, setLogoUrl]       = useState(profile.logo_url || '')
+  const [uploading, setUploading]   = useState(false)
+  const [saving, setSaving]         = useState(false)
+  const [msg, setMsg]               = useState('')
+
+  const uploadLogo = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const fd = new FormData()
+    fd.append('file', file)
+    setUploading(true)
+    try {
+      const r = await api.post('/clinic-admin/profile/logo', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setLogoUrl(r.data.logo_url)
+      setMsg('Logo uploaded!')
+    } catch { setMsg('Upload failed') } finally { setUploading(false) }
+  }
+
+  const saveBranding = async () => {
+    setSaving(true)
+    try {
+      await api.put('/clinic-admin/profile', { brand_name: brandName, brand_color: brandColor })
+      setMsg('Branding saved! Reload to see changes in the sidebar.')
+    } catch { setMsg('Save failed') } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="card p-6 space-y-6 max-w-lg">
+      <div>
+        <h2 className="font-semibold text-gray-800 mb-1">Portal Branding</h2>
+        <p className="text-xs text-gray-500">Customise how your clinic appears in all portals after login. The BHaratCliniq platform name is replaced with your clinic's brand in the sidebar.</p>
+      </div>
+
+      <div>
+        <label className="label">Display Name in Portals</label>
+        <input className="input" value={brandName} onChange={e => setBrandName(e.target.value)} placeholder={profile.name} />
+        <p className="text-xs text-gray-400 mt-1">Leave blank to show your clinic name.</p>
+      </div>
+
+      <div>
+        <label className="label">Brand Color</label>
+        <div className="flex gap-3 items-center">
+          <input type="color" value={brandColor} onChange={e => setBrandColor(e.target.value)} className="w-12 h-10 rounded cursor-pointer border border-gray-200" />
+          <input className="input flex-1" value={brandColor} onChange={e => setBrandColor(e.target.value)} placeholder="#0F2557" />
+          <span className="w-8 h-8 rounded-lg border border-gray-200" style={{ background: brandColor }} />
+        </div>
+      </div>
+
+      <div>
+        <label className="label">Clinic Logo</label>
+        {logoUrl && (
+          <div className="mb-3 flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+            <img src={logoUrl.startsWith('/') ? `${API_BASE}${logoUrl}` : logoUrl} alt="Logo" style={{ height: 48, objectFit: 'contain' }} />
+            <span className="text-xs text-gray-500">{logoUrl}</span>
+          </div>
+        )}
+        <label className="btn-secondary cursor-pointer inline-flex items-center gap-2">
+          <Upload size={13} />{uploading ? 'Uploading…' : 'Upload Logo (JPG/PNG/WEBP)'}
+          <input type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden" onChange={uploadLogo} />
+        </label>
+        <p className="text-xs text-gray-400 mt-1">Displayed in portal sidebar next to your clinic name.</p>
+      </div>
+
+      <button onClick={saveBranding} disabled={saving} className="btn-primary w-full justify-center">
+        <Palette size={15} />{saving ? 'Saving…' : 'Save Branding'}
+      </button>
+
+      {msg && <p className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg">{msg}</p>}
+    </div>
+  )
+}
+
 
 export default function ClinicAdmin() {
   const [tab, setTab] = useState('staff')
@@ -261,6 +340,7 @@ export default function ClinicAdmin() {
           { key: 'schedule',   label: 'Schedules',     icon: Calendar },
           { key: 'telehealth', label: 'Telehealth',    icon: Video },
           { key: 'profile',    label: 'Clinic Profile', icon: Building2 },
+          { key: 'branding',   label: 'Branding',       icon: Palette },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${tab === t.key ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}>
@@ -431,6 +511,10 @@ export default function ClinicAdmin() {
             </div>
           </div>
         </div>
+      )}
+
+      {tab === 'branding' && profile && (
+        <BrandingTab clinicId={profile.id} profile={profile} onSaved={() => {}} />
       )}
 
       {/* Add Staff Modal */}
