@@ -1,6 +1,6 @@
 {
   "name": "bharatcliniq-imaging",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "scripts": {
     "dev": "vite --port 5179",

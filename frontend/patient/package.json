@@ -1,6 +1,6 @@
 {
   "name": "bharatcliniq-patient",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "private": true,
   "scripts": {
     "dev": "vite --port 5175",
