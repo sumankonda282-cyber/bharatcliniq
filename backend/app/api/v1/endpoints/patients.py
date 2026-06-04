@@ -250,3 +250,81 @@ def bhid_lookup(
         })
 
     return {"patient": patient_out, "visits": visits}
+
+
+@router.get("/{id}/results")
+def patient_results_timeline(
+    id: int,
+    db: Session = Depends(get_db),
+    current = Depends(get_current_staff),
+):
+    """Return all lab + imaging orders (with signed results) for a patient — for provider results timeline."""
+    from app.core.security import _require_roles, CLINICAL_ROLES, LAB_ROLES, IMAGING_ROLES
+    _require_roles(current, CLINICAL_ROLES | LAB_ROLES | IMAGING_ROLES, 'Access denied')
+
+    from app.models.models import LabOrder, LabResult, ImagingOrder, ImagingResult
+    MODALITY_LABELS = {
+        'CR': 'X-Ray', 'DX': 'X-Ray (Digital)', 'CT': 'CT Scan',
+        'MR': 'MRI', 'US': 'Ultrasound', 'NM': 'Nuclear Medicine',
+        'PT': 'PET Scan', 'MG': 'Mammography', 'OT': 'Other',
+    }
+
+    patient = db.query(Patient).filter_by(id=id, clinic_id=current.clinic_id).first()
+    if not patient:
+        raise HTTPException(404, 'Patient not found')
+
+    lab_orders = db.query(LabOrder).filter_by(
+        patient_id=id, clinic_id=current.clinic_id
+    ).order_by(LabOrder.created_at.desc()).limit(50).all()
+
+    imaging_orders = db.query(ImagingOrder).filter_by(
+        patient_id=id, clinic_id=current.clinic_id
+    ).order_by(ImagingOrder.created_at.desc()).limit(50).all()
+
+    def _lab_out(o):
+        res = o.result
+        doc = db.query(Staff).filter_by(id=o.ordered_by).first() if o.ordered_by else None
+        return {
+            'type': 'lab',
+            'id': o.id, 'order_id': o.order_id,
+            'test_names': o.test_names or [],
+            'priority': o.priority, 'status': o.status,
+            'ordered_by': doc.full_name if doc else '—',
+            'created_at': o.created_at.isoformat() if o.created_at else None,
+            'result': {
+                'observations': res.observations or [],
+                'interpretation': res.interpretation,
+                'signed_at': res.signed_at.isoformat() if res.signed_at else None,
+                'report_hash': res.report_hash,
+                'has_pdf': bool(res.pdf_b64),
+                'status': res.status,
+            } if res else None,
+        }
+
+    def _img_out(o):
+        res = o.result
+        doc = db.query(Staff).filter_by(id=o.ordered_by).first() if o.ordered_by else None
+        return {
+            'type': 'imaging',
+            'id': o.id, 'order_id': o.order_id,
+            'modality': o.modality,
+            'modality_label': MODALITY_LABELS.get(o.modality or '', o.modality or ''),
+            'body_part': o.body_part,
+            'study_description': o.study_description,
+            'priority': o.priority, 'status': o.status,
+            'ordered_by': doc.full_name if doc else '—',
+            'created_at': o.created_at.isoformat() if o.created_at else None,
+            'result': {
+                'findings': res.findings,
+                'impression': res.impression,
+                'signed_at': res.signed_at.isoformat() if res.signed_at else None,
+                'report_hash': res.report_hash,
+                'has_pdf': bool(res.pdf_b64),
+                'status': res.status,
+            } if res else None,
+        }
+
+    return {
+        'lab_orders': [_lab_out(o) for o in lab_orders],
+        'imaging_orders': [_img_out(o) for o in imaging_orders],
+    }

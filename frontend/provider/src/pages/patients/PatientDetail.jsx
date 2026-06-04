@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { patientsApi, tagsApi } from '../../api'
+import api from '../../api/client'
 import { PageLoader } from '../../components/ui/Spinner'
 import {
   ArrowLeft, ChevronDown, ChevronUp, Lock, User,
   Phone, Mail, MapPin, Tag, Plus, X, Edit2, Save,
+  FlaskConical, ScanLine, CheckCircle, AlertTriangle, Loader2,
 } from 'lucide-react'
 
 // ── TagInput (same 3-tier system as PatientList) ──────────────────────────────
@@ -318,6 +320,136 @@ function EditModal({ patient, onSave, onClose }) {
   )
 }
 
+// ── Results Timeline ──────────────────────────────────────────────────────────
+const FLAG_COLOR = { H:'#CC1414', HH:'#7f1d1d', L:'#1d4ed8', LL:'#1e3a8a', N:'#16a34a', A:'#d97706' }
+const FLAG_LABEL = { H:'High', HH:'Critical High', L:'Low', LL:'Critical Low', N:'Normal', A:'Abnormal' }
+const MODALITY_COLOR = {
+  CT:'#0F2557', MR:'#7c3aed', MRI:'#7c3aed', CR:'#0369a1', DX:'#0369a1',
+  US:'#059669', NM:'#b45309', PT:'#dc2626', MG:'#be185d', OT:'#6b7280',
+}
+
+function ResultsTimeline({ patientId }) {
+  const [data, setData]     = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState({})
+
+  useEffect(() => {
+    api.get(`/patients/${patientId}/results`)
+      .then(r => setData(r.data))
+      .catch(() => setData({ lab_orders: [], imaging_orders: [] }))
+      .finally(() => setLoading(false))
+  }, [patientId])
+
+  const toggle = (key) => setExpanded(e => ({ ...e, [key]: !e[key] }))
+
+  if (loading) return <div className="p-6 text-center text-gray-400 text-sm flex gap-2 justify-center"><Loader2 size={14} className="animate-spin" /> Loading results…</div>
+
+  const labOrders     = data?.lab_orders || []
+  const imagingOrders = data?.imaging_orders || []
+  const total         = labOrders.length + imagingOrders.length
+
+  if (total === 0) return <div className="p-6 text-center text-gray-400 text-sm">No lab or imaging orders found.</div>
+
+  return (
+    <div className="divide-y divide-gray-100">
+      {labOrders.map(o => {
+        const key = `lab-${o.id}`
+        const open = expanded[key]
+        const hasAbnormal = (o.result?.observations || []).some(obs => obs.flag && obs.flag !== 'N')
+        return (
+          <div key={key}>
+            <button onClick={() => toggle(key)} className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-gray-50 transition-colors">
+              <FlaskConical size={15} style={{ color: '#0F2557' }} className="shrink-0" />
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-semibold text-gray-800 mr-2">{o.order_id}</span>
+                <span className="text-xs text-gray-400">{(o.test_names || []).join(', ') || 'Lab order'}</span>
+                {hasAbnormal && <AlertTriangle size={12} className="inline ml-1 text-red-500" />}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {o.status === 'signed'
+                  ? <span className="text-xs font-semibold text-green-700 flex items-center gap-0.5"><CheckCircle size={11} /> Signed</span>
+                  : <span className="text-xs text-gray-400">{o.status}</span>}
+                <span className="text-xs text-gray-300">{o.created_at ? o.created_at.substring(0,10) : ''}</span>
+                {open ? <ChevronUp size={13} className="text-gray-400" /> : <ChevronDown size={13} className="text-gray-400" />}
+              </div>
+            </button>
+            {open && o.result && (
+              <div className="px-5 pb-4 bg-gray-50/60 space-y-2">
+                {(o.result.observations || []).map((obs, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm p-2 rounded-lg"
+                    style={{ background: obs.flag && obs.flag !== 'N' ? (FLAG_COLOR[obs.flag] || '#6b7280') + '10' : '#fff', border: '1px solid #f1f5f9' }}>
+                    <div>
+                      <span className="font-medium text-gray-700">{obs.test_name || obs.name || `Test ${i+1}`}</span>
+                      {obs.value != null && <span className="ml-2 font-mono font-bold text-xs" style={{ color: obs.flag && obs.flag !== 'N' ? FLAG_COLOR[obs.flag] : '#374151' }}>{obs.value} {obs.unit || ''}</span>}
+                      {obs.ref_range && <span className="ml-2 text-xs text-gray-400">({obs.ref_range})</span>}
+                    </div>
+                    {obs.flag && obs.flag !== 'N' && (
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ background: (FLAG_COLOR[obs.flag] || '#6b7280') + '20', color: FLAG_COLOR[obs.flag] || '#6b7280' }}>
+                        {FLAG_LABEL[obs.flag] || obs.flag}
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {o.result.interpretation && (
+                  <div className="text-xs bg-blue-50 border border-blue-100 rounded-lg p-2 text-blue-900">
+                    <span className="font-semibold">Interpretation: </span>{o.result.interpretation}
+                  </div>
+                )}
+                {o.result.signed_at && (
+                  <p className="text-xs text-gray-400">Signed {new Date(o.result.signed_at).toLocaleString('en-IN')}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {imagingOrders.map(o => {
+        const key = `img-${o.id}`
+        const open = expanded[key]
+        const modColor = MODALITY_COLOR[o.modality] || '#6b7280'
+        return (
+          <div key={key}>
+            <button onClick={() => toggle(key)} className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-gray-50 transition-colors">
+              <ScanLine size={15} style={{ color: modColor }} className="shrink-0" />
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-semibold text-gray-800 mr-2">{o.order_id}</span>
+                <span className="px-1.5 py-0.5 rounded text-white text-xs font-bold mr-1" style={{ background: modColor }}>{o.modality || '—'}</span>
+                <span className="text-xs text-gray-400">{o.body_part || o.study_description || o.modality_label}</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {o.status === 'signed'
+                  ? <span className="text-xs font-semibold text-green-700 flex items-center gap-0.5"><CheckCircle size={11} /> Signed</span>
+                  : <span className="text-xs text-gray-400">{o.status}</span>}
+                <span className="text-xs text-gray-300">{o.created_at ? o.created_at.substring(0,10) : ''}</span>
+                {open ? <ChevronUp size={13} className="text-gray-400" /> : <ChevronDown size={13} className="text-gray-400" />}
+              </div>
+            </button>
+            {open && o.result && (
+              <div className="px-5 pb-4 bg-gray-50/60 space-y-2">
+                {o.result.findings && (
+                  <div className="text-sm">
+                    <span className="font-semibold text-gray-600 text-xs">Findings: </span>
+                    <span className="text-gray-700">{o.result.findings}</span>
+                  </div>
+                )}
+                {o.result.impression && (
+                  <div className="text-xs bg-blue-50 border border-blue-100 rounded-lg p-2 text-blue-900">
+                    <span className="font-semibold">Impression: </span>{o.result.impression}
+                  </div>
+                )}
+                {o.result.signed_at && (
+                  <p className="text-xs text-gray-400">Signed {new Date(o.result.signed_at).toLocaleString('en-IN')}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function PatientDetail() {
   const { id } = useParams()
@@ -425,7 +557,12 @@ export default function PatientDetail() {
         }
       </Section>
 
-      {/* Section 3 — External Encounters */}
+      {/* Section 3 — Lab & Imaging Results */}
+      <Section title="Lab & Imaging Results" defaultOpen={false}>
+        <ResultsTimeline patientId={parseInt(id)} />
+      </Section>
+
+      {/* Section 4 — External Encounters */}
       {external && external.length > 0 && (
         <Section title="External Encounters" badge={external.length} defaultOpen={false}>
           <div className="divide-y divide-gray-100">

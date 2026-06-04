@@ -168,29 +168,81 @@ def portal_bills(current=Depends(get_current_patient), db: Session = Depends(get
 
 @router.get("/lab-results")
 def portal_lab_results(current=Depends(get_current_patient), db: Session = Depends(get_db)):
-    from app.models.models import LabOrder, DoctorProfile, Clinic
+    from app.models.models import LabOrder, LabResult, Staff, Clinic
     patients = db.query(Patient).filter(Patient.portal_user_id == current.id).all()
     patient_ids = [p.id for p in patients]
     if not patient_ids:
         return {"lab_results": []}
     orders = db.query(LabOrder).filter(
-        LabOrder.patient_id.in_(patient_ids)
+        LabOrder.patient_id.in_(patient_ids),
+        LabOrder.status == 'signed',
     ).order_by(LabOrder.created_at.desc()).limit(30).all()
     result = []
     for lo in orders:
-        doc = db.query(DoctorProfile).filter(DoctorProfile.id == lo.ordered_by).first() if lo.ordered_by else None
+        doc = db.query(Staff).filter(Staff.id == lo.ordered_by).first() if lo.ordered_by else None
         clinic = db.query(Clinic).filter(Clinic.id == lo.clinic_id).first()
-        items = [{"test_name": i.test_name, "result_value": i.result_value,
-                  "is_abnormal": i.is_abnormal, "result_notes": i.result_notes} for i in lo.items]
+        res = lo.result
         result.append({
             "id": lo.id,
+            "order_id": lo.order_id,
             "date": str(lo.created_at.date()) if lo.created_at else None,
-            "doctor_name": doc.staff.full_name if doc and doc.staff else "Unknown",
+            "doctor_name": doc.full_name if doc else "Unknown",
             "clinic_name": clinic.name if clinic else "Unknown",
-            "status": str(lo.status) if lo.status else "pending",
-            "items": items,
+            "status": lo.status,
+            "test_names": lo.test_names or [],
+            "result": {
+                "observations": res.observations or [],
+                "interpretation": res.interpretation,
+                "signed_at": res.signed_at.isoformat() if res.signed_at else None,
+                "report_hash": res.report_hash,
+                "has_pdf": bool(res.pdf_b64),
+            } if res else None,
         })
     return {"lab_results": result}
+
+
+@router.get("/imaging-results")
+def portal_imaging_results(current=Depends(get_current_patient), db: Session = Depends(get_db)):
+    from app.models.models import ImagingOrder, ImagingResult, Staff, Clinic
+    MODALITY_LABELS = {
+        'CR': 'X-Ray', 'DX': 'X-Ray (Digital)', 'CT': 'CT Scan',
+        'MR': 'MRI', 'US': 'Ultrasound', 'NM': 'Nuclear Medicine',
+        'PT': 'PET Scan', 'MG': 'Mammography', 'RF': 'Fluoroscopy',
+        'XA': 'Angiography', 'OT': 'Other',
+    }
+    patients = db.query(Patient).filter(Patient.portal_user_id == current.id).all()
+    patient_ids = [p.id for p in patients]
+    if not patient_ids:
+        return {"imaging_results": []}
+    orders = db.query(ImagingOrder).filter(
+        ImagingOrder.patient_id.in_(patient_ids),
+        ImagingOrder.status == 'signed',
+    ).order_by(ImagingOrder.created_at.desc()).limit(30).all()
+    result = []
+    for io in orders:
+        doc = db.query(Staff).filter(Staff.id == io.ordered_by).first() if io.ordered_by else None
+        clinic = db.query(Clinic).filter(Clinic.id == io.clinic_id).first()
+        res = io.result
+        result.append({
+            "id": io.id,
+            "order_id": io.order_id,
+            "date": str(io.created_at.date()) if io.created_at else None,
+            "doctor_name": doc.full_name if doc else "Unknown",
+            "clinic_name": clinic.name if clinic else "Unknown",
+            "modality": io.modality,
+            "modality_label": MODALITY_LABELS.get(io.modality or '', io.modality or ''),
+            "body_part": io.body_part,
+            "study_description": io.study_description,
+            "status": io.status,
+            "result": {
+                "findings": res.findings,
+                "impression": res.impression,
+                "signed_at": res.signed_at.isoformat() if res.signed_at else None,
+                "report_hash": res.report_hash,
+                "has_pdf": bool(res.pdf_b64),
+            } if res else None,
+        })
+    return {"imaging_results": result}
 
 
 @router.put("/profile")
