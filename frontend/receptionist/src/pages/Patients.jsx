@@ -59,13 +59,13 @@ export default function Patients() {
       <div className="card overflow-hidden">
         {loading ? <div className="flex justify-center py-16"><Loader2 size={28} className="animate-spin text-gray-400" /></div>
          : patients.length === 0 ? <div className="p-10 text-center text-gray-400"><Users size={32} className="mx-auto mb-2 opacity-30" /><p>No patients found</p></div>
-         : <div className="table-wrapper"><table className="table"><thead><tr><th className="th">Name</th><th className="th">Mobile</th><th className="th">Age / Gender</th><th className="th">Blood Group</th><th className="th">BHID</th></tr></thead>
+         : <div className="table-wrapper"><table className="table"><thead><tr><th className="th">Clinic ID</th><th className="th">Name</th><th className="th">Mobile</th><th className="th">Age / Gender</th><th className="th">Blood Group</th></tr></thead>
             <tbody className="divide-y divide-gray-100">{patients.map(p => <tr key={p.id} className="tr-hover">
+              <td className="td font-mono text-xs text-gray-500">{p.clinic_patient_id || `#${p.id}`}</td>
               <td className="td font-medium">{p.full_name}</td>
               <td className="td">{p.mobile}</td>
               <td className="td">{p.date_of_birth ? Math.floor((new Date() - new Date(p.date_of_birth)) / 31557600000) + 'y' : '—'} {p.gender ? '· ' + p.gender : ''}</td>
               <td className="td">{p.blood_group || '—'}</td>
-              <td className="td text-xs font-mono text-gray-500">{p.bhid || '—'}</td>
             </tr>)}</tbody></table></div>}
       </div>
     </div>
