@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, ChevronRight, Check, CheckCircle, ArrowLeft, Mail, Phone } from 'lucide-react'
+import { Building2, ChevronRight, Check, CheckCircle, ArrowLeft, Mail, Phone, Upload, X } from 'lucide-react'
 import { publicApi } from '../api/client'
 import BrandLogo from '../components/BrandLogo'
 
@@ -19,10 +19,29 @@ function Navbar() {
 
 const STEPS = ['Clinic Details', 'Doctor Details', 'Review & Submit']
 
-const SPECIALTIES = [
+const CLINIC_TYPES = [
+  'General / Primary Care',
+  'Multispecialty',
+  'Dental',
+  'Ayurveda',
+  'Homeopathy',
+  'Naturopathy',
+  'Physiotherapy',
+  'Eye Care (Ophthalmology)',
+  'Skin & Cosmetic',
+  'Diagnostics & Lab',
+  'Emergency & Trauma',
+  'Mother & Child Care',
+  'Mental Health',
+  'Other',
+]
+
+const DOCTOR_SPECIALTIES = [
   'General Medicine', 'Cardiology', 'Dermatology', 'Pediatrics',
   'Orthopedics', 'Gynecology', 'Neurology', 'Ophthalmology',
-  'ENT', 'Psychiatry', 'Dentistry', 'Ayurveda', 'Multi-Specialty',
+  'ENT', 'Psychiatry', 'Dentistry', 'Ayurveda', 'Homeopathy',
+  'Physiotherapy', 'Radiology', 'Pathology', 'Oncology',
+  'Nephrology', 'Gastroenterology', 'Endocrinology', 'Other',
 ]
 
 const INDIAN_STATES = [
@@ -84,7 +103,7 @@ function Step1({ data, onChange, onNext }) {
   const validate = () => {
     const e = {}
     if (!data.clinic_name?.trim()) e.clinic_name = 'Clinic name is required'
-    if (!data.specialty) e.specialty = 'Specialty is required'
+    if (!data.specialty) e.specialty = 'Clinic type is required'
     if (!data.city?.trim()) e.city = 'City is required'
     if (!data.state) e.state = 'State is required'
     if (!data.phone?.trim() || !/^[6-9]\d{9}$/.test(data.phone)) e.phone = 'Valid 10-digit phone required'
@@ -109,10 +128,10 @@ function Step1({ data, onChange, onNext }) {
         <Field label="Clinic Name" required error={errors.clinic_name}>
           <input type="text" {...inp('clinic_name')} placeholder="e.g. City Care Clinic" />
         </Field>
-        <Field label="Specialty" required error={errors.specialty}>
+        <Field label="Clinic Type" required error={errors.specialty}>
           <select {...inp('specialty')}>
-            <option value="">Select specialty</option>
-            {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
+            <option value="">Select clinic type</option>
+            {CLINIC_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </Field>
         <Field label="City" required error={errors.city}>
@@ -153,6 +172,7 @@ function Step1({ data, onChange, onNext }) {
 // ── Step 2: Doctor Details ────────────────────────────────────────────────────
 function Step2({ data, onChange, onNext, onBack }) {
   const [errors, setErrors] = useState({})
+  const fileRef = useRef(null)
 
   const validate = () => {
     const e = {}
@@ -198,7 +218,7 @@ function Step2({ data, onChange, onNext, onBack }) {
         <Field label="Specialty" required error={errors.doctor_specialty}>
           <select {...inp('doctor_specialty')}>
             <option value="">Select specialty</option>
-            {SPECIALTIES.filter(s => s !== 'Multi-Specialty').map(s => <option key={s} value={s}>{s}</option>)}
+            {DOCTOR_SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </Field>
         <Field label="Qualification" required error={errors.qualification}>
@@ -213,6 +233,36 @@ function Step2({ data, onChange, onNext, onBack }) {
         <Field label="Consultation Fee (₹)">
           <input type="number" {...inp('fee')} min="0" placeholder="e.g. 500" />
         </Field>
+      </div>
+
+      {/* License upload */}
+      <div className="mt-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Degree / License Document <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        {data.license_file ? (
+          <div className="flex items-center gap-3 px-4 py-3 border border-green-300 rounded-xl bg-green-50 text-sm">
+            <Upload size={16} className="text-green-600 flex-shrink-0" />
+            <span className="text-green-700 font-medium truncate flex-1">{data.license_file.name}</span>
+            <button type="button" onClick={() => onChange('license_file', null)}
+              className="text-gray-400 hover:text-red-500 flex-shrink-0">
+              <X size={16} />
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => fileRef.current?.click()}
+            className="w-full border-2 border-dashed border-gray-300 rounded-xl py-4 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2">
+            <Upload size={16} /> Upload PDF, JPG or PNG (max 5MB)
+          </button>
+        )}
+        <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+          onChange={e => {
+            const f = e.target.files?.[0]
+            if (f && f.size <= 5 * 1024 * 1024) onChange('license_file', f)
+            else if (f) alert('File size must be under 5MB')
+            e.target.value = ''
+          }} />
+        <p className="text-xs text-gray-400 mt-1">MBBS degree, medical council registration certificate, or any valid practitioner license.</p>
       </div>
       <div className="flex gap-3 mt-8">
         <button onClick={onBack} className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 border-2 rounded-xl font-semibold text-sm"
@@ -231,7 +281,7 @@ function Step2({ data, onChange, onNext, onBack }) {
 function Step3({ data, onBack, onSubmit, submitting, error }) {
   const rows = [
     { label: 'Clinic Name',      value: data.clinic_name },
-    { label: 'Specialty',        value: data.specialty },
+    { label: 'Clinic Type',      value: data.specialty },
     { label: 'City',             value: data.city },
     { label: 'State',            value: data.state },
     { label: 'Clinic Phone',     value: data.phone },
@@ -245,6 +295,7 @@ function Step3({ data, onBack, onSubmit, submitting, error }) {
     { label: 'MCI Number',       value: data.mci_number },
     { label: 'Experience',       value: data.experience_years ? `${data.experience_years} years` : null },
     { label: 'Consultation Fee', value: data.fee ? `₹${data.fee}` : null },
+    { label: 'License Document', value: data.license_file ? data.license_file.name : null },
   ].filter(r => r.value)
 
   return (
