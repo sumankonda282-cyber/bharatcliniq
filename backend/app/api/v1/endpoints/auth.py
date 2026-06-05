@@ -8,9 +8,10 @@ from datetime import datetime, timedelta
 from app.db.session import get_db
 from app.models.models import Staff, PatientUser, PlatformAdmin, Clinic, BHProfile, BHStateGroup, BHIDSequence
 from app.schemas.schemas import StaffLoginRequest, TokenResponse, ChangePasswordRequest
+from app.core.config import settings
 from app.core.security import (
     verify_password, hash_password,
-    create_access_token, create_refresh_token,
+    create_access_token, create_refresh_token, decode_token,
     get_current_staff, get_current_patient_user,
     get_current_platform_admin
 )
@@ -558,3 +559,81 @@ def change_staff_password(
     current.hashed_password = hash_password(payload.new_password)
     db.commit()
     return {"message": "Password changed successfully"}
+
+
+# ── Token refresh endpoints ───────────────────────────────────────────────────
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/staff/refresh")
+def staff_refresh_token(payload: RefreshRequest, db: Session = Depends(get_db)):
+    """Exchange a valid refresh token for a new access token + rotated refresh token."""
+    token_data = decode_token(payload.refresh_token)
+    if not token_data or token_data.get("user_type") != "staff":
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    user = db.query(Staff).filter(Staff.id == int(token_data["sub"])).first()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="Account not found or inactive")
+
+    # Validate token version — bumping staff.token_version invalidates all existing tokens
+    if token_data.get("token_version") and user.token_version:
+        if int(token_data["token_version"]) != user.token_version:
+            raise HTTPException(status_code=401, detail="Token has been revoked")
+
+    new_data = {
+        "sub": str(user.id),
+        "role": str(user.role),
+        "user_type": "staff",
+        "clinic_id": user.clinic_id,
+        "token_version": user.token_version or 1,
+    }
+    return {
+        "access_token": create_access_token(new_data),
+        "refresh_token": create_refresh_token(new_data),
+        "token_type": "bearer",
+    }
+
+
+@router.post("/patient/refresh")
+def patient_refresh_token(payload: RefreshRequest, db: Session = Depends(get_db)):
+    """Exchange a valid patient refresh token for a new access token + rotated refresh token."""
+    token_data = decode_token(payload.refresh_token)
+    if not token_data or token_data.get("user_type") != "patient":
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    user = db.query(PatientUser).filter(PatientUser.id == int(token_data["sub"])).first()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="Account not found or inactive")
+
+    new_data = {
+        "sub": str(user.id),
+        "user_type": "patient",
+        "bh_profile_id": token_data.get("bh_profile_id"),
+    }
+    return {
+        "access_token": create_access_token(new_data),
+        "refresh_token": create_refresh_token(new_data),
+        "token_type": "bearer",
+    }
+
+
+@router.post("/platform/refresh")
+def platform_refresh_token(payload: RefreshRequest, db: Session = Depends(get_db)):
+    """Exchange a valid platform admin refresh token for new tokens."""
+    token_data = decode_token(payload.refresh_token)
+    if not token_data or token_data.get("user_type") != "platform_admin":
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    admin = db.query(PlatformAdmin).filter(PlatformAdmin.id == int(token_data["sub"])).first()
+    if not admin or not admin.is_active:
+        raise HTTPException(status_code=401, detail="Account not found or inactive")
+
+    new_data = {"sub": str(admin.id), "user_type": "platform_admin", "token_version": token_data.get("token_version")}
+    return {
+        "access_token": create_access_token(new_data),
+        "refresh_token": create_refresh_token(new_data),
+        "token_type": "bearer",
+    }

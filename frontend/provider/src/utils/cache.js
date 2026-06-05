@@ -1,6 +1,8 @@
 const DB_NAME = 'bh_provider_cache'
 const DB_VERSION = 1
 const STORE = 'cache'
+// Bump CACHE_VERSION when API response shapes change — old entries are never read
+const CACHE_VERSION = 1
 
 export const TTL = {
   QUEUE:          2 * 60 * 1000,  // 2 min   — dashboard queue snapshot

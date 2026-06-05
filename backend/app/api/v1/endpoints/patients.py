@@ -493,11 +493,11 @@ def list_correction_requests(
         AuditLog.reason == "pending",
     ).order_by(AuditLog.created_at.desc()).all()
 
-    import ast
+    import json
     result = []
     for log in logs:
         try:
-            details = ast.literal_eval(log.comment or "{}")
+            details = json.loads(log.comment or "{}")
         except Exception:
             details = {}
         result.append({
@@ -543,9 +543,9 @@ def approve_correction(
     if log.reason != "pending":
         raise HTTPException(status_code=400, detail=f"Request is already {log.reason}")
 
-    import ast
+    import json
     try:
-        details = ast.literal_eval(log.comment or "{}")
+        details = json.loads(log.comment or "{}")
     except Exception:
         details = {}
 
