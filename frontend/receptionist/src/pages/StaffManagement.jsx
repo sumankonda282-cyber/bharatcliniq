@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api/client'
+import { cachedFetch, cacheInvalidate, TTL } from '../utils/cache'
 import { PlusCircle, Eye, EyeOff, AlertCircle, CheckCircle, ToggleLeft, ToggleRight } from 'lucide-react'
 
 const ROLES = [
@@ -35,9 +36,13 @@ export default function StaffManagement() {
   const [success, setSuccess]   = useState('')
   const [togglingId, setTogglingId] = useState(null)
 
-  const load = () => {
+  const load = (invalidate = false) => {
     setLoading(true)
-    api.get('/clinic/staff').then(setStaff).catch(() => {}).finally(() => setLoading(false))
+    const run = async () => {
+      if (invalidate) await cacheInvalidate('recep_staff_list')
+      await cachedFetch('recep_staff_list', () => api.get('/clinic/staff'), r => { setStaff(Array.isArray(r) ? r : r || []); setLoading(false) }, TTL.MEDIUM)
+    }
+    run().catch(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
 
@@ -48,7 +53,7 @@ export default function StaffManagement() {
       setSuccess(`${form.full_name} added successfully.`)
       setForm(EMPTY_FORM)
       setShowForm(false)
-      load()
+      load(true)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -60,7 +65,7 @@ export default function StaffManagement() {
     setTogglingId(s.id)
     try {
       await api.put(`/clinic/staff/${s.id}/toggle`)
-      load()
+      load(true)
     } catch (err) {
       alert(err.message)
     } finally {

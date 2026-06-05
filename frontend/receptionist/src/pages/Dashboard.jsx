@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api/client'
+import { cachedFetch, TTL } from '../utils/cache'
 import { CalendarDays, Users, CreditCard, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 
 function StatCard({ icon: Icon, label, value, color }) {
@@ -22,10 +23,17 @@ export default function Dashboard() {
   const today = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
-    api.get('/appointments', { params: { appointment_date: today, limit: 100 } })
-      .then(r => setAppts(Array.isArray(r) ? r : []))
-      .catch(() => {})
-      .finally(() => setLoading(false))
+    cachedFetch(
+      `recep_dashboard_${today}`,
+      () => api.get('/appointments', { params: { appointment_date: today, limit: 100 } }),
+      r => { setAppts(Array.isArray(r) ? r : []); setLoading(false) },
+      TTL.QUEUE
+    ).catch(() => setLoading(false))
+    const interval = setInterval(() => {
+      api.get('/appointments', { params: { appointment_date: today, limit: 100 } })
+        .then(r => setAppts(Array.isArray(r) ? r : [])).catch(() => {})
+    }, 30_000)
+    return () => clearInterval(interval)
   }, [today])
 
   const waiting   = appts.filter(a => a.status === 'scheduled' || a.status === 'waiting').length

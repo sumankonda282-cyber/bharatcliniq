@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../api/client'
+import { cachedGet, TTL } from '../utils/cache'
 import { Plus, Search, RefreshCw, Loader2, CalendarDays } from 'lucide-react'
 
 const STATUS_COLORS = { scheduled:'badge-yellow', waiting:'badge-yellow', in_progress:'badge-purple', completed:'badge-green', cancelled:'badge-red', no_show:'badge-gray' }
@@ -24,8 +25,10 @@ export default function Appointments() {
 
   useEffect(() => { load() }, [load])
   useEffect(() => {
-    api.get('/patients', { params: { limit: 500 } }).then(r => setPatients(Array.isArray(r) ? r : []))
-    api.get('/clinic/doctors').then(r => setDoctors(Array.isArray(r) ? r : []))
+    cachedGet('recep_patients_list', () => api.get('/patients', { params: { limit: 500 } }), TTL.SHORT)
+      .then(r => setPatients(Array.isArray(r) ? r : [])).catch(() => {})
+    cachedGet('recep_doctors_list', () => api.get('/clinic/doctors'), TTL.MEDIUM)
+      .then(r => setDoctors(Array.isArray(r) ? r : [])).catch(() => {})
   }, [])
 
   const updateStatus = async (id, status) => {

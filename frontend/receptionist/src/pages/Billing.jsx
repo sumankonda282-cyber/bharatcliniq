@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../api/client'
+import { cachedFetch, cacheInvalidate, TTL } from '../utils/cache'
 import { CreditCard, Loader2, FileText, X, Printer } from 'lucide-react'
 
 function DayReport({ invoices }) {
@@ -108,18 +109,25 @@ export default function Billing() {
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(null)
 
-  const load = useCallback(() => {
+  const load = useCallback((invalidate = false) => {
     setLoading(true)
-    api.get('/billing/invoices', { params: { limit: 100 } })
-      .then(r => setInvoices(Array.isArray(r) ? r : []))
-      .finally(() => setLoading(false))
+    const run = async () => {
+      if (invalidate) await cacheInvalidate('recep_invoices')
+      await cachedFetch(
+        'recep_invoices',
+        () => api.get('/billing/invoices', { params: { limit: 100 } }),
+        r => { setInvoices(Array.isArray(r) ? r : []); setLoading(false) },
+        TTL.SHORT
+      )
+    }
+    run().catch(() => setLoading(false))
   }, [])
 
   useEffect(() => { load() }, [load])
 
   const collectPayment = async (id, method = 'cash') => {
     setPaying(id)
-    try { await api.post(`/billing/invoices/${id}/pay`, { payment_method: method }); load() }
+    try { await api.post(`/billing/invoices/${id}/pay`, { payment_method: method }); load(true) }
     catch {}
     finally { setPaying(null) }
   }

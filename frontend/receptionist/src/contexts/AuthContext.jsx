@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import api from '../api/client'
+import { cacheClear } from '../utils/cache'
 
 const AuthContext = createContext(null)
 
@@ -41,7 +42,7 @@ export function AuthProvider({ children }) {
     return me
   }
 
-  const logout = () => { localStorage.clear(); setUser(null); window.location.href = '/login' }
+  const logout = () => { localStorage.clear(); cacheClear(); setUser(null); window.location.href = '/login' }
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>

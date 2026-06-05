@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../api/client'
+import { cachedFetch, cacheInvalidate, TTL } from '../utils/cache'
 import { Plus, Search, Loader2, Users, ChevronDown, ChevronUp, Edit2, Check, X, AlertCircle, CheckCircle } from 'lucide-react'
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -334,10 +335,18 @@ export default function Patients() {
 
   const load = useCallback(() => {
     setLoading(true)
-    const params = search ? { search, limit: 50 } : { limit: 50 }
-    api.get('/patients', { params })
-      .then(r => setPatients(Array.isArray(r) ? r : []))
-      .finally(() => setLoading(false))
+    if (!search) {
+      cachedFetch(
+        'recep_patients_list',
+        () => api.get('/patients', { params: { limit: 50 } }),
+        r => { setPatients(Array.isArray(r) ? r : []); setLoading(false) },
+        TTL.SHORT
+      ).catch(() => setLoading(false))
+    } else {
+      api.get('/patients', { params: { search, limit: 50 } })
+        .then(r => setPatients(Array.isArray(r) ? r : []))
+        .finally(() => setLoading(false))
+    }
   }, [search])
 
   useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t) }, [load])
@@ -352,6 +361,7 @@ export default function Patients() {
         delete payload.guardian_mobile
       }
       await api.post('/patients', payload)
+      await cacheInvalidate('recep_patients_list')
       setShowNew(false)
       setForm({ full_name: '', mobile: '', date_of_birth: '', gender: '', blood_group: '', guardian_name: '', guardian_mobile: '' })
       setShowGuardian(false)
