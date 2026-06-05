@@ -1,7 +1,51 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import api from '../api/client'
 import { cachedFetch, cacheInvalidate, TTL } from '../utils/cache'
-import { Plus, Search, Loader2, Users, ChevronDown, ChevronUp, Edit2, Check, X, AlertCircle, CheckCircle } from 'lucide-react'
+import { Plus, Search, Loader2, Users, ChevronDown, ChevronUp, Edit2, Check, X, AlertCircle, CheckCircle, BadgeCheck } from 'lucide-react'
+
+// ── BHID Lookup hook ──────────────────────────────────────────────────────────
+function useBhidLookup(mobile, dob) {
+  const [status, setStatus] = useState(null) // null | 'found' | 'not_found' | 'loading'
+  const [result, setResult] = useState(null)
+  const timerRef = useRef(null)
+
+  useEffect(() => {
+    clearTimeout(timerRef.current)
+    if (!mobile || mobile.length < 10 || !dob) { setStatus(null); setResult(null); return }
+    setStatus('loading')
+    timerRef.current = setTimeout(async () => {
+      try {
+        const r = await api.get('/inpatient/bhid/lookup', { params: { mobile, dob } })
+        setResult(r)
+        setStatus('found')
+      } catch {
+        setStatus('not_found')
+        setResult(null)
+      }
+    }, 600)
+    return () => clearTimeout(timerRef.current)
+  }, [mobile, dob])
+
+  return { status, result }
+}
+
+// ── BHID Status Banner ────────────────────────────────────────────────────────
+function BhidBanner({ mobile, dob }) {
+  const { status, result } = useBhidLookup(mobile, dob)
+  if (status === 'loading') return <div className="flex items-center gap-2 text-xs text-gray-400 py-1"><Loader2 size={13} className="animate-spin" />Checking BHID…</div>
+  if (status === 'found') return (
+    <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+      <BadgeCheck size={14} className="text-green-600 flex-shrink-0" />
+      <span><strong>{result?.bh_id || 'BH-ID found'}</strong> — Existing patient on platform</span>
+    </div>
+  )
+  if (status === 'not_found') return (
+    <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+      New to platform — BHID will be assigned on save
+    </div>
+  )
+  return null
+}
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function Toast({ msg, type = 'success', onClose }) {
@@ -394,6 +438,9 @@ export default function Patients() {
                 <div><label className="label">Date of Birth</label><input type="date" className="input" value={form.date_of_birth} onChange={e => setForm(f => ({ ...f, date_of_birth: e.target.value }))} /></div>
                 <div><label className="label">Gender</label><select className="input" value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}><option value="">Select</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></div>
               </div>
+              {/* BHID auto-lookup */}
+              <BhidBanner mobile={form.mobile} dob={form.date_of_birth} />
+
               <div><label className="label">Blood Group</label><select className="input" value={form.blood_group} onChange={e => setForm(f => ({ ...f, blood_group: e.target.value }))}><option value="">Unknown</option>{'A+ A- B+ B- O+ O- AB+ AB-'.split(' ').map(g => <option key={g} value={g}>{g}</option>)}</select></div>
 
               {/* Guardian collapsible section */}
@@ -434,13 +481,18 @@ export default function Patients() {
       <div className="card overflow-hidden">
         {loading ? <div className="flex justify-center py-16"><Loader2 size={28} className="animate-spin text-gray-400" /></div>
          : patients.length === 0 ? <div className="p-10 text-center text-gray-400"><Users size={32} className="mx-auto mb-2 opacity-30" /><p>No patients found</p></div>
-         : <div className="table-wrapper"><table className="table"><thead><tr><th className="th">Clinic ID</th><th className="th">Name</th><th className="th">Mobile</th><th className="th">Age / Gender</th><th className="th">Blood Group</th></tr></thead>
-            <tbody className="divide-y divide-gray-100">{patients.map(p => <tr key={p.id} className="tr-hover">
+         : <div className="table-wrapper"><table className="table"><thead><tr><th className="th">Clinic ID</th><th className="th">Name</th><th className="th">Mobile</th><th className="th">Age / Gender</th><th className="th">Blood Group</th><th className="th">BH Health ID</th></tr></thead>
+            <tbody className="divide-y divide-gray-100">{patients.map(p => <tr key={p.id} className="tr-hover" onClick={() => setSelectedPatient(p)} style={{ cursor: 'pointer' }}>
               <td className="td font-mono text-xs text-gray-500">{p.clinic_patient_id || `#${p.id}`}</td>
               <td className="td font-medium">{p.full_name}</td>
               <td className="td">{p.mobile}</td>
               <td className="td">{p.date_of_birth ? Math.floor((new Date() - new Date(p.date_of_birth)) / 31557600000) + 'y' : '—'} {p.gender ? '· ' + p.gender : ''}</td>
               <td className="td">{p.blood_group || '—'}</td>
+              <td className="td">
+                {p.bh_id
+                  ? <span className="inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200"><BadgeCheck size={11} />{p.bh_id}</span>
+                  : <span className="text-xs text-gray-400">—</span>}
+              </td>
             </tr>)}</tbody></table></div>}
       </div>
 

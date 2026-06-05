@@ -12,6 +12,7 @@ import AuditLog from './pages/AuditLog'
 import Reports from './pages/Reports'
 import BhidLookup from './pages/BhidLookup'
 import Subscriptions from './pages/Subscriptions'
+import HospitalSettings from './pages/HospitalSettings'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -37,8 +38,11 @@ export default function App() {
           <Route path="reports"    element={<Reports />} />
           <Route path="bhid"          element={<BhidLookup />} />
           <Route path="subscriptions" element={<Subscriptions />} />
+          <Route path="hospital-settings" element={<HospitalSettings />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
     </>
+  )
+}

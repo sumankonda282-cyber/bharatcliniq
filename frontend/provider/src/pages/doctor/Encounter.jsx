@@ -1,13 +1,93 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { doctorApi, appointmentsApi, pharmacyApi, labApi, encountersApi } from '../../api'
+import api from '../../api/client'
 import { cachedGet, TTL } from '../../utils/cache'
 import { PageLoader } from '../../components/ui/Spinner'
 import SearchDropdown from '../../components/SearchDropdown'
+import { useAuth } from '../../contexts/AuthContext'
 import {
   ArrowLeft, Activity, FileText, Pill, FlaskConical,
-  Save, CheckCircle, Plus, Trash2, Scan, Lock, PenLine,
+  Save, CheckCircle, Plus, Trash2, Scan, Lock, PenLine, BedDouble, X,
 } from 'lucide-react'
+
+// ── Advise Admission Modal ────────────────────────────────────────────────────
+function AdmissionModal({ appointmentId, patientName, onClose, onCreated }) {
+  const [departments, setDepartments] = useState([])
+  const [form, setForm] = useState({ department_id: '', admission_type: 'elective', urgency: 'routine', reason: '' })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    api.get('/inpatient/departments')
+      .then(r => setDepartments(Array.isArray(r) ? r : []))
+      .catch(() => {})
+  }, [])
+
+  const submit = async e => {
+    e.preventDefault(); setSaving(true); setErr('')
+    try {
+      const payload = {
+        source_appointment_id: parseInt(appointmentId),
+        department_id: form.department_id ? parseInt(form.department_id) : undefined,
+        admission_type: form.admission_type,
+        urgency: form.urgency,
+        reason: form.reason,
+      }
+      const res = await api.post('/inpatient/admissions', payload)
+      onCreated(res?.admission_number || res?.id || 'created')
+    } catch (ex) { setErr(ex.message || 'Failed to create admission') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-bold" style={{ color: '#0F2557' }}>Advise Admission</h3>
+            <p className="text-sm text-gray-500">{patientName}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><X size={16} /></button>
+        </div>
+        <form onSubmit={submit} className="space-y-3">
+          <div>
+            <label className="label">Department</label>
+            <select className="input" value={form.department_id} onChange={e => setForm(f => ({ ...f, department_id: e.target.value }))}>
+              <option value="">Select department</option>
+              {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Admission Type</label>
+            <select className="input" value={form.admission_type} onChange={e => setForm(f => ({ ...f, admission_type: e.target.value }))}>
+              <option value="elective">Elective</option>
+              <option value="emergency">Emergency</option>
+              <option value="opd_referred">OPD Referred</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Urgency</label>
+            <select className="input" value={form.urgency} onChange={e => setForm(f => ({ ...f, urgency: e.target.value }))}>
+              <option value="routine">Routine</option>
+              <option value="urgent">Urgent</option>
+              <option value="emergency">Emergency</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Reason for Admission *</label>
+            <textarea className="input resize-none" rows={3} value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} required placeholder="Clinical indication for admission…" />
+          </div>
+          {err && <p className="text-red-600 text-sm">{err}</p>}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+            <button type="submit" disabled={saving} className="btn-primary flex-1 justify-center">{saving ? 'Creating…' : 'Advise Admission'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
 
 const FIELD_LABELS = [
   ['reason_for_visit',        'Reason for Visit',           3],
@@ -22,6 +102,7 @@ const FIELD_LABELS = [
 export default function Encounter() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab]         = useState('notes')
@@ -29,7 +110,9 @@ export default function Encounter() {
   const [msg, setMsg]         = useState('')
   const [addendumMode, setAddendumMode] = useState(false)
   const [addendumText, setAddendumText] = useState('')
+  const [showAdmission, setShowAdmission] = useState(false)
   const autoSaveRef = useRef(null)
+  const isHospital = user?.org_type === 'hospital'
 
   // Clinical notes (7 fields)
   const [notes, setNotes] = useState({
@@ -200,6 +283,11 @@ export default function Encounter() {
           </div>
         </div>
         <div className="flex gap-2">
+          {isHospital && (
+            <button onClick={() => setShowAdmission(true)} className="btn-secondary text-blue-700 border-blue-200 hover:bg-blue-50">
+              <BedDouble size={15} />Advise Admission
+            </button>
+          )}
           {isLocked ? (
             <button
               onClick={() => setAddendumMode(v => !v)}
@@ -441,6 +529,19 @@ export default function Encounter() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Advise Admission Modal */}
+      {showAdmission && (
+        <AdmissionModal
+          appointmentId={id}
+          patientName={patient.full_name}
+          onClose={() => setShowAdmission(false)}
+          onCreated={(num) => {
+            setShowAdmission(false)
+            flash(`Admission created — ${num}`)
+          }}
+        />
       )}
     </div>
   )
