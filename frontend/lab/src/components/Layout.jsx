@@ -15,16 +15,23 @@ const NAV = [
   { to: '/patients', icon: Users,           label: 'Patient History' },
 ]
 
+function getInitials(name) {
+  if (!name) return '?'
+  return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+}
+
 export default function Layout() {
   const { user, logout } = useAuth()
   const [open, setOpen] = useState(false)
 
   const sidebar = (
-    <aside className="w-56 flex flex-col h-full flex-shrink-0" style={{ background: '#0F2557' }}>
+    <aside className="w-60 flex flex-col h-full flex-shrink-0" style={{ background: '#0F2557' }}>
       <div className="px-5 py-5 border-b border-white/10 flex items-center justify-between">
         <div>
-          <div className="text-white font-extrabold text-lg">BHaratCliniq</div>
-          <div className="text-xs font-semibold mt-0.5 tracking-wider uppercase" style={{ color: '#F5821E' }}>Laboratory</div>
+          <div className="text-white font-extrabold text-lg tracking-tight">BHaratCliniq</div>
+          <div className="text-xs font-semibold mt-0.5 tracking-wider uppercase" style={{ color: '#F5821E' }}>
+            Laboratory Portal
+          </div>
         </div>
         <button onClick={() => setOpen(false)} className="md:hidden text-white/60 hover:text-white">
           <X size={20} />
@@ -40,8 +47,19 @@ export default function Layout() {
         ))}
       </nav>
       <div className="px-3 py-4 border-t border-white/10">
-        <div className="text-blue-200 text-xs px-3 mb-2 truncate">{user?.full_name}</div>
-        <button onClick={logout} className="sidebar-link w-full"><LogOut size={16} />Sign Out</button>
+        <div className="flex items-center gap-3 px-2 mb-3">
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+            style={{ background: 'rgba(245,130,30,0.25)', color: '#F5821E' }}
+          >
+            {getInitials(user?.full_name || user?.email)}
+          </div>
+          <div className="min-w-0">
+            <div className="text-white text-xs font-semibold truncate">{user?.full_name || user?.email}</div>
+            <div className="text-blue-300 text-xs">Lab Technician</div>
+          </div>
+        </div>
+        <button onClick={logout} className="sidebar-link w-full"><LogOut size={15} />Sign Out</button>
       </div>
     </aside>
   )

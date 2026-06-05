@@ -7,24 +7,32 @@ import {
 } from 'lucide-react'
 
 const NAV = [
-  { to: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/pending',        icon: Clock,           label: 'Pending Approvals' },
-  { to: '/clinics',        icon: Building2,       label: 'All Clinics' },
-  { to: '/subscriptions',  icon: CreditCard,      label: 'Subscriptions' },
-  { to: '/staff',          icon: ShieldCheck,     label: 'Staff Verification' },
-  { to: '/audit',          icon: ClipboardList,   label: 'Audit Log' },
-  { to: '/reports',        icon: BarChart3,       label: 'Reports' },
-  { to: '/bhid',           icon: Search,          label: 'BH ID Lookup' },
+  { to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/pending',       icon: Clock,           label: 'Pending Approvals' },
+  { to: '/clinics',       icon: Building2,       label: 'All Clinics' },
+  { to: '/subscriptions', icon: CreditCard,      label: 'Subscriptions' },
+  { to: '/staff',         icon: ShieldCheck,     label: 'Staff Verification' },
+  { to: '/audit',         icon: ClipboardList,   label: 'Audit Log' },
+  { to: '/reports',       icon: BarChart3,       label: 'Reports' },
+  { to: '/bhid',          icon: Search,          label: 'BH ID Lookup' },
 ]
+
+function getInitials(email) {
+  if (!email) return '?'
+  return email.slice(0, 2).toUpperCase()
+}
 
 function Sidebar({ onClose }) {
   const { user, logout } = useAuth()
   return (
     <aside className="w-60 flex flex-col h-full bg-gray-900 border-r border-gray-800">
+      {/* Brand */}
       <div className="px-5 py-5 border-b border-gray-800 flex items-center justify-between">
         <div>
           <div className="text-white font-extrabold text-base tracking-tight">BharatCliniq</div>
-          <div className="text-xs font-bold mt-0.5 tracking-widest uppercase text-indigo-400">Super Admin</div>
+          <div className="text-xs font-bold mt-0.5 tracking-widest uppercase" style={{ color: '#F5821E' }}>
+            Super Admin
+          </div>
         </div>
         {onClose && (
           <button onClick={onClose} className="md:hidden text-gray-500 hover:text-white">
@@ -32,6 +40,8 @@ function Sidebar({ onClose }) {
           </button>
         )}
       </div>
+
+      {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {NAV.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to}
@@ -41,9 +51,25 @@ function Sidebar({ onClose }) {
           </NavLink>
         ))}
       </nav>
+
+      {/* User footer */}
       <div className="px-3 py-4 border-t border-gray-800">
-        <div className="text-gray-500 text-xs px-3 mb-2 truncate">{user?.email}</div>
-        <button onClick={logout} className="sidebar-link w-full text-red-400 hover:text-red-300 hover:bg-red-500/10">
+        <div className="flex items-center gap-3 px-2 mb-3">
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+            style={{ background: 'rgba(245,130,30,0.2)', color: '#F5821E' }}
+          >
+            {getInitials(user?.email || user?.full_name)}
+          </div>
+          <div className="min-w-0">
+            <div className="text-white text-xs font-semibold truncate">{user?.email || user?.full_name}</div>
+            <div className="text-gray-500 text-xs">Super Admin</div>
+          </div>
+        </div>
+        <button
+          onClick={logout}
+          className="sidebar-link w-full text-red-400 hover:text-red-300 hover:bg-red-500/10"
+        >
           <LogOut size={15} />Sign Out
         </button>
       </div>
