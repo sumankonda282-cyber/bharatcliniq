@@ -1250,4 +1250,59 @@ class ProgressNote(Base):
     # Extras
     note_type = Column(String(30), default="progress")  # progress/consult/procedure/event
     is_significant = Column(Boolean, default=False)
+
+
+class InpatientCharge(Base):
+    """Running charge line items accumulated during a hospital stay."""
+    __tablename__ = "inpatient_charges"
+    id             = Column(Integer, primary_key=True)
+    admission_id   = Column(Integer, ForeignKey("admissions.id"), nullable=False)
+    clinic_id      = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    charge_date    = Column(Date, nullable=False)
+    charge_type    = Column(String(30), nullable=False)  # room/procedure/consultation/lab/imaging/pharmacy/misc
+    description    = Column(String(300), nullable=False)
+    quantity       = Column(Numeric(10, 2), default=1)
+    unit_price     = Column(Numeric(10, 2), nullable=False)
+    total          = Column(Numeric(10, 2), nullable=False)
+    gst_rate       = Column(Numeric(5, 2), default=0)
+    gst_amount     = Column(Numeric(10, 2), default=0)
+    added_by       = Column(Integer, ForeignKey("staff.id"))
+    is_voided      = Column(Boolean, default=False)
+    void_reason    = Column(String(200))
+    created_at     = Column(DateTime, default=datetime.utcnow)
+
+
+class InpatientBill(Base):
+    """Final consolidated bill generated at discharge."""
+    __tablename__ = "inpatient_bills"
+    id              = Column(Integer, primary_key=True)
+    admission_id    = Column(Integer, ForeignKey("admissions.id"), unique=True, nullable=False)
+    clinic_id       = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    invoice_id      = Column(Integer, ForeignKey("invoices.id"), nullable=True)  # linked invoice for payment
+    bill_number     = Column(String(30), unique=True, nullable=False)
+    # Charge breakdown
+    room_charges    = Column(Numeric(10, 2), default=0)
+    procedure_charges = Column(Numeric(10, 2), default=0)
+    consultation_charges = Column(Numeric(10, 2), default=0)
+    lab_charges     = Column(Numeric(10, 2), default=0)
+    imaging_charges = Column(Numeric(10, 2), default=0)
+    pharmacy_charges = Column(Numeric(10, 2), default=0)
+    misc_charges    = Column(Numeric(10, 2), default=0)
+    subtotal        = Column(Numeric(10, 2), default=0)
+    gst_amount      = Column(Numeric(10, 2), default=0)
+    discount        = Column(Numeric(10, 2), default=0)
+    total           = Column(Numeric(10, 2), default=0)
+    # Insurance
+    insurance_claim_amount = Column(Numeric(10, 2), default=0)
+    tpa_approved_amount    = Column(Numeric(10, 2), default=0)
+    patient_payable        = Column(Numeric(10, 2), default=0)
+    # Payment
+    amount_paid     = Column(Numeric(10, 2), default=0)
+    payment_method  = Column(String(50))
+    status          = Column(String(20), default="draft")  # draft/finalized/paid/partially_paid
+    notes           = Column(Text)
+    generated_by    = Column(Integer, ForeignKey("staff.id"))
+    finalized_at    = Column(DateTime)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+    updated_at      = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)

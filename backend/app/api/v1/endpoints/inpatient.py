@@ -4,7 +4,8 @@ Departments, Wards, Beds, Admissions (ADT), Atomic Token Generation, Referrals, 
 """
 import random
 import string
-from datetime import datetime, date as dt
+from datetime import datetime, date as dt, date as date_type
+from decimal import Decimal
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -20,6 +21,7 @@ from app.models.models import (
     PatientUser, BHProfile,
     VitalSign, NursingNote, MedicationAdministration, WardRound,
     DischargeSummary, ProgressNote,
+    InpatientCharge, InpatientBill, Invoice,
 )
 
 router = APIRouter(prefix="/inpatient", tags=["inpatient"])
