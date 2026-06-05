@@ -1487,3 +1487,409 @@ def admission_timeline(
 
     events.sort(key=lambda e: e["timestamp"] or datetime.min, reverse=True)
     return events[:100]
+
+
+# ── Phase 4: Inpatient Billing ─────────────────────────────────────────────────
+
+def _money(val) -> float:
+    return round(float(val or 0), 2)
+
+
+def _charge_dict(c: InpatientCharge) -> dict:
+    return {
+        "id": c.id,
+        "admission_id": c.admission_id,
+        "clinic_id": c.clinic_id,
+        "charge_date": c.charge_date,
+        "charge_type": c.charge_type,
+        "description": c.description,
+        "quantity": _money(c.quantity),
+        "unit_price": _money(c.unit_price),
+        "total": _money(c.total),
+        "gst_rate": _money(c.gst_rate),
+        "gst_amount": _money(c.gst_amount),
+        "added_by": c.added_by,
+        "is_voided": c.is_voided,
+        "void_reason": c.void_reason,
+        "created_at": c.created_at,
+    }
+
+
+def _bill_dict(b: InpatientBill) -> dict:
+    return {
+        "id": b.id,
+        "admission_id": b.admission_id,
+        "clinic_id": b.clinic_id,
+        "invoice_id": b.invoice_id,
+        "bill_number": b.bill_number,
+        "room_charges": _money(b.room_charges),
+        "procedure_charges": _money(b.procedure_charges),
+        "consultation_charges": _money(b.consultation_charges),
+        "lab_charges": _money(b.lab_charges),
+        "imaging_charges": _money(b.imaging_charges),
+        "pharmacy_charges": _money(b.pharmacy_charges),
+        "misc_charges": _money(b.misc_charges),
+        "subtotal": _money(b.subtotal),
+        "gst_amount": _money(b.gst_amount),
+        "discount": _money(b.discount),
+        "total": _money(b.total),
+        "insurance_claim_amount": _money(b.insurance_claim_amount),
+        "tpa_approved_amount": _money(b.tpa_approved_amount),
+        "patient_payable": _money(b.patient_payable),
+        "amount_paid": _money(b.amount_paid),
+        "payment_method": b.payment_method,
+        "status": b.status,
+        "notes": b.notes,
+        "generated_by": b.generated_by,
+        "finalized_at": b.finalized_at,
+        "created_at": b.created_at,
+        "updated_at": b.updated_at,
+    }
+
+
+def _get_admission_or_404(db: Session, admission_id: int, clinic_id: int) -> Admission:
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == clinic_id,
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Admission not found")
+    return adm
+
+
+def _compute_charge_summary(charges) -> dict:
+    summary = {t: 0.0 for t in ("room", "procedure", "consultation", "lab", "imaging", "pharmacy", "misc")}
+    total_gst = 0.0
+    for c in charges:
+        key = c.charge_type if c.charge_type in summary else "misc"
+        summary[key] += _money(c.total)
+        total_gst += _money(c.gst_amount)
+    subtotal = sum(summary.values())
+    return {
+        **summary,
+        "subtotal": round(subtotal, 2),
+        "gst_amount": round(total_gst, 2),
+        "total": round(subtotal + total_gst, 2),
+    }
+
+
+# ── Running Charges ────────────────────────────────────────────────────────────
+
+@router.get("/admissions/{admission_id}/charges")
+def list_charges(
+    admission_id: int,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    adm = _get_admission_or_404(db, admission_id, current.clinic_id)
+    charges = db.query(InpatientCharge).filter(
+        InpatientCharge.admission_id == admission_id,
+        InpatientCharge.clinic_id == current.clinic_id,
+        InpatientCharge.is_voided == False,
+    ).order_by(InpatientCharge.charge_date.desc(), InpatientCharge.created_at.desc()).all()
+
+    summary = _compute_charge_summary(charges)
+
+    # Compute days admitted
+    admitted_at = adm.admitted_at or datetime.utcnow()
+    discharged_at = adm.discharged_at or datetime.utcnow()
+    days = max(1, (discharged_at.date() - admitted_at.date()).days)
+    summary["days_admitted"] = days
+
+    return {
+        "charges": [_charge_dict(c) for c in charges],
+        "summary": summary,
+    }
+
+
+@router.post("/admissions/{admission_id}/charges")
+def add_charge(
+    admission_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    _get_admission_or_404(db, admission_id, current.clinic_id)
+
+    charge_type = body.get("charge_type")
+    description = body.get("description")
+    if not charge_type or not description:
+        raise HTTPException(status_code=400, detail="charge_type and description required")
+
+    quantity = Decimal(str(body.get("quantity", 1)))
+    unit_price = Decimal(str(body.get("unit_price", 0)))
+    gst_rate = Decimal(str(body.get("gst_rate", 0)))
+    total = quantity * unit_price
+    gst_amount = total * gst_rate / 100
+
+    charge_date_raw = body.get("charge_date")
+    if charge_date_raw:
+        charge_date = dt.fromisoformat(str(charge_date_raw))
+    else:
+        charge_date = dt.today()
+
+    c = InpatientCharge(
+        admission_id=admission_id,
+        clinic_id=current.clinic_id,
+        charge_date=charge_date,
+        charge_type=charge_type,
+        description=description,
+        quantity=quantity,
+        unit_price=unit_price,
+        total=total,
+        gst_rate=gst_rate,
+        gst_amount=gst_amount,
+        added_by=current.id,
+    )
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return _charge_dict(c)
+
+
+@router.delete("/charges/{charge_id}")
+def void_charge(
+    charge_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    c = db.query(InpatientCharge).filter(
+        InpatientCharge.id == charge_id,
+        InpatientCharge.clinic_id == current.clinic_id,
+    ).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Charge not found")
+
+    c.is_voided = True
+    c.void_reason = body.get("void_reason", "")
+    db.commit()
+    db.refresh(c)
+    return _charge_dict(c)
+
+
+# ── Room Daily Charge ─────────────────────────────────────────────────────────
+
+@router.post("/admissions/{admission_id}/charges/room-daily")
+def add_room_daily_charge(
+    admission_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    _get_admission_or_404(db, admission_id, current.clinic_id)
+
+    bed_type = body.get("bed_type", "general")
+    rate_per_day = Decimal(str(body.get("rate_per_day", 0)))
+    today = dt.today()
+
+    existing = db.query(InpatientCharge).filter(
+        InpatientCharge.admission_id == admission_id,
+        InpatientCharge.clinic_id == current.clinic_id,
+        InpatientCharge.charge_type == "room",
+        InpatientCharge.charge_date == today,
+        InpatientCharge.is_voided == False,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Room charge for today already added.")
+
+    description = f"{bed_type.title()} Room - {today}"
+    c = InpatientCharge(
+        admission_id=admission_id,
+        clinic_id=current.clinic_id,
+        charge_date=today,
+        charge_type="room",
+        description=description,
+        quantity=Decimal("1"),
+        unit_price=rate_per_day,
+        total=rate_per_day,
+        gst_rate=Decimal("0"),
+        gst_amount=Decimal("0"),
+        added_by=current.id,
+    )
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return _charge_dict(c)
+
+
+# ── Bill Generation ───────────────────────────────────────────────────────────
+
+@router.get("/admissions/{admission_id}/bill")
+def get_bill(
+    admission_id: int,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    _get_admission_or_404(db, admission_id, current.clinic_id)
+    bill = db.query(InpatientBill).filter(
+        InpatientBill.admission_id == admission_id,
+        InpatientBill.clinic_id == current.clinic_id,
+    ).first()
+    if not bill:
+        raise HTTPException(status_code=404, detail="Bill not found")
+    return _bill_dict(bill)
+
+
+@router.post("/admissions/{admission_id}/bill/generate")
+def generate_bill(
+    admission_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    adm = _get_admission_or_404(db, admission_id, current.clinic_id)
+
+    charges = db.query(InpatientCharge).filter(
+        InpatientCharge.admission_id == admission_id,
+        InpatientCharge.clinic_id == current.clinic_id,
+        InpatientCharge.is_voided == False,
+    ).all()
+
+    # Group by type
+    type_totals = {t: Decimal("0") for t in ("room", "procedure", "consultation", "lab", "imaging", "pharmacy", "misc")}
+    total_gst = Decimal("0")
+    for c in charges:
+        key = c.charge_type if c.charge_type in type_totals else "misc"
+        type_totals[key] += (c.total or Decimal("0"))
+        total_gst += (c.gst_amount or Decimal("0"))
+
+    subtotal = sum(type_totals.values())
+    total = subtotal + total_gst
+
+    # Insurance deduction
+    tpa_approved = Decimal("0")
+    if adm.tpa_id:
+        tpa_approved = Decimal(str(body.get("tpa_approved_amount", 0)))
+
+    patient_payable = total - tpa_approved
+
+    bill_number = f"IPB-{current.clinic_id}-{admission_id}-{dt.today().strftime('%Y%m%d')}"
+
+    # Find or create
+    bill = db.query(InpatientBill).filter(
+        InpatientBill.admission_id == admission_id,
+        InpatientBill.clinic_id == current.clinic_id,
+    ).first()
+
+    if bill and bill.status != "draft":
+        raise HTTPException(status_code=409, detail="Bill is already finalized and cannot be regenerated.")
+
+    if not bill:
+        bill = InpatientBill(
+            admission_id=admission_id,
+            clinic_id=current.clinic_id,
+            bill_number=bill_number,
+            generated_by=current.id,
+        )
+        db.add(bill)
+
+    bill.room_charges = type_totals["room"]
+    bill.procedure_charges = type_totals["procedure"]
+    bill.consultation_charges = type_totals["consultation"]
+    bill.lab_charges = type_totals["lab"]
+    bill.imaging_charges = type_totals["imaging"]
+    bill.pharmacy_charges = type_totals["pharmacy"]
+    bill.misc_charges = type_totals["misc"]
+    bill.subtotal = subtotal
+    bill.gst_amount = total_gst
+    bill.discount = Decimal(str(body.get("discount", 0)))
+    bill.total = total - bill.discount
+    bill.tpa_approved_amount = tpa_approved
+    bill.patient_payable = bill.total - tpa_approved
+    bill.notes = body.get("notes")
+    bill.status = "draft"
+    bill.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(bill)
+    return _bill_dict(bill)
+
+
+@router.post("/admissions/{admission_id}/bill/finalize")
+def finalize_bill(
+    admission_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    adm = _get_admission_or_404(db, admission_id, current.clinic_id)
+    bill = db.query(InpatientBill).filter(
+        InpatientBill.admission_id == admission_id,
+        InpatientBill.clinic_id == current.clinic_id,
+    ).first()
+    if not bill:
+        raise HTTPException(status_code=404, detail="Bill not found. Generate it first.")
+    if bill.status not in ("draft",):
+        raise HTTPException(status_code=409, detail="Bill is already finalized.")
+
+    bill.status = "finalized"
+    bill.finalized_at = datetime.utcnow()
+    bill.updated_at = datetime.utcnow()
+
+    # Create a standard Invoice linked to this admission
+    patient = db.query(Patient).filter(Patient.id == adm.patient_id).first()
+    inv = Invoice(
+        clinic_id=current.clinic_id,
+        patient_id=adm.patient_id,
+        invoice_number=f"INV-{bill.bill_number}",
+        sale_type="inpatient",
+        customer_name=patient.full_name if patient else None,
+        subtotal=bill.subtotal,
+        gst_amount=bill.gst_amount,
+        discount=bill.discount,
+        total=bill.total,
+        amount_paid=bill.amount_paid,
+        payment_method=bill.payment_method,
+        notes=f"IPD Bill: {bill.bill_number}",
+        status="pending",
+    )
+    db.add(inv)
+    db.flush()  # get inv.id
+
+    bill.invoice_id = inv.id
+
+    db.commit()
+    db.refresh(bill)
+    return _bill_dict(bill)
+
+
+@router.post("/admissions/{admission_id}/bill/record-payment")
+def record_bill_payment(
+    admission_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    _get_admission_or_404(db, admission_id, current.clinic_id)
+    bill = db.query(InpatientBill).filter(
+        InpatientBill.admission_id == admission_id,
+        InpatientBill.clinic_id == current.clinic_id,
+    ).first()
+    if not bill:
+        raise HTTPException(status_code=404, detail="Bill not found.")
+    if bill.status == "draft":
+        raise HTTPException(status_code=409, detail="Finalize the bill before recording payment.")
+
+    amount_paid = Decimal(str(body.get("amount_paid", 0)))
+    payment_method = body.get("payment_method")
+
+    bill.amount_paid = amount_paid
+    bill.payment_method = payment_method
+    if amount_paid >= (bill.patient_payable or Decimal("0")):
+        bill.status = "paid"
+    else:
+        bill.status = "partially_paid"
+    bill.updated_at = datetime.utcnow()
+
+    # Also update linked invoice
+    if bill.invoice_id:
+        inv = db.query(Invoice).filter(Invoice.id == bill.invoice_id).first()
+        if inv:
+            inv.amount_paid = amount_paid
+            inv.payment_method = payment_method
+            inv.status = "paid" if bill.status == "paid" else "partially_paid"
+
+    db.commit()
+    db.refresh(bill)
+    return _bill_dict(bill)
