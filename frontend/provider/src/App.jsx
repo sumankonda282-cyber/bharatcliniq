@@ -24,6 +24,8 @@ const Referrals      = lazy(() => import('./pages/referrals/Referrals'))
 const ClinicAdmin    = lazy(() => import('./pages/admin/ClinicAdmin'))
 const BranchOverview = lazy(() => import('./pages/admin/BranchOverview'))
 const InpatientAdmin = lazy(() => import('./pages/admin/InpatientAdmin'))
+const InpatientDesk  = lazy(() => import('./pages/inpatient/InpatientDesk'))
+const AdmissionChart = lazy(() => import('./pages/inpatient/AdmissionChart'))
 const PlatformAdmin  = lazy(() => import('./pages/platform/PlatformAdmin'))
 
 function AppRoutes() {
@@ -62,6 +64,8 @@ function AppRoutes() {
         <Route path="/referrals"    element={<Suspense fallback={<PageLoader />}><Referrals /></Suspense>} />
         <Route path="/admin"           element={<Suspense fallback={<PageLoader />}><ClinicAdmin /></Suspense>} />
         <Route path="/inpatient-admin" element={<Suspense fallback={<PageLoader />}><InpatientAdmin /></Suspense>} />
+        <Route path="/inpatient" element={<Suspense fallback={<PageLoader />}><InpatientDesk /></Suspense>} />
+        <Route path="/inpatient/admission/:admissionId" element={<Suspense fallback={<PageLoader />}><AdmissionChart /></Suspense>} />
         <Route path="/platform"        element={<Suspense fallback={<PageLoader />}><PlatformAdmin /></Suspense>} />
       </Route>
 

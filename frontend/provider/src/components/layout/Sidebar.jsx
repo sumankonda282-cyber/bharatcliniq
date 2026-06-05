@@ -12,6 +12,7 @@ const ALL_NAV = [
   { to: '/patients',     label: 'Patients',     icon: Users,           roles: ['clinic_admin','doctor','receptionist'] },
   { to: '/appointments', label: 'Appointments', icon: Calendar,        roles: ['clinic_admin','doctor','receptionist'] },
   { to: '/doctor-desk',  label: 'Doctor Desk',  icon: Stethoscope,     roles: ['doctor','clinic_admin'] },
+  { to: '/inpatient',   label: 'Inpatient Desk', icon: BedDouble,     roles: ['doctor','clinic_admin'], hospitalOnly: true },
   { to: '/pharmacy',     label: 'Pharmacy',     icon: Pill,            roles: ['pharmacist','clinic_admin'] },
   { to: '/lab',          label: 'Laboratory',   icon: FlaskConical,    roles: ['lab_tech','clinic_admin','doctor'] },
   { to: '/imaging',      label: 'Imaging',      icon: Scan,            roles: ['imaging_tech','clinic_admin','doctor'] },
