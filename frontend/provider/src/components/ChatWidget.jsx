@@ -9,6 +9,8 @@ const ROLE_LABEL = {
   clinic_admin: 'Management',
 }
 
+const PRESENCE_COLOR = { online: '#16a34a', away: '#f59e0b', offline: '#9ca3af' }
+
 // Distinct avatar colors per role
 const ROLE_COLOR = {
   doctor: '#0F2557', nurse: '#0891b2', receptionist: '#7c3aed',
@@ -25,13 +27,23 @@ const SHORTCUTS = [
   { label: '⚠️ Urgent',        body: '⚠️ Urgent attention needed for this patient.' },
 ]
 
-function Avatar({ name, role, size = 9 }) {
+function Avatar({ name, role, size = 9, presence }) {
   const color = ROLE_COLOR[role] || '#6b7280'
-  const s = `w-${size} h-${size}`
+  const px = size * 4
   return (
-    <div className={`${s} rounded-full flex items-center justify-center font-bold text-white flex-shrink-0 text-sm`}
-      style={{ background: color }}>
-      {name?.[0]?.toUpperCase() || '?'}
+    <div className="relative flex-shrink-0" style={{ width: px, height: px }}>
+      <div
+        className="w-full h-full rounded-full flex items-center justify-center font-bold text-white text-sm"
+        style={{ background: color }}
+      >
+        {name?.[0]?.toUpperCase() || '?'}
+      </div>
+      {presence && (
+        <span
+          className="absolute bottom-0 right-0 rounded-full border-2 border-white"
+          style={{ width: 10, height: 10, background: PRESENCE_COLOR[presence] || PRESENCE_COLOR.offline }}
+        />
+      )}
     </div>
   )
 }
@@ -85,6 +97,13 @@ export default function ChatWidget() {
   }, [])
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+
+  // Heartbeat every 60s — keeps presence accurate
+  useEffect(() => {
+    api.post('/chat/heartbeat').catch(() => {})
+    const t = setInterval(() => api.post('/chat/heartbeat').catch(() => {}), 60000)
+    return () => clearInterval(t)
+  }, [])
 
   // Poll unread count every 30s when closed
   useEffect(() => {
@@ -261,7 +280,7 @@ export default function ChatWidget() {
             {view === 'new' && <span className="text-white font-semibold text-sm flex-1">New Message</span>}
             {view === 'chat' && (
               <>
-                <Avatar name={activeContact?.full_name} role={activeContact?.role} size={7} />
+                <Avatar name={activeContact?.full_name} role={activeContact?.role} size={7} presence={activeContact?.presence} />
                 <div className="flex-1 min-w-0">
                   <div className="text-white font-semibold text-sm truncate">{activeContact?.full_name}</div>
                   <div className="text-blue-200 text-xs">{ROLE_LABEL[activeContact?.role] || activeContact?.role}</div>
@@ -294,7 +313,7 @@ export default function ChatWidget() {
                           onClick={() => openChat(c)}
                           className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left border-b border-gray-50"
                         >
-                          <Avatar name={c.full_name} role={c.role} size={9} />
+                          <Avatar name={c.full_name} role={c.role} size={9} presence={c.presence} />
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-semibold text-gray-800 truncate">{c.full_name}</div>
                             {c.branch_name && (
@@ -368,7 +387,7 @@ export default function ChatWidget() {
                 const c = contacts.find(x => String(x.staff_id) === selPerson)
                 return c ? (
                   <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50">
-                    <Avatar name={c.full_name} role={c.role} size={9} />
+                    <Avatar name={c.full_name} role={c.role} size={9} presence={c.presence} />
                     <div>
                       <div className="text-sm font-semibold text-gray-800">{c.full_name}</div>
                       <div className="text-xs text-gray-400">{ROLE_LABEL[c.role] || c.role}{c.branch_name ? ` · ${c.branch_name}` : ''}</div>

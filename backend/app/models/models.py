@@ -94,6 +94,7 @@ class Staff(Base):
     token_version        = Column(Integer, default=1)
     failed_login_attempts = Column(Integer, default=0)
     locked_until         = Column(DateTime, nullable=True)
+    last_seen_at         = Column(DateTime, nullable=True)
     license_number       = Column(String(100), nullable=True)
     license_document_url = Column(String(500), nullable=True)
     avatar_url           = Column(String(500))

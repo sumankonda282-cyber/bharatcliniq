@@ -21,12 +21,27 @@ POLL_TIMEOUT = 25  # seconds
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
+ONLINE_MINUTES  = 2
+AWAY_MINUTES    = 10
+
+def _presence(last_seen: datetime | None) -> str:
+    if not last_seen:
+        return "offline"
+    delta = (datetime.utcnow() - last_seen).total_seconds() / 60
+    if delta <= ONLINE_MINUTES:
+        return "online"
+    if delta <= AWAY_MINUTES:
+        return "away"
+    return "offline"
+
+
 class ContactOut(BaseModel):
     staff_id: int
     full_name: str
     role: str
     branch_id: Optional[int]
     branch_name: Optional[str]
+    presence: str
     unread: int
 
     class Config:
@@ -140,6 +155,7 @@ def get_contacts(
             role=c.role,
             branch_id=c.branch_id,
             branch_name=branch_name,
+            presence=_presence(c.last_seen_at),
             unread=unread,
         ))
 
@@ -306,3 +322,14 @@ def get_unread_counts(
     }
     total = sum(1 for m in all_msgs if m.id not in read_ids)
     return {"total": total}
+
+
+@router.post("/heartbeat")
+def heartbeat(
+    db: Session = Depends(get_db),
+    me: Staff = Depends(get_current_staff),
+):
+    """Update last_seen_at — called every 60s by the frontend."""
+    me.last_seen_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True}

@@ -23,6 +23,7 @@ safe_cols = [
     \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS token_version INTEGER DEFAULT 1\",
     \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0\",
     \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP WITHOUT TIME ZONE\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP WITHOUT TIME ZONE\",
     \"UPDATE staff SET is_first_login = FALSE WHERE is_first_login IS NULL\",
     \"ALTER TABLE clinics ADD COLUMN IF NOT EXISTS bridge_api_key VARCHAR(64)\",
     \"ALTER TABLE clinics ADD COLUMN IF NOT EXISTS brand_name VARCHAR(200)\",
