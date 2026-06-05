@@ -973,3 +973,163 @@ class ImagingBooking(Base):
     created_at       = Column(DateTime, server_default=func.now())
 
     slot             = relationship("ImagingSlot", back_populates="bookings")
+
+
+# ── Phase 0: Inpatient Foundation ─────────────────────────────────────────────
+
+class Department(Base):
+    __tablename__ = "departments"
+    id             = Column(Integer, primary_key=True, index=True)
+    clinic_id      = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    name           = Column(String(200), nullable=False)
+    code           = Column(String(10), nullable=True)
+    dept_type      = Column(String(20), default='clinical')
+    head_doctor_id = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    color_hex      = Column(String(7), nullable=True)
+    is_active      = Column(Boolean, default=True)
+    created_at     = Column(DateTime, server_default=func.now())
+
+    wards          = relationship("Ward", back_populates="department")
+    staff_depts    = relationship("StaffDepartment", back_populates="department")
+
+
+class Ward(Base):
+    __tablename__ = "wards"
+    id            = Column(Integer, primary_key=True, index=True)
+    clinic_id     = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=False)
+    name          = Column(String(200), nullable=False)
+    floor         = Column(String(20), nullable=True)
+    wing          = Column(String(50), nullable=True)
+    ward_type     = Column(String(20), default='general')
+    total_beds    = Column(Integer, default=0)
+    is_active     = Column(Boolean, default=True)
+    created_at    = Column(DateTime, server_default=func.now())
+
+    department = relationship("Department", back_populates="wards")
+    beds       = relationship("Bed", back_populates="ward")
+
+
+class Bed(Base):
+    __tablename__ = "beds"
+    id                   = Column(Integer, primary_key=True, index=True)
+    clinic_id            = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    ward_id              = Column(Integer, ForeignKey("wards.id"), nullable=False)
+    bed_number           = Column(String(20), nullable=False)
+    bed_type             = Column(String(20), default='general')
+    status               = Column(String(20), default='vacant')
+    current_admission_id = Column(Integer, nullable=True)
+    created_at           = Column(DateTime, server_default=func.now())
+
+    ward = relationship("Ward", back_populates="beds")
+
+
+class Admission(Base):
+    __tablename__ = "admissions"
+    id                    = Column(Integer, primary_key=True, index=True)
+    clinic_id             = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    patient_id            = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    admission_number      = Column(String(30), unique=True, nullable=False)
+    admission_sequence    = Column(Integer, nullable=False)
+    department_id         = Column(Integer, ForeignKey("departments.id"), nullable=True)
+    ward_id               = Column(Integer, ForeignKey("wards.id"), nullable=True)
+    bed_id                = Column(Integer, ForeignKey("beds.id"), nullable=True)
+    admission_type        = Column(String(20), default='opd_referred')
+    source_appointment_id = Column(Integer, ForeignKey("appointments.id"), nullable=True)
+    admitting_doctor_id   = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    primary_diagnosis     = Column(Text, nullable=True)
+    admitted_at           = Column(DateTime, server_default=func.now())
+    discharged_at         = Column(DateTime, nullable=True)
+    expected_discharge    = Column(Date, nullable=True)
+    status                = Column(String(20), default='active')
+    tpa_id                = Column(String(50), nullable=True)
+    insurance_company     = Column(String(200), nullable=True)
+    policy_number         = Column(String(100), nullable=True)
+    pre_auth_number       = Column(String(100), nullable=True)
+    created_by            = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    created_at            = Column(DateTime, server_default=func.now())
+
+    patient    = relationship("Patient", foreign_keys=[patient_id])
+    department = relationship("Department", foreign_keys=[department_id])
+    ward       = relationship("Ward", foreign_keys=[ward_id])
+    bed        = relationship("Bed", foreign_keys=[bed_id])
+    doctor     = relationship("Staff", foreign_keys=[admitting_doctor_id])
+    transfers  = relationship("AdmissionTransfer", back_populates="admission")
+
+
+class AdmissionTransfer(Base):
+    __tablename__ = "admission_transfers"
+    id                 = Column(Integer, primary_key=True, index=True)
+    admission_id       = Column(Integer, ForeignKey("admissions.id"), nullable=False)
+    from_department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
+    from_ward_id       = Column(Integer, ForeignKey("wards.id"), nullable=True)
+    from_bed_id        = Column(Integer, ForeignKey("beds.id"), nullable=True)
+    to_department_id   = Column(Integer, ForeignKey("departments.id"), nullable=True)
+    to_ward_id         = Column(Integer, ForeignKey("wards.id"), nullable=True)
+    to_bed_id          = Column(Integer, ForeignKey("beds.id"), nullable=True)
+    transferred_at     = Column(DateTime, server_default=func.now())
+    transferred_by     = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    reason             = Column(Text, nullable=True)
+
+    admission = relationship("Admission", back_populates="transfers")
+
+
+class StaffDepartment(Base):
+    __tablename__ = "staff_departments"
+    id            = Column(Integer, primary_key=True, index=True)
+    staff_id      = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=False)
+    is_primary    = Column(Boolean, default=True)
+
+    department = relationship("Department", back_populates="staff_depts")
+
+
+class AppointmentTokenSequence(Base):
+    __tablename__ = "appointment_token_sequences"
+    id         = Column(Integer, primary_key=True, index=True)
+    clinic_id  = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    branch_id  = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    doctor_id  = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    date       = Column(Date, nullable=False)
+    last_token = Column(Integer, nullable=False, default=0)
+
+
+class InpatientReferral(Base):
+    __tablename__ = "referrals"
+    id                       = Column(Integer, primary_key=True, index=True)
+    clinic_id                = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    patient_id               = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    bhid                     = Column(String(15), nullable=True)
+    referral_number          = Column(String(30), unique=True, nullable=False)
+    referring_type           = Column(String(20), default='internal')
+    referring_doctor_id      = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    referring_doctor_name    = Column(String(200), nullable=True)
+    referring_doctor_reg     = Column(String(100), nullable=True)
+    referring_org_name       = Column(String(200), nullable=True)
+    referred_to_type         = Column(String(20), default='external_outside')
+    referred_to_clinic_id    = Column(Integer, ForeignKey("clinics.id"), nullable=True)
+    referred_to_doctor_id    = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    referred_to_doctor_name  = Column(String(200), nullable=True)
+    referred_to_specialty    = Column(String(100), nullable=True)
+    referred_to_org_name     = Column(String(200), nullable=True)
+    urgency                  = Column(String(20), default='routine')
+    reason                   = Column(Text, nullable=True)
+    clinical_summary         = Column(Text, nullable=True)
+    current_medications      = Column(Text, nullable=True)
+    relevant_investigations  = Column(Text, nullable=True)
+    source_appointment_id    = Column(Integer, ForeignKey("appointments.id"), nullable=True)
+    source_admission_id      = Column(Integer, ForeignKey("admissions.id"), nullable=True)
+    status                   = Column(String(20), default='draft')
+    referred_at              = Column(DateTime, server_default=func.now())
+    accepted_at              = Column(DateTime, nullable=True)
+    completed_at             = Column(DateTime, nullable=True)
+    rejection_reason         = Column(Text, nullable=True)
+    outcome_notes            = Column(Text, nullable=True)
+    resulted_in_admission    = Column(Boolean, default=False)
+    destination_admission_id = Column(Integer, ForeignKey("admissions.id"), nullable=True)
+    created_by               = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    created_at               = Column(DateTime, server_default=func.now())
+
+    patient          = relationship("Patient", foreign_keys=[patient_id])
+    referring_doctor = relationship("Staff", foreign_keys=[referring_doctor_id])
+    source_appt      = relationship("Appointment", foreign_keys=[source_appointment_id])
