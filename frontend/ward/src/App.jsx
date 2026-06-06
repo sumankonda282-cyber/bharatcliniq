@@ -13,6 +13,8 @@ import WardRounds from './pages/WardRounds'
 import ShiftHandoff from './pages/ShiftHandoff'
 import WardSetup from './pages/WardSetup'
 import PinSetup from './pages/PinSetup'
+import Assessments from './pages/Assessments'
+import DocumentationTemplates from './pages/DocumentationTemplates'
 import { Loader2 } from 'lucide-react'
 
 function AppLoader() {
@@ -55,6 +57,8 @@ function AppRoutes() {
         <Route path="mar" element={<MAR />} />
         <Route path="rounds" element={<WardRounds />} />
         <Route path="handoff" element={<ShiftHandoff />} />
+        <Route path="assessments" element={<Assessments />} />
+        <Route path="templates" element={<DocumentationTemplates />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
