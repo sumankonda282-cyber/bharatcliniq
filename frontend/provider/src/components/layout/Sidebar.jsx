@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, Users, Calendar, Stethoscope, Pill,
   FlaskConical, Scan, Receipt, BarChart3, Send, Settings,
-  ShieldCheck, LogOut, ChevronRight, Building2, LayoutGrid
+  ShieldCheck, LogOut, ChevronRight, Building2, LayoutGrid, Bed
 } from 'lucide-react'
 import BrandLogo from '../BrandLogo'
 
@@ -18,6 +18,7 @@ const ALL_NAV = [
   { to: '/billing',      label: 'Billing',      icon: Receipt,         roles: ['clinic_admin','receptionist'] },
   { to: '/analytics',   label: 'Analytics',    icon: BarChart3,       roles: ['clinic_admin'] },
   { to: '/referrals',    label: 'Referrals',    icon: Send,            roles: ['clinic_admin','doctor'] },
+  { to: '/inpatient',   label: 'Inpatient',    icon: Bed,             roles: ['clinic_admin','doctor'] },
   { to: '/admin',            label: 'Clinic Admin',    icon: Settings,     roles: ['clinic_admin'] },
   { to: '/branch-overview', label: 'Branch Overview', icon: LayoutGrid,   roles: ['clinic_admin'] },
   { to: '/platform',         label: 'Platform',        icon: ShieldCheck,  userType: 'platform_admin' },

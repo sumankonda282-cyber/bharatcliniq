@@ -637,3 +637,68 @@ def platform_refresh_token(payload: RefreshRequest, db: Session = Depends(get_db
         "refresh_token": create_refresh_token(new_data),
         "token_type": "bearer",
     }
+
+
+# ── PIN Authentication ──────────────────────────────────────────────────────────
+
+from app.core.security import hash_password, verify_password, get_current_staff
+
+@router.post("/staff/pin-setup")
+def pin_setup(body: dict, db: Session = Depends(get_db)):
+    staff_id = body.get("staff_id")
+    pin = str(body.get("pin", ""))
+
+    if len(pin) != 4 or not pin.isdigit():
+        raise HTTPException(status_code=400, detail="PIN must be exactly 4 digits")
+
+    staff = db.query(Staff).filter(Staff.id == staff_id).first()
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff not found")
+
+    staff.pin_hash = hash_password(pin)
+    staff.pin_set_at = datetime.utcnow()
+    staff.pin_reset_required = False
+    db.commit()
+    return {"detail": "PIN set successfully"}
+
+
+@router.post("/staff/pin-verify")
+def pin_verify(body: dict, db: Session = Depends(get_db)):
+    staff_id = body.get("staff_id")
+    pin = str(body.get("pin", ""))
+
+    staff = db.query(Staff).filter(Staff.id == staff_id).first()
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff not found")
+
+    # Check lockout
+    if getattr(staff, 'pin_locked_until', None) and staff.pin_locked_until > datetime.utcnow():
+        raise HTTPException(status_code=429, detail="PIN locked. Try again later.")
+
+    if not getattr(staff, 'pin_hash', None):
+        raise HTTPException(status_code=400, detail="PIN not set. Please set your PIN first.")
+
+    if not verify_password(pin, staff.pin_hash):
+        attempts = getattr(staff, 'pin_failed_attempts', 0) or 0
+        attempts += 1
+        if hasattr(staff, 'pin_failed_attempts'):
+            staff.pin_failed_attempts = attempts
+        if attempts >= 5 and hasattr(staff, 'pin_locked_until'):
+            staff.pin_locked_until = datetime.utcnow() + timedelta(minutes=15)
+        db.commit()
+        return {"verified": False, "attempts_remaining": max(0, 5 - attempts)}
+
+    # Success — reset failure counter
+    if hasattr(staff, 'pin_failed_attempts'):
+        staff.pin_failed_attempts = 0
+    if hasattr(staff, 'pin_locked_until'):
+        staff.pin_locked_until = None
+    db.commit()
+
+    return {
+        "verified":    True,
+        "staff_id":    staff.id,
+        "full_name":   staff.full_name,
+        "role":        staff.role,
+        "credentials": staff.role,
+    }

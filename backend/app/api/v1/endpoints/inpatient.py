@@ -4,7 +4,7 @@ Departments, Wards, Beds, Admissions (ADT), Atomic Token Generation, Referrals, 
 """
 import random
 import string
-from datetime import datetime, date as dt
+from datetime import datetime, date as dt, timedelta
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -18,6 +18,9 @@ from app.models.models import (
     Department, Ward, Bed, Admission, AdmissionTransfer,
     StaffDepartment, AppointmentTokenSequence, InpatientReferral,
     PatientUser, BHProfile,
+    MedicationOrder, ClinicalOrder, MedicationAdministration,
+    ProgressNote, WardRound, VitalSign,
+    DischargeSummary, InpatientCharge, InpatientBill,
 )
 
 router = APIRouter(prefix="/inpatient", tags=["inpatient"])
@@ -796,3 +799,418 @@ def bhid_assign(
     db.commit()
 
     return {"detail": "BHProfile assigned", "bh_id": profile.bh_id, "patient_id": patient_id}
+
+
+# ── CPOE helpers ────────────────────────────────────────────────────────────────
+
+FREQ_TIMES = {
+    "OD":   ["08:00"],
+    "BD":   ["08:00", "20:00"],
+    "TDS":  ["08:00", "14:00", "20:00"],
+    "QID":  ["06:00", "12:00", "18:00", "24:00"],
+    "Q4H":  ["06:00", "10:00", "14:00", "18:00", "22:00", "02:00"],
+    "Q6H":  ["06:00", "12:00", "18:00", "24:00"],
+    "Q8H":  ["06:00", "14:00", "22:00"],
+    "Q12H": ["08:00", "20:00"],
+    "HS":   ["22:00"],
+    "AC":   ["07:30", "12:30", "18:30"],
+    "PC":   ["08:30", "13:30", "19:30"],
+    "STAT": [], "PRN": [], "CONT": [],
+}
+
+
+def _get_adm_or_404(db, admission_id, clinic_id):
+    a = db.query(Admission).filter(Admission.id == admission_id, Admission.clinic_id == clinic_id).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="Admission not found")
+    return a
+
+
+def _gen_mar(db, order, start_date, end_date):
+    times = FREQ_TIMES.get(order.frequency, [])
+    if not times:
+        return
+    day = start_date
+    stop = end_date if end_date else (start_date + timedelta(days=6))
+    while day <= stop:
+        for t in times:
+            h, m = map(int, t.split(":"))
+            db.add(MedicationAdministration(
+                clinic_id    = order.clinic_id,
+                admission_id = order.admission_id,
+                patient_id   = order.patient_id,
+                order_id     = order.id,
+                drug_name    = order.drug_name,
+                dose         = order.dose,
+                route        = order.route,
+                scheduled_at = datetime(day.year, day.month, day.day, h, m),
+                status       = "scheduled",
+            ))
+        day += timedelta(days=1)
+
+
+# ── Medication Orders ───────────────────────────────────────────────────────────
+
+@router.get("/admissions/{admission_id}/orders")
+def list_med_orders(admission_id: int, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    _get_adm_or_404(db, admission_id, current.clinic_id)
+    orders = db.query(MedicationOrder).filter(
+        MedicationOrder.admission_id == admission_id,
+        MedicationOrder.clinic_id == current.clinic_id,
+    ).order_by(MedicationOrder.ordered_at.desc()).all()
+    return [_med_dict(o) for o in orders]
+
+
+@router.post("/admissions/{admission_id}/orders")
+def create_med_order(admission_id: int, body: dict, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    adm = _get_adm_or_404(db, admission_id, current.clinic_id)
+    start = dt.fromisoformat(body["start_date"]) if body.get("start_date") else dt.today()
+    dur = body.get("duration_days")
+    end = (start + timedelta(days=int(dur) - 1)) if dur else None
+    o = MedicationOrder(
+        clinic_id=current.clinic_id, admission_id=admission_id, patient_id=adm.patient_id,
+        drug_name=body["drug_name"], generic_name=body.get("generic_name"),
+        dose=body["dose"], route=body["route"], frequency=body["frequency"],
+        duration_days=dur, start_date=start, end_date=end,
+        instructions=body.get("instructions"), is_prn=body.get("is_prn", False),
+        prn_reason=body.get("prn_reason"), is_stat=body.get("is_stat", False),
+        is_continuous=body.get("is_continuous", False), iv_rate=body.get("iv_rate"),
+        iv_fluid=body.get("iv_fluid"), iv_volume_ml=body.get("iv_volume_ml"),
+        notes=body.get("notes"), ordered_by=current.id, status="active",
+    )
+    db.add(o); db.flush()
+    _gen_mar(db, o, start, end)
+    db.commit(); db.refresh(o)
+    return _med_dict(o)
+
+
+@router.patch("/orders/{order_id}")
+def update_med_order(order_id: int, body: dict, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    o = db.query(MedicationOrder).filter(MedicationOrder.id == order_id, MedicationOrder.clinic_id == current.clinic_id).first()
+    if not o:
+        raise HTTPException(status_code=404, detail="Order not found")
+    for k in ["dose", "route", "frequency", "instructions", "iv_rate", "iv_fluid", "iv_volume_ml", "notes", "status"]:
+        if k in body:
+            setattr(o, k, body[k])
+    db.commit()
+    return _med_dict(o)
+
+
+@router.post("/orders/{order_id}/discontinue")
+def discontinue_med_order(order_id: int, body: dict, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    o = db.query(MedicationOrder).filter(MedicationOrder.id == order_id, MedicationOrder.clinic_id == current.clinic_id).first()
+    if not o:
+        raise HTTPException(status_code=404, detail="Order not found")
+    o.status = "discontinued"; o.discontinued_by = current.id
+    o.discontinued_at = datetime.utcnow(); o.discontinue_reason = body.get("reason", "")
+    db.commit()
+    return {"detail": "Order discontinued"}
+
+
+def _med_dict(o):
+    return {
+        "id": o.id, "drug_name": o.drug_name, "generic_name": o.generic_name,
+        "dose": o.dose, "route": o.route, "frequency": o.frequency,
+        "duration_days": o.duration_days,
+        "start_date": o.start_date.isoformat() if o.start_date else None,
+        "end_date": o.end_date.isoformat() if o.end_date else None,
+        "instructions": o.instructions, "is_prn": o.is_prn, "prn_reason": o.prn_reason,
+        "is_stat": o.is_stat, "is_continuous": o.is_continuous,
+        "iv_rate": o.iv_rate, "iv_fluid": o.iv_fluid, "iv_volume_ml": o.iv_volume_ml,
+        "status": o.status, "ordered_by": o.ordered_by,
+        "orderer_name": o.orderer.full_name if o.orderer else None,
+        "ordered_at": o.ordered_at.isoformat() if o.ordered_at else None,
+        "discontinued_at": o.discontinued_at.isoformat() if o.discontinued_at else None,
+        "discontinue_reason": o.discontinue_reason, "notes": o.notes,
+    }
+
+
+# ── Clinical Orders ─────────────────────────────────────────────────────────────
+
+@router.get("/admissions/{admission_id}/clinical-orders")
+def list_clinical_orders(admission_id: int, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    _get_adm_or_404(db, admission_id, current.clinic_id)
+    orders = db.query(ClinicalOrder).filter(
+        ClinicalOrder.admission_id == admission_id,
+        ClinicalOrder.clinic_id == current.clinic_id,
+    ).order_by(ClinicalOrder.ordered_at.desc()).all()
+    return [_clin_dict(o) for o in orders]
+
+
+@router.post("/admissions/{admission_id}/clinical-orders")
+def create_clinical_order(admission_id: int, body: dict, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    adm = _get_adm_or_404(db, admission_id, current.clinic_id)
+    o = ClinicalOrder(
+        clinic_id=current.clinic_id, admission_id=admission_id, patient_id=adm.patient_id,
+        order_type=body["order_type"], order_detail=body["order_detail"],
+        priority=body.get("priority", "routine"), instructions=body.get("instructions"),
+        notes=body.get("notes"), ordered_by=current.id, status="pending",
+    )
+    db.add(o); db.commit(); db.refresh(o)
+    return _clin_dict(o)
+
+
+@router.post("/clinical-orders/{order_id}/acknowledge")
+def ack_clinical_order(order_id: int, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    o = db.query(ClinicalOrder).filter(ClinicalOrder.id == order_id, ClinicalOrder.clinic_id == current.clinic_id).first()
+    if not o:
+        raise HTTPException(status_code=404, detail="Order not found")
+    o.status = "acknowledged"; o.acknowledged_by = current.id; o.acknowledged_at = datetime.utcnow()
+    db.commit()
+    return _clin_dict(o)
+
+
+@router.post("/clinical-orders/{order_id}/complete")
+def complete_clinical_order(order_id: int, body: dict, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    o = db.query(ClinicalOrder).filter(ClinicalOrder.id == order_id, ClinicalOrder.clinic_id == current.clinic_id).first()
+    if not o:
+        raise HTTPException(status_code=404, detail="Order not found")
+    o.status = "completed"; o.completed_by = current.id; o.completed_at = datetime.utcnow()
+    o.result_notes = body.get("result_notes", "")
+    db.commit()
+    return _clin_dict(o)
+
+
+def _clin_dict(o):
+    return {
+        "id": o.id, "order_type": o.order_type, "order_detail": o.order_detail,
+        "priority": o.priority, "instructions": o.instructions, "status": o.status,
+        "ordered_by": o.ordered_by,
+        "orderer_name": o.orderer.full_name if o.orderer else None,
+        "ordered_at": o.ordered_at.isoformat() if o.ordered_at else None,
+        "acknowledged_at": o.acknowledged_at.isoformat() if o.acknowledged_at else None,
+        "completed_at": o.completed_at.isoformat() if o.completed_at else None,
+        "result_notes": o.result_notes, "notes": o.notes,
+    }
+
+
+# ── MAR ─────────────────────────────────────────────────────────────────────────
+
+@router.get("/admissions/{admission_id}/mar")
+def get_mar(admission_id: int, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    _get_adm_or_404(db, admission_id, current.clinic_id)
+    entries = db.query(MedicationAdministration).filter(
+        MedicationAdministration.admission_id == admission_id,
+        MedicationAdministration.clinic_id == current.clinic_id,
+    ).order_by(MedicationAdministration.scheduled_at.asc()).all()
+    return [_mar_dict(e) for e in entries]
+
+
+@router.patch("/mar/{entry_id}/administer")
+def administer_mar(entry_id: int, body: dict, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    e = db.query(MedicationAdministration).filter(MedicationAdministration.id == entry_id, MedicationAdministration.clinic_id == current.clinic_id).first()
+    if not e:
+        raise HTTPException(status_code=404, detail="MAR entry not found")
+    e.status = body.get("status", "given")
+    if e.status == "given":
+        e.administered_at = datetime.utcnow()
+        e.administered_by = body.get("administered_by", current.id)
+    e.reason_held = body.get("reason_held")
+    e.site = body.get("site")
+    e.notes = body.get("notes")
+    db.commit()
+    return _mar_dict(e)
+
+
+def _mar_dict(e):
+    return {
+        "id": e.id, "order_id": e.order_id, "drug_name": e.drug_name,
+        "dose": e.dose, "route": e.route,
+        "scheduled_at": e.scheduled_at.isoformat() if e.scheduled_at else None,
+        "administered_at": e.administered_at.isoformat() if e.administered_at else None,
+        "status": e.status, "reason_held": e.reason_held, "site": e.site, "notes": e.notes,
+    }
+
+
+# ── Progress Notes ──────────────────────────────────────────────────────────────
+
+@router.get("/admissions/{admission_id}/notes")
+def list_notes(admission_id: int, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    _get_adm_or_404(db, admission_id, current.clinic_id)
+    notes = db.query(ProgressNote).filter(
+        ProgressNote.admission_id == admission_id, ProgressNote.clinic_id == current.clinic_id
+    ).order_by(ProgressNote.created_at.desc()).all()
+    return [_note_dict(n) for n in notes]
+
+
+@router.post("/admissions/{admission_id}/notes")
+def create_note(admission_id: int, body: dict, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    adm = _get_adm_or_404(db, admission_id, current.clinic_id)
+    n = ProgressNote(
+        clinic_id=current.clinic_id, admission_id=admission_id, patient_id=adm.patient_id,
+        content=body["content"], note_type=body.get("note_type", "progress"), created_by=current.id,
+    )
+    db.add(n); db.commit(); db.refresh(n)
+    return _note_dict(n)
+
+
+@router.post("/notes/{note_id}/sign")
+def sign_note(note_id: int, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    n = db.query(ProgressNote).filter(ProgressNote.id == note_id, ProgressNote.clinic_id == current.clinic_id).first()
+    if not n:
+        raise HTTPException(status_code=404, detail="Note not found")
+    n.is_signed = True; n.signed_by = current.id; n.signed_at = datetime.utcnow()
+    n.signer_credentials = current.role
+    db.commit()
+    return _note_dict(n)
+
+
+def _note_dict(n):
+    return {
+        "id": n.id, "note_type": n.note_type, "content": n.content,
+        "is_signed": n.is_signed, "signer_credentials": n.signer_credentials,
+        "signed_at": n.signed_at.isoformat() if n.signed_at else None,
+        "created_at": n.created_at.isoformat() if n.created_at else None,
+    }
+
+
+# ── Ward Rounds ─────────────────────────────────────────────────────────────────
+
+@router.get("/admissions/{admission_id}/rounds")
+def list_rounds(admission_id: int, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    _get_adm_or_404(db, admission_id, current.clinic_id)
+    rounds = db.query(WardRound).filter(
+        WardRound.admission_id == admission_id, WardRound.clinic_id == current.clinic_id
+    ).order_by(WardRound.created_at.desc()).all()
+    return [_round_dict(r) for r in rounds]
+
+
+@router.post("/admissions/{admission_id}/rounds")
+def create_round(admission_id: int, body: dict, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    adm = _get_adm_or_404(db, admission_id, current.clinic_id)
+    r = WardRound(
+        clinic_id=current.clinic_id, admission_id=admission_id, patient_id=adm.patient_id,
+        round_type=body.get("round_type", "ward_round"), subjective=body.get("subjective"),
+        objective=body.get("objective"), assessment=body.get("assessment"), plan=body.get("plan"),
+        created_by=current.id,
+    )
+    db.add(r); db.commit(); db.refresh(r)
+    return _round_dict(r)
+
+
+@router.post("/rounds/{round_id}/sign")
+def sign_round(round_id: int, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    r = db.query(WardRound).filter(WardRound.id == round_id, WardRound.clinic_id == current.clinic_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Round not found")
+    r.is_signed = True; r.signed_by = current.id; r.signed_at = datetime.utcnow()
+    r.signer_credentials = current.role
+    db.commit()
+    return _round_dict(r)
+
+
+def _round_dict(r):
+    return {
+        "id": r.id, "round_type": r.round_type, "subjective": r.subjective,
+        "objective": r.objective, "assessment": r.assessment, "plan": r.plan,
+        "is_signed": r.is_signed, "signer_credentials": r.signer_credentials,
+        "signed_at": r.signed_at.isoformat() if r.signed_at else None,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    }
+
+
+# ── Vitals ──────────────────────────────────────────────────────────────────────
+
+@router.get("/admissions/{admission_id}/vitals")
+def list_vitals(admission_id: int, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    _get_adm_or_404(db, admission_id, current.clinic_id)
+    vs = db.query(VitalSign).filter(
+        VitalSign.admission_id == admission_id, VitalSign.clinic_id == current.clinic_id
+    ).order_by(VitalSign.recorded_at.desc()).all()
+    return [_vital_dict(v) for v in vs]
+
+
+@router.post("/admissions/{admission_id}/vitals")
+def create_vital(admission_id: int, body: dict, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    adm = _get_adm_or_404(db, admission_id, current.clinic_id)
+    v = VitalSign(
+        clinic_id=current.clinic_id, admission_id=admission_id, patient_id=adm.patient_id,
+        temperature=body.get("temperature"), pulse=body.get("pulse"),
+        respiratory_rate=body.get("respiratory_rate"), bp_systolic=body.get("bp_systolic"),
+        bp_diastolic=body.get("bp_diastolic"), spo2=body.get("spo2"),
+        weight=body.get("weight"), height=body.get("height"),
+        pain_score=body.get("pain_score"), blood_glucose=body.get("blood_glucose"),
+        notes=body.get("notes"), recorded_by=current.id,
+    )
+    db.add(v); db.commit(); db.refresh(v)
+    return _vital_dict(v)
+
+
+def _vital_dict(v):
+    return {
+        "id": v.id,
+        "temperature": float(v.temperature) if v.temperature else None,
+        "pulse": v.pulse, "respiratory_rate": v.respiratory_rate,
+        "bp_systolic": v.bp_systolic, "bp_diastolic": v.bp_diastolic, "spo2": v.spo2,
+        "pain_score": v.pain_score,
+        "blood_glucose": float(v.blood_glucose) if v.blood_glucose else None,
+        "recorded_at": v.recorded_at.isoformat() if v.recorded_at else None,
+    }
+
+
+# ── Discharge Summary ───────────────────────────────────────────────────────────
+
+@router.get("/admissions/{admission_id}/discharge-summary")
+def get_ds(admission_id: int, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    _get_adm_or_404(db, admission_id, current.clinic_id)
+    ds = db.query(DischargeSummary).filter(DischargeSummary.admission_id == admission_id).first()
+    if not ds:
+        raise HTTPException(status_code=404, detail="No discharge summary")
+    return _ds_dict(ds)
+
+
+@router.post("/admissions/{admission_id}/discharge-summary")
+def upsert_ds(admission_id: int, body: dict, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    adm = _get_adm_or_404(db, admission_id, current.clinic_id)
+    ds = db.query(DischargeSummary).filter(DischargeSummary.admission_id == admission_id).first()
+    if not ds:
+        ds = DischargeSummary(clinic_id=current.clinic_id, admission_id=admission_id,
+                              patient_id=adm.patient_id, created_by=current.id)
+        db.add(ds)
+    for f in ["presenting_complaint","history","examination","investigations","diagnosis",
+              "hospital_course","procedures_performed","discharge_condition",
+              "discharge_instructions","follow_up","medications_at_discharge"]:
+        if f in body:
+            setattr(ds, f, body[f])
+    db.commit(); db.refresh(ds)
+    return _ds_dict(ds)
+
+
+@router.post("/admissions/{admission_id}/discharge-summary/sign")
+def sign_ds(admission_id: int, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    ds = db.query(DischargeSummary).filter(DischargeSummary.admission_id == admission_id).first()
+    if not ds:
+        raise HTTPException(status_code=404, detail="No discharge summary to sign")
+    ds.is_signed = True; ds.signed_by = current.id; ds.signed_at = datetime.utcnow()
+    ds.signer_credentials = current.role
+    db.commit()
+    return _ds_dict(ds)
+
+
+def _ds_dict(ds):
+    return {
+        "id": ds.id, "presenting_complaint": ds.presenting_complaint, "history": ds.history,
+        "examination": ds.examination, "investigations": ds.investigations, "diagnosis": ds.diagnosis,
+        "hospital_course": ds.hospital_course, "procedures_performed": ds.procedures_performed,
+        "discharge_condition": ds.discharge_condition, "discharge_instructions": ds.discharge_instructions,
+        "follow_up": ds.follow_up, "medications_at_discharge": ds.medications_at_discharge,
+        "is_signed": ds.is_signed, "signer_credentials": ds.signer_credentials,
+        "signed_at": ds.signed_at.isoformat() if ds.signed_at else None,
+        "created_at": ds.created_at.isoformat() if ds.created_at else None,
+    }
+
+
+# ── Inpatient Charges ───────────────────────────────────────────────────────────
+
+@router.get("/admissions/{admission_id}/charges")
+def list_charges(admission_id: int, db: Session = Depends(get_db), current: Staff = Depends(get_current_staff)):
+    _get_adm_or_404(db, admission_id, current.clinic_id)
+    charges = db.query(InpatientCharge).filter(
+        InpatientCharge.admission_id == admission_id, InpatientCharge.clinic_id == current.clinic_id
+    ).order_by(InpatientCharge.charge_date.desc()).all()
+    return [
+        {"id": c.id, "charge_type": c.charge_type, "description": c.description,
+         "quantity": c.quantity, "unit_price": float(c.unit_price), "total": float(c.total),
+         "charge_date": c.charge_date.isoformat() if c.charge_date else None}
+        for c in charges
+    ]
