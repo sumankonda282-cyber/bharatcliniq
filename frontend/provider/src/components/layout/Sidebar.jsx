@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, Users, Calendar, Stethoscope, Pill,
   FlaskConical, Scan, Receipt, BarChart3, Send, Settings,
-  ShieldCheck, LogOut, ChevronRight, Building2, LayoutGrid, Bed
+  ShieldCheck, LogOut, ChevronRight, Building2, LayoutGrid, BedDouble
 } from 'lucide-react'
 import BrandLogo from '../BrandLogo'
 
@@ -12,14 +12,15 @@ const ALL_NAV = [
   { to: '/patients',     label: 'Patients',     icon: Users,           roles: ['clinic_admin','doctor','receptionist'] },
   { to: '/appointments', label: 'Appointments', icon: Calendar,        roles: ['clinic_admin','doctor','receptionist'] },
   { to: '/doctor-desk',  label: 'Doctor Desk',  icon: Stethoscope,     roles: ['doctor','clinic_admin'] },
+  { to: '/inpatient',   label: 'Inpatient Desk', icon: BedDouble,     roles: ['doctor','clinic_admin'], hospitalOnly: true },
   { to: '/pharmacy',     label: 'Pharmacy',     icon: Pill,            roles: ['pharmacist','clinic_admin'] },
   { to: '/lab',          label: 'Laboratory',   icon: FlaskConical,    roles: ['lab_tech','clinic_admin','doctor'] },
   { to: '/imaging',      label: 'Imaging',      icon: Scan,            roles: ['imaging_tech','clinic_admin','doctor'] },
   { to: '/billing',      label: 'Billing',      icon: Receipt,         roles: ['clinic_admin','receptionist'] },
   { to: '/analytics',   label: 'Analytics',    icon: BarChart3,       roles: ['clinic_admin'] },
   { to: '/referrals',    label: 'Referrals',    icon: Send,            roles: ['clinic_admin','doctor'] },
-  { to: '/inpatient',   label: 'Inpatient',    icon: Bed,             roles: ['clinic_admin','doctor'] },
   { to: '/admin',            label: 'Clinic Admin',    icon: Settings,     roles: ['clinic_admin'] },
+  { to: '/inpatient-admin', label: 'Inpatient',       icon: BedDouble,    roles: ['clinic_admin'], hospitalOnly: true },
   { to: '/branch-overview', label: 'Branch Overview', icon: LayoutGrid,   roles: ['clinic_admin'] },
   { to: '/platform',         label: 'Platform',        icon: ShieldCheck,  userType: 'platform_admin' },
 ]
@@ -33,7 +34,9 @@ export default function Sidebar({ onClose }) {
   const visible = ALL_NAV.filter(item => {
     if (item.userType === 'platform_admin') return isPlatformAdmin
     if (!item.roles) return true
-    return item.roles.includes(user?.role)
+    if (!item.roles.includes(user?.role)) return false
+    if (item.hospitalOnly && user?.org_type !== 'hospital') return false
+    return true
   })
 
   const handleLogout = () => { logout(); navigate('/login') }

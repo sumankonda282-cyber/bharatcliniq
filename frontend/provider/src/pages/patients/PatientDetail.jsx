@@ -7,6 +7,7 @@ import {
   ArrowLeft, ChevronDown, ChevronUp, Lock, User,
   Phone, Mail, MapPin, Tag, Plus, X, Edit2, Save,
 } from 'lucide-react'
+import AllergySearch from '../../components/AllergySearch'
 
 // ── TagInput (same 3-tier system as PatientList) ──────────────────────────────
 function TagInput({ patientId, currentTags, onTagsChange }) {
@@ -331,13 +332,22 @@ export default function PatientDetail() {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
+  const [allergiesCoded, setAllergiesCoded] = useState([])
 
   const load = () => {
     setLoading(true)
     cachedFetch(
       `patient_clinical_${id}`,
       () => patientsApi.getClinical(id),
-      d => { setData(d); setLoading(false) },
+      d => {
+        setData(d)
+        // Parse coded allergies if available
+        try {
+          const coded = d?.demographics?.allergies_coded
+          if (coded) setAllergiesCoded(typeof coded === 'string' ? JSON.parse(coded) : coded)
+        } catch (_) {}
+        setLoading(false)
+      },
       TTL.SHORT
     ).catch(() => setLoading(false))
   }
@@ -390,12 +400,19 @@ export default function PatientDetail() {
               ? <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">{d.blood_group}</span>
               : <span className="text-gray-300">—</span>}
           </div>
-          {d.allergies && (
-            <div>
-              <div className="text-xs text-gray-400 mb-0.5">Allergies</div>
-              <div className="text-sm font-medium text-orange-600">{d.allergies}</div>
-            </div>
-          )}
+          <div>
+            <div className="text-xs text-gray-400 mb-0.5">Allergies</div>
+            <AllergySearch
+              allergies={allergiesCoded}
+              onChange={async (newList) => {
+                setAllergiesCoded(newList)
+                try {
+                  await patientsApi.update(id, { allergies_coded: JSON.stringify(newList) })
+                  await cacheInvalidate(`patient_clinical_${id}`)
+                } catch (_) {}
+              }}
+            />
+          </div>
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-xs text-gray-400 mb-1">Conditions</div>

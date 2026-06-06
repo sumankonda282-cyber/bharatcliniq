@@ -12,15 +12,22 @@ import {
 } from 'lucide-react'
 
 // ── Advise Admission Modal ────────────────────────────────────────────────────
-function AdmissionModal({ appointmentId, patientName, onClose, onCreated }) {
+function AdmissionModal({ appointmentId, patientId, patientName, prefillDiagnosis, onClose, onCreated }) {
+  const { user } = useAuth()
   const [departments, setDepartments] = useState([])
-  const [form, setForm] = useState({ department_id: '', admission_type: 'elective', urgency: 'routine', reason: '' })
+  const [form, setForm] = useState({
+    department_id: '',
+    primary_diagnosis: prefillDiagnosis || '',
+    expected_discharge: '',
+    urgency: 'routine',
+    notes: '',
+  })
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
   useEffect(() => {
     api.get('/inpatient/departments')
-      .then(r => setDepartments(Array.isArray(r) ? r : []))
+      .then(r => setDepartments(Array.isArray(r) ? r : (r?.items || r?.data || [])))
       .catch(() => {})
   }, [])
 
@@ -28,21 +35,26 @@ function AdmissionModal({ appointmentId, patientName, onClose, onCreated }) {
     e.preventDefault(); setSaving(true); setErr('')
     try {
       const payload = {
+        patient_id: patientId,
+        admitting_doctor_id: user?.id,
         source_appointment_id: parseInt(appointmentId),
         department_id: form.department_id ? parseInt(form.department_id) : undefined,
-        admission_type: form.admission_type,
+        admission_type: 'opd_referred',
+        primary_diagnosis: form.primary_diagnosis,
+        expected_discharge: form.expected_discharge || undefined,
         urgency: form.urgency,
-        reason: form.reason,
+        notes: form.notes,
       }
       const res = await api.post('/inpatient/admissions', payload)
       onCreated(res?.admission_number || res?.id || 'created')
-    } catch (ex) { setErr(ex.message || 'Failed to create admission') }
-    finally { setSaving(false) }
+    } catch (ex) {
+      setErr(ex?.response?.data?.detail || ex.message || 'Failed to create admission')
+    } finally { setSaving(false) }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold" style={{ color: '#0F2557' }}>Advise Admission</h3>
@@ -59,12 +71,16 @@ function AdmissionModal({ appointmentId, patientName, onClose, onCreated }) {
             </select>
           </div>
           <div>
-            <label className="label">Admission Type</label>
-            <select className="input" value={form.admission_type} onChange={e => setForm(f => ({ ...f, admission_type: e.target.value }))}>
-              <option value="elective">Elective</option>
-              <option value="emergency">Emergency</option>
-              <option value="opd_referred">OPD Referred</option>
-            </select>
+            <label className="label">Primary Diagnosis</label>
+            <textarea className="input resize-none" rows={3} value={form.primary_diagnosis}
+              onChange={e => setForm(f => ({ ...f, primary_diagnosis: e.target.value }))}
+              placeholder="Provisional diagnosis…" />
+          </div>
+          <div>
+            <label className="label">Expected Discharge</label>
+            <input type="date" className="input" value={form.expected_discharge}
+              onChange={e => setForm(f => ({ ...f, expected_discharge: e.target.value }))}
+              min={new Date().toISOString().split('T')[0]} />
           </div>
           <div>
             <label className="label">Urgency</label>
@@ -75,13 +91,17 @@ function AdmissionModal({ appointmentId, patientName, onClose, onCreated }) {
             </select>
           </div>
           <div>
-            <label className="label">Reason for Admission *</label>
-            <textarea className="input resize-none" rows={3} value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} required placeholder="Clinical indication for admission…" />
+            <label className="label">Notes</label>
+            <textarea className="input resize-none" rows={2} value={form.notes}
+              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="Additional clinical notes for receptionist…" />
           </div>
           {err && <p className="text-red-600 text-sm">{err}</p>}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary flex-1 justify-center">{saving ? 'Creating…' : 'Advise Admission'}</button>
+            <button type="submit" disabled={saving} className="btn-primary flex-1 justify-center">
+              {saving ? 'Creating…' : 'Advise Admission'}
+            </button>
           </div>
         </form>
       </div>
@@ -535,11 +555,13 @@ export default function Encounter() {
       {showAdmission && (
         <AdmissionModal
           appointmentId={id}
+          patientId={patient.id}
           patientName={patient.full_name}
+          prefillDiagnosis={notes.discharge_assessment || notes.reason_for_visit || ''}
           onClose={() => setShowAdmission(false)}
           onCreated={(num) => {
             setShowAdmission(false)
-            flash(`Admission created — ${num}`)
+            flash(`Admission advised — receptionist will assign bed. Ref: ${num}`)
           }}
         />
       )}

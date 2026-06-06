@@ -1135,223 +1135,174 @@ class InpatientReferral(Base):
     source_appt      = relationship("Appointment", foreign_keys=[source_appointment_id])
 
 
+# ── Phase 2: Nursing / Ward Models ────────────────────────────────────────────
+
+from datetime import datetime as _datetime
+
 class VitalSign(Base):
     __tablename__ = "vital_signs"
-    id               = Column(Integer, primary_key=True, index=True)
-    clinic_id        = Column(Integer, ForeignKey("clinics.id"), nullable=False)
-    admission_id     = Column(Integer, ForeignKey("admissions.id"), nullable=False)
-    patient_id       = Column(Integer, ForeignKey("patients.id"), nullable=False)
-    temperature      = Column(Numeric(5, 2), nullable=True)
-    pulse            = Column(Integer, nullable=True)
-    respiratory_rate = Column(Integer, nullable=True)
-    bp_systolic      = Column(Integer, nullable=True)
-    bp_diastolic     = Column(Integer, nullable=True)
-    spo2             = Column(Integer, nullable=True)
-    weight           = Column(Numeric(6, 2), nullable=True)
-    height           = Column(Numeric(6, 2), nullable=True)
-    bmi              = Column(Numeric(5, 2), nullable=True)
-    gcs              = Column(Integer, nullable=True)
-    pain_score       = Column(Integer, nullable=True)
-    blood_glucose    = Column(Numeric(6, 2), nullable=True)
-    notes            = Column(Text, nullable=True)
-    recorded_by      = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    recorded_at      = Column(DateTime, server_default=func.now())
+    id             = Column(Integer, primary_key=True)
+    admission_id   = Column(Integer, ForeignKey("admissions.id"), nullable=False)
+    clinic_id      = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    recorded_by    = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    recorded_at    = Column(DateTime, default=_datetime.utcnow)
+    temperature    = Column(Numeric(4, 1))        # Celsius
+    pulse          = Column(Integer)              # bpm
+    respiration_rate = Column(Integer)            # breaths/min
+    bp_systolic    = Column(Integer)              # mmHg
+    bp_diastolic   = Column(Integer)              # mmHg
+    spo2           = Column(Numeric(5, 2))        # %
+    weight         = Column(Numeric(5, 2))        # kg
+    height         = Column(Numeric(5, 2))        # cm
+    pain_score     = Column(Integer)              # 0-10
+    notes          = Column(Text)
+    created_at     = Column(DateTime, default=_datetime.utcnow)
 
 
 class NursingNote(Base):
     __tablename__ = "nursing_notes"
-    id               = Column(Integer, primary_key=True, index=True)
-    clinic_id        = Column(Integer, ForeignKey("clinics.id"), nullable=False)
-    admission_id     = Column(Integer, ForeignKey("admissions.id"), nullable=False)
-    patient_id       = Column(Integer, ForeignKey("patients.id"), nullable=False)
-    note_type        = Column(String(30), default='general')
-    content          = Column(Text, nullable=False)
-    shift            = Column(String(20), nullable=True)
-    is_signed        = Column(Boolean, default=False)
-    signed_by        = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    signed_at        = Column(DateTime, nullable=True)
-    signer_credentials = Column(String(100), nullable=True)
-    created_by       = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    created_at       = Column(DateTime, server_default=func.now())
+    id           = Column(Integer, primary_key=True)
+    admission_id = Column(Integer, ForeignKey("admissions.id"), nullable=False)
+    clinic_id    = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    note_type    = Column(String(30), default="general")  # general/shift_handoff/incident/procedure
+    note_text    = Column(Text, nullable=False)
+    written_by   = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    written_at   = Column(DateTime, default=_datetime.utcnow)
+    shift        = Column(String(10))              # morning/afternoon/night
+    is_handoff   = Column(Boolean, default=False)
+    created_at   = Column(DateTime, default=_datetime.utcnow)
 
 
 class MedicationAdministration(Base):
     __tablename__ = "medication_administrations"
-    id              = Column(Integer, primary_key=True, index=True)
-    clinic_id       = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    id              = Column(Integer, primary_key=True)
     admission_id    = Column(Integer, ForeignKey("admissions.id"), nullable=False)
-    patient_id      = Column(Integer, ForeignKey("patients.id"), nullable=False)
-    order_id        = Column(Integer, ForeignKey("medication_orders.id"), nullable=True)
-    drug_name       = Column(String(200), nullable=False)
-    dose            = Column(String(100), nullable=True)
-    route           = Column(String(50), nullable=True)
-    scheduled_at    = Column(DateTime, nullable=True)
-    administered_at = Column(DateTime, nullable=True)
-    status          = Column(String(20), default='scheduled')  # scheduled/given/held/missed
-    reason_held     = Column(Text, nullable=True)
-    administered_by = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    witness_by      = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    site            = Column(String(100), nullable=True)
-    batch_number    = Column(String(50), nullable=True)
-    notes           = Column(Text, nullable=True)
-    created_at      = Column(DateTime, server_default=func.now())
+    clinic_id       = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    medicine_name   = Column(String(200), nullable=False)
+    dose            = Column(String(100))
+    route           = Column(String(50))           # oral/iv/im/sc/topical
+    scheduled_time  = Column(DateTime)
+    administered_at = Column(DateTime)
+    administered_by = Column(Integer, ForeignKey("staff.id"))
+    status          = Column(String(20), default="scheduled")  # scheduled/given/missed/held/refused
+    reason_held     = Column(String(200))
+    notes           = Column(Text)
+    created_at      = Column(DateTime, default=_datetime.utcnow)
 
 
 class WardRound(Base):
     __tablename__ = "ward_rounds"
-    id                 = Column(Integer, primary_key=True, index=True)
-    clinic_id          = Column(Integer, ForeignKey("clinics.id"), nullable=False)
-    admission_id       = Column(Integer, ForeignKey("admissions.id"), nullable=False)
-    patient_id         = Column(Integer, ForeignKey("patients.id"), nullable=False)
-    round_type         = Column(String(30), default='ward_round')
-    subjective         = Column(Text, nullable=True)
-    objective          = Column(Text, nullable=True)
-    assessment         = Column(Text, nullable=True)
-    plan               = Column(Text, nullable=True)
-    is_signed          = Column(Boolean, default=False)
-    signed_by          = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    signed_at          = Column(DateTime, nullable=True)
-    signer_credentials = Column(String(100), nullable=True)
-    created_by         = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    created_at         = Column(DateTime, server_default=func.now())
+    id           = Column(Integer, primary_key=True)
+    admission_id = Column(Integer, ForeignKey("admissions.id"), nullable=False)
+    clinic_id    = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    doctor_id    = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    round_date   = Column(Date, nullable=False)
+    subjective   = Column(Text)
+    objective    = Column(Text)
+    assessment   = Column(Text)
+    plan         = Column(Text)
+    created_at   = Column(DateTime, default=_datetime.utcnow)
 
 
-class ProgressNote(Base):
-    __tablename__ = "progress_notes"
-    id                 = Column(Integer, primary_key=True, index=True)
-    clinic_id          = Column(Integer, ForeignKey("clinics.id"), nullable=False)
-    admission_id       = Column(Integer, ForeignKey("admissions.id"), nullable=False)
-    patient_id         = Column(Integer, ForeignKey("patients.id"), nullable=False)
-    note_type          = Column(String(30), default='progress')
-    content            = Column(Text, nullable=False)
-    is_signed          = Column(Boolean, default=False)
-    signed_by          = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    signed_at          = Column(DateTime, nullable=True)
-    signer_credentials = Column(String(100), nullable=True)
-    addendum           = Column(Text, nullable=True)
-    addendum_by        = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    addendum_at        = Column(DateTime, nullable=True)
-    created_by         = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    created_at         = Column(DateTime, server_default=func.now())
+# ── Phase 3: Clinical Endpoints ───────────────────────────────────────────────
 
+from datetime import datetime
 
 class DischargeSummary(Base):
     __tablename__ = "discharge_summaries"
-    id                       = Column(Integer, primary_key=True, index=True)
-    clinic_id                = Column(Integer, ForeignKey("clinics.id"), nullable=False)
-    admission_id             = Column(Integer, ForeignKey("admissions.id"), unique=True, nullable=False)
-    patient_id               = Column(Integer, ForeignKey("patients.id"), nullable=False)
-    presenting_complaint     = Column(Text, nullable=True)
-    history                  = Column(Text, nullable=True)
-    examination              = Column(Text, nullable=True)
-    investigations           = Column(Text, nullable=True)
-    diagnosis                = Column(Text, nullable=True)
-    hospital_course          = Column(Text, nullable=True)
-    procedures_performed     = Column(Text, nullable=True)
-    discharge_condition      = Column(String(50), nullable=True)
-    discharge_instructions   = Column(Text, nullable=True)
-    follow_up                = Column(Text, nullable=True)
-    medications_at_discharge = Column(Text, nullable=True)
-    is_signed                = Column(Boolean, default=False)
-    signed_by                = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    signed_at                = Column(DateTime, nullable=True)
-    signer_credentials       = Column(String(100), nullable=True)
-    created_by               = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    created_at               = Column(DateTime, server_default=func.now())
+    id = Column(Integer, primary_key=True)
+    admission_id = Column(Integer, ForeignKey("admissions.id"), unique=True, nullable=False)
+    clinic_id = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    written_by = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    # Clinical content
+    admission_diagnosis = Column(Text)
+    final_diagnosis = Column(Text)
+    procedures_done = Column(Text)
+    hospital_course = Column(Text)       # summary of stay
+    condition_at_discharge = Column(String(50))  # stable/improved/deteriorated/deceased
+    discharge_instructions = Column(Text)
+    follow_up_date = Column(Date)
+    follow_up_with = Column(String(200))
+    diet_advice = Column(Text)
+    activity_restrictions = Column(Text)
+    # Medications on discharge
+    discharge_medications = Column(Text)  # JSON string: [{name, dose, route, frequency, duration}]
+    # Status
+    status = Column(String(20), default="draft")  # draft / finalized
+    finalized_at = Column(DateTime)
+    finalized_by = Column(Integer, ForeignKey("staff.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class ProgressNote(Base):
+    __tablename__ = "progress_notes"
+    id = Column(Integer, primary_key=True)
+    admission_id = Column(Integer, ForeignKey("admissions.id"), nullable=False)
+    clinic_id = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    written_by = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    note_date = Column(Date, nullable=False)
+    note_time = Column(DateTime, default=datetime.utcnow)
+    # SOAP
+    subjective = Column(Text)
+    objective = Column(Text)
+    assessment = Column(Text)
+    plan = Column(Text)
+    # Extras
+    note_type = Column(String(30), default="progress")  # progress/consult/procedure/event
+    is_significant = Column(Boolean, default=False)
 
 
 class InpatientCharge(Base):
+    """Running charge line items accumulated during a hospital stay."""
     __tablename__ = "inpatient_charges"
-    id          = Column(Integer, primary_key=True, index=True)
-    clinic_id   = Column(Integer, ForeignKey("clinics.id"), nullable=False)
-    admission_id = Column(Integer, ForeignKey("admissions.id"), nullable=False)
-    patient_id  = Column(Integer, ForeignKey("patients.id"), nullable=False)
-    charge_type = Column(String(30), nullable=False)
-    description = Column(String(300), nullable=False)
-    quantity    = Column(Integer, default=1)
-    unit_price  = Column(Numeric(10, 2), nullable=False)
-    total       = Column(Numeric(10, 2), nullable=False)
-    charge_date = Column(Date, server_default=func.current_date())
-    notes       = Column(Text, nullable=True)
-    created_by  = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    created_at  = Column(DateTime, server_default=func.now())
+    id             = Column(Integer, primary_key=True)
+    admission_id   = Column(Integer, ForeignKey("admissions.id"), nullable=False)
+    clinic_id      = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    charge_date    = Column(Date, nullable=False)
+    charge_type    = Column(String(30), nullable=False)  # room/procedure/consultation/lab/imaging/pharmacy/misc
+    description    = Column(String(300), nullable=False)
+    quantity       = Column(Numeric(10, 2), default=1)
+    unit_price     = Column(Numeric(10, 2), nullable=False)
+    total          = Column(Numeric(10, 2), nullable=False)
+    gst_rate       = Column(Numeric(5, 2), default=0)
+    gst_amount     = Column(Numeric(10, 2), default=0)
+    added_by       = Column(Integer, ForeignKey("staff.id"))
+    is_voided      = Column(Boolean, default=False)
+    void_reason    = Column(String(200))
+    created_at     = Column(DateTime, default=datetime.utcnow)
 
 
 class InpatientBill(Base):
+    """Final consolidated bill generated at discharge."""
     __tablename__ = "inpatient_bills"
-    id               = Column(Integer, primary_key=True, index=True)
-    clinic_id        = Column(Integer, ForeignKey("clinics.id"), nullable=False)
-    admission_id     = Column(Integer, ForeignKey("admissions.id"), unique=True, nullable=False)
-    patient_id       = Column(Integer, ForeignKey("patients.id"), nullable=False)
-    bill_number      = Column(String(30), unique=True, nullable=False)
-    subtotal         = Column(Numeric(12, 2), default=0)
-    discount         = Column(Numeric(10, 2), default=0)
-    tax              = Column(Numeric(10, 2), default=0)
-    total            = Column(Numeric(12, 2), default=0)
-    advance_paid     = Column(Numeric(12, 2), default=0)
-    insurance_amount = Column(Numeric(12, 2), default=0)
-    balance_due      = Column(Numeric(12, 2), default=0)
-    status           = Column(String(20), default='draft')
-    generated_at     = Column(DateTime, nullable=True)
-    finalized_at     = Column(DateTime, nullable=True)
-    paid_at          = Column(DateTime, nullable=True)
-    created_by       = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    created_at       = Column(DateTime, server_default=func.now())
-
-
-class MedicationOrder(Base):
-    __tablename__ = "medication_orders"
-    id               = Column(Integer, primary_key=True, index=True)
-    clinic_id        = Column(Integer, ForeignKey("clinics.id"), nullable=False)
-    admission_id     = Column(Integer, ForeignKey("admissions.id"), nullable=False)
-    patient_id       = Column(Integer, ForeignKey("patients.id"), nullable=False)
-    drug_name        = Column(String(200), nullable=False)
-    generic_name     = Column(String(200), nullable=True)
-    dose             = Column(String(100), nullable=False)
-    route            = Column(String(50), nullable=False)       # PO/IV/IM/SC/SL/TOP/INH
-    frequency        = Column(String(30), nullable=False)       # OD/BD/TDS/QID/Q8H/PRN/STAT/CONT
-    duration_days    = Column(Integer, nullable=True)
-    start_date       = Column(Date, nullable=True)
-    end_date         = Column(Date, nullable=True)
-    instructions     = Column(Text, nullable=True)              # with food, dilute in 100ml NS, etc.
-    is_prn           = Column(Boolean, default=False)
-    prn_reason       = Column(String(200), nullable=True)
-    is_stat          = Column(Boolean, default=False)
-    is_continuous    = Column(Boolean, default=False)
-    iv_rate          = Column(String(50), nullable=True)        # e.g. "100 ml/hr"
-    iv_fluid         = Column(String(100), nullable=True)       # NS/RL/D5W etc.
-    iv_volume_ml     = Column(Integer, nullable=True)
-    status           = Column(String(20), default='active')     # active/discontinued/completed/held
-    ordered_by       = Column(Integer, ForeignKey("staff.id"), nullable=False)
-    ordered_at       = Column(DateTime, server_default=func.now())
-    discontinued_by  = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    discontinued_at  = Column(DateTime, nullable=True)
-    discontinue_reason = Column(Text, nullable=True)
-    notes            = Column(Text, nullable=True)
-
-    admission  = relationship("Admission", foreign_keys=[admission_id])
-    orderer    = relationship("Staff", foreign_keys=[ordered_by])
-
-
-class ClinicalOrder(Base):
-    __tablename__ = "clinical_orders"
-    id               = Column(Integer, primary_key=True, index=True)
-    clinic_id        = Column(Integer, ForeignKey("clinics.id"), nullable=False)
-    admission_id     = Column(Integer, ForeignKey("admissions.id"), nullable=False)
-    patient_id       = Column(Integer, ForeignKey("patients.id"), nullable=False)
-    order_type       = Column(String(30), nullable=False)   # lab/imaging/procedure/diet/activity/nursing/consult
-    order_detail     = Column(String(300), nullable=False)
-    priority         = Column(String(20), default='routine') # stat/urgent/routine
-    instructions     = Column(Text, nullable=True)
-    status           = Column(String(20), default='pending') # pending/acknowledged/in_progress/completed/cancelled
-    ordered_by       = Column(Integer, ForeignKey("staff.id"), nullable=False)
-    ordered_at       = Column(DateTime, server_default=func.now())
-    acknowledged_by  = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    acknowledged_at  = Column(DateTime, nullable=True)
-    completed_by     = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    completed_at     = Column(DateTime, nullable=True)
-    result_notes     = Column(Text, nullable=True)
-    notes            = Column(Text, nullable=True)
-
-    admission  = relationship("Admission", foreign_keys=[admission_id])
-    orderer    = relationship("Staff", foreign_keys=[ordered_by])
+    id              = Column(Integer, primary_key=True)
+    admission_id    = Column(Integer, ForeignKey("admissions.id"), unique=True, nullable=False)
+    clinic_id       = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    invoice_id      = Column(Integer, ForeignKey("invoices.id"), nullable=True)  # linked invoice for payment
+    bill_number     = Column(String(30), unique=True, nullable=False)
+    # Charge breakdown
+    room_charges    = Column(Numeric(10, 2), default=0)
+    procedure_charges = Column(Numeric(10, 2), default=0)
+    consultation_charges = Column(Numeric(10, 2), default=0)
+    lab_charges     = Column(Numeric(10, 2), default=0)
+    imaging_charges = Column(Numeric(10, 2), default=0)
+    pharmacy_charges = Column(Numeric(10, 2), default=0)
+    misc_charges    = Column(Numeric(10, 2), default=0)
+    subtotal        = Column(Numeric(10, 2), default=0)
+    gst_amount      = Column(Numeric(10, 2), default=0)
+    discount        = Column(Numeric(10, 2), default=0)
+    total           = Column(Numeric(10, 2), default=0)
+    # Insurance
+    insurance_claim_amount = Column(Numeric(10, 2), default=0)
+    tpa_approved_amount    = Column(Numeric(10, 2), default=0)
+    patient_payable        = Column(Numeric(10, 2), default=0)
+    # Payment
+    amount_paid     = Column(Numeric(10, 2), default=0)
+    payment_method  = Column(String(50))
+    status          = Column(String(20), default="draft")  # draft/finalized/paid/partially_paid
+    notes           = Column(Text)
+    generated_by    = Column(Integer, ForeignKey("staff.id"))
+    finalized_at    = Column(DateTime)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+    updated_at      = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
