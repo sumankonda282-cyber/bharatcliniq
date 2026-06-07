@@ -254,10 +254,10 @@ function DoctorAdminBlock({ data, onChange, errors, showAdmin = true }) {
           <input type="tel" {...inp('doctor_phone')} maxLength={10} placeholder="10-digit number" />
         </Field>
         <Field label="Specialty" required error={errors.doctor_specialty}>
-          <select {...inp('doctor_specialty')}>
-            <option value="">Select specialty</option>
-            {DEPARTMENTS.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <input type="text" list="reg-specialty-list" {...inp('doctor_specialty')} placeholder="e.g. Cardiology, Oncology..." />
+          <datalist id="reg-specialty-list">
+            {DEPARTMENTS.map(s => <option key={s} value={s} />)}
+          </datalist>
         </Field>
         <Field label="Qualification" required error={errors.qualification}>
           <input type="text" {...inp('qualification')} placeholder="e.g. MBBS, MD" />
@@ -287,6 +287,17 @@ function DoctorAdminBlock({ data, onChange, errors, showAdmin = true }) {
           </div>
         </>
       )}
+
+      <h3 className="font-semibold text-gray-700 mb-2 mt-6">Set Login Password</h3>
+      <p className="text-xs text-gray-400 mb-3">Your email will be your username. Set a password to activate your account after approval.</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Field label="Password" required error={errors.admin_password}>
+          <input type="password" {...inp('admin_password')} placeholder="Min. 8 characters" autoComplete="new-password" />
+        </Field>
+        <Field label="Confirm Password" required error={errors.confirm_password}>
+          <input type="password" {...inp('confirm_password')} placeholder="Re-enter password" autoComplete="new-password" />
+        </Field>
+      </div>
     </>
   )
 }
@@ -313,6 +324,16 @@ function OwnerManagerBlock({ data, onChange, errors }) {
         </Field>
         <Field label="Designation" error={errors.owner_designation}>
           <input type="text" {...inp('owner_designation')} placeholder="e.g. Owner, Director" />
+        </Field>
+      </div>
+      <h3 className="font-semibold text-gray-700 mb-2 mt-6">Set Login Password</h3>
+      <p className="text-xs text-gray-400 mb-3">Your email will be your username. Set a password to activate your account after approval.</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Field label="Password" required error={errors.admin_password}>
+          <input type="password" {...inp('admin_password')} placeholder="Min. 8 characters" autoComplete="new-password" />
+        </Field>
+        <Field label="Confirm Password" required error={errors.confirm_password}>
+          <input type="password" {...inp('confirm_password')} placeholder="Re-enter password" autoComplete="new-password" />
         </Field>
       </div>
     </>
@@ -428,9 +449,11 @@ function ClinicFlow({ data, onChange, step, setStep, color, onSubmit, submitting
     if (!data.doctor_name?.trim()) e.doctor_name = 'Required'
     if (!data.doctor_email?.trim() || !/\S+@\S+\.\S+/.test(data.doctor_email)) e.doctor_email = 'Valid email required'
     if (!data.doctor_phone?.trim() || !/^[6-9]\d{9}$/.test(data.doctor_phone)) e.doctor_phone = 'Valid 10-digit phone required'
-    if (!data.doctor_specialty) e.doctor_specialty = 'Required'
+    if (!data.doctor_specialty?.trim()) e.doctor_specialty = 'Required'
     if (!data.qualification?.trim()) e.qualification = 'Required'
     if (!data.mci_number?.trim()) e.mci_number = 'Required'
+    if (!data.admin_password?.trim() || data.admin_password.length < 8) e.admin_password = 'Min. 8 characters required'
+    if (data.admin_password !== data.confirm_password) e.confirm_password = 'Passwords do not match'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -506,7 +529,7 @@ function ClinicFlow({ data, onChange, step, setStep, color, onSubmit, submitting
       <h2 className="text-xl font-bold mb-4" style={{ color }}>Doctor &amp; Admin Details</h2>
       <div className="mb-4 rounded-xl p-3 text-xs flex gap-3 items-start" style={{ background: color + '0D', border: `1px solid ${color}30` }}>
         <span className="text-lg mt-0.5">🔐</span>
-        <p style={{ color }}>No password needed now. Once approved, login credentials will be sent to the email and phone below.</p>
+        <p style={{ color }}>Set your login password below. Your email will be your username — credentials activate once your registration is approved.</p>
       </div>
       <DoctorAdminBlock data={data} onChange={onChange} errors={errors} showAdmin />
       <NavButtons onBack={() => setStep(1)} onNext={() => { if (validateStep3()) setStep(3) }} color={color} />
@@ -535,9 +558,11 @@ function HospitalFlow({ data, onChange, step, setStep, color, onSubmit, submitti
     if (!data.doctor_name?.trim()) e.doctor_name = 'Required'
     if (!data.doctor_email?.trim() || !/\S+@\S+\.\S+/.test(data.doctor_email)) e.doctor_email = 'Valid email required'
     if (!data.doctor_phone?.trim() || !/^[6-9]\d{9}$/.test(data.doctor_phone)) e.doctor_phone = 'Valid 10-digit phone required'
-    if (!data.doctor_specialty) e.doctor_specialty = 'Required'
+    if (!data.doctor_specialty?.trim()) e.doctor_specialty = 'Required'
     if (!data.qualification?.trim()) e.qualification = 'Required'
     if (!data.mci_number?.trim()) e.mci_number = 'Required'
+    if (!data.admin_password?.trim() || data.admin_password.length < 8) e.admin_password = 'Min. 8 characters required'
+    if (data.admin_password !== data.confirm_password) e.confirm_password = 'Passwords do not match'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -621,7 +646,7 @@ function HospitalFlow({ data, onChange, step, setStep, color, onSubmit, submitti
       <h2 className="text-xl font-bold mb-4" style={{ color }}>Staff Contacts</h2>
       <div className="mb-4 rounded-xl p-3 text-xs flex gap-3 items-start" style={{ background: color + '0D', border: `1px solid ${color}30` }}>
         <span className="text-lg mt-0.5">🔐</span>
-        <p style={{ color }}>Once approved, login credentials will be sent to the primary contact email and phone.</p>
+        <p style={{ color }}>Set your login password below. Your email will be your username — credentials activate once approved.</p>
       </div>
       <DoctorAdminBlock data={data} onChange={onChange} errors={errors} showAdmin />
       <NavButtons onBack={() => setStep(2)} onNext={() => { if (validateContacts()) setStep(4) }} color={color} />
@@ -649,6 +674,8 @@ function PharmacyFlow({ data, onChange, step, setStep, color, onSubmit, submitti
     if (!data.owner_name?.trim()) e.owner_name = 'Required'
     if (!data.owner_phone?.trim() || !/^[6-9]\d{9}$/.test(data.owner_phone)) e.owner_phone = 'Valid 10-digit phone required'
     if (!data.owner_email?.trim() || !/\S+@\S+\.\S+/.test(data.owner_email)) e.owner_email = 'Valid email required'
+    if (!data.admin_password?.trim() || data.admin_password.length < 8) e.admin_password = 'Min. 8 characters required'
+    if (data.admin_password !== data.confirm_password) e.confirm_password = 'Passwords do not match'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -718,7 +745,7 @@ function PharmacyFlow({ data, onChange, step, setStep, color, onSubmit, submitti
       <h2 className="text-xl font-bold mb-4" style={{ color }}>Owner / Manager &amp; Review</h2>
       <div className="mb-4 rounded-xl p-3 text-xs flex gap-3 items-start" style={{ background: color + '0D', border: `1px solid ${color}30` }}>
         <span className="text-lg mt-0.5">🔐</span>
-        <p style={{ color }}>Once approved, login credentials will be sent to the email and phone below.</p>
+        <p style={{ color }}>Set your login password below. Your email will be your username — credentials activate once approved.</p>
       </div>
       <OwnerManagerBlock data={data} onChange={onChange} errors={errors} />
       <NavButtons onBack={() => setStep(1)} onSubmit={() => { if (validateStep2Owner()) onSubmit() }}
@@ -744,6 +771,8 @@ function DiagnosticFlow({ data, onChange, step, setStep, color, onSubmit, submit
     if (!data.owner_name?.trim()) e.owner_name = 'Required'
     if (!data.owner_phone?.trim() || !/^[6-9]\d{9}$/.test(data.owner_phone)) e.owner_phone = 'Valid 10-digit phone required'
     if (!data.owner_email?.trim() || !/\S+@\S+\.\S+/.test(data.owner_email)) e.owner_email = 'Valid email required'
+    if (!data.admin_password?.trim() || data.admin_password.length < 8) e.admin_password = 'Min. 8 characters required'
+    if (data.admin_password !== data.confirm_password) e.confirm_password = 'Passwords do not match'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -804,7 +833,7 @@ function DiagnosticFlow({ data, onChange, step, setStep, color, onSubmit, submit
       <h2 className="text-xl font-bold mb-4" style={{ color }}>Owner / Manager &amp; Review</h2>
       <div className="mb-4 rounded-xl p-3 text-xs flex gap-3 items-start" style={{ background: color + '0D', border: `1px solid ${color}30` }}>
         <span className="text-lg mt-0.5">🔐</span>
-        <p style={{ color }}>Once approved, login credentials will be sent to the email and phone below.</p>
+        <p style={{ color }}>Set your login password below. Your email will be your username — credentials activate once approved.</p>
       </div>
       <OwnerManagerBlock data={data} onChange={onChange} errors={errors} />
       <NavButtons onBack={() => setStep(1)} onSubmit={() => { if (validateOwner()) onSubmit() }}
@@ -874,6 +903,7 @@ export default function RegisterForm() {
           specialty:           formData.doctor_specialty || (formData.departments || [])[0],
         },
         admin_email: contactEmail,
+        admin_password: formData.admin_password,
       })
       setSubmitted(true)
     } catch (err) {

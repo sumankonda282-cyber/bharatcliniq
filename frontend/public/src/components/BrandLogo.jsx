@@ -12,7 +12,7 @@ export default function BrandLogo({ size = 'md', showText = true, light = false 
     <div className={`inline-flex items-center ${s.gap}`}>
       <img
         src={logoImg}
-        alt="BHaratCliniq logo"
+        alt="BH Health Systems logo"
         style={{ height: s.img, width: 'auto', flexShrink: 0 }}
       />
       {showText && (
@@ -21,7 +21,7 @@ export default function BrandLogo({ size = 'md', showText = true, light = false 
           style={{ letterSpacing: '-0.02em' }}
         >
           <span style={{ color: '#CC1414' }}>BH</span>
-          <span style={{ color: light ? '#ffffff' : '#0F2557' }}>aratCliniq</span>
+          <span style={{ color: light ? '#ffffff' : '#0F2557' }}> Health Systems</span>
         </span>
       )}
     </div>

@@ -20,7 +20,7 @@ export default function Navbar() {
               <Video className="w-3.5 h-3.5" style={{ color: '#F5821E' }} />Telehealth
             </Link>
             <Link to="/booking/check" className="text-sm font-medium text-gray-600 hover:text-[#0F2557] transition-colors">My Booking</Link>
-            <Link to="/register" className="text-sm font-medium text-gray-600 hover:text-[#0F2557] transition-colors">Register Clinic</Link>
+            <Link to="/register" className="text-sm font-medium text-gray-600 hover:text-[#0F2557] transition-colors">Register Org</Link>
           </div>
 
           <div className="hidden md:flex items-center gap-3">
@@ -52,7 +52,7 @@ export default function Navbar() {
               <Video className="w-3.5 h-3.5" style={{ color: '#F5821E' }} />Telehealth
             </Link>
             <Link to="/booking/check" className="text-gray-600 font-medium px-2 py-2 text-sm" onClick={() => setOpen(false)}>My Booking</Link>
-            <Link to="/register" className="text-gray-600 font-medium px-2 py-2 text-sm" onClick={() => setOpen(false)}>Register Clinic</Link>
+            <Link to="/register" className="text-gray-600 font-medium px-2 py-2 text-sm" onClick={() => setOpen(false)}>Register Org</Link>
             <div className="flex gap-2 mt-1">
               <a href={PROVIDER_URL} className="flex-1 text-center py-2 rounded-xl border-2 font-semibold text-sm" style={{ borderColor:'#0F2557', color:'#0F2557' }}>Provider</a>
               <a href={PATIENT_URL} className="flex-1 text-center py-2 rounded-xl font-semibold text-sm text-white" style={{ background:'#CC1414' }}>My Health Portal</a>

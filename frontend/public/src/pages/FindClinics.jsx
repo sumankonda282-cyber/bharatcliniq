@@ -19,7 +19,7 @@ function Navbar() {
           <div className="hidden md:flex items-center gap-6">
             <Link to="/clinics" className="font-semibold text-sm" style={{ color: '#CC1414' }}>Find Clinics</Link>
             <Link to="/booking/check" className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors">My Booking</Link>
-            <Link to="/register" className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors">Register Clinic</Link>
+            <Link to="/register" className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors">Register Org</Link>
           </div>
           <div className="hidden md:flex items-center gap-3">
             <a href={PROVIDER_URL} className="px-4 py-2 rounded-xl border-2 font-semibold text-sm transition-all" style={{ borderColor: '#0F2557', color: '#0F2557' }}>Provider Login</a>
@@ -32,9 +32,15 @@ function Navbar() {
 }
 
 const SPECIALTIES = [
-  'General Medicine', 'Cardiology', 'Dermatology', 'Pediatrics',
-  'Orthopedics', 'Gynecology', 'Neurology', 'Ophthalmology',
-  'ENT', 'Psychiatry', 'Dentistry', 'Ayurveda',
+  'General Medicine', 'General Surgery', 'Cardiology', 'Dermatology', 'Pediatrics',
+  'Orthopedics', 'Gynecology & Obstetrics', 'Neurology', 'Ophthalmology',
+  'ENT (Ear Nose Throat)', 'Psychiatry & Mental Health', 'Dentistry',
+  'Ayurveda', 'Homeopathy', 'Physiotherapy & Rehabilitation',
+  'Radiology & Imaging', 'Pathology & Laboratory', 'Oncology',
+  'Nephrology', 'Gastroenterology', 'Endocrinology & Diabetology',
+  'Pulmonology', 'Urology', 'Rheumatology', 'Neonatology',
+  'Emergency & Trauma', 'Neurosurgery', 'Cardiothoracic Surgery',
+  'Plastic Surgery', 'Vascular Surgery', 'Palliative Care', 'Dietetics & Nutrition',
 ]
 
 function StarRating({ rating = 0, max = 5 }) {
@@ -143,6 +149,53 @@ function CitySearch({ value, onChange, cities }) {
   )
 }
 
+function SpecialtySearch({ value, onChange }) {
+  const [input, setInput] = useState(value || '')
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  const filtered = input.trim()
+    ? SPECIALTIES.filter(s => s.toLowerCase().includes(input.toLowerCase()))
+    : SPECIALTIES
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const select = (s) => { setInput(s); onChange(s); setOpen(false) }
+  const clear = () => { setInput(''); onChange(''); setOpen(false) }
+
+  return (
+    <div ref={ref} className="relative md:w-52">
+      <Stethoscope className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none z-10" />
+      <input
+        type="text"
+        value={input}
+        onChange={e => { setInput(e.target.value); onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        placeholder="Search specialty..."
+        className="w-full pl-9 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 bg-white"
+        style={{ '--tw-ring-color': '#0F2557' }}
+      />
+      {input && (
+        <button type="button" onClick={clear} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      )}
+      {open && filtered.length > 0 && (
+        <ul className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto text-sm">
+          <li className="px-3 py-2 cursor-pointer hover:bg-gray-50 text-gray-400 italic" onMouseDown={() => select('')}>All Specialties</li>
+          {filtered.map(s => (
+            <li key={s} className="px-3 py-2 cursor-pointer hover:bg-blue-50 text-gray-700" onMouseDown={() => select(s)}>{s}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export default function FindClinics() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [clinics, setClinics] = useState([])
@@ -155,6 +208,8 @@ export default function FindClinics() {
     city: searchParams.get('city') || '',
     specialty: searchParams.get('specialty') || '',
   })
+  const [retryCount, setRetryCount] = useState(0)
+  const retryTimer = useRef(null)
 
   useEffect(() => {
     publicApi.getCities().then(data => {
@@ -164,22 +219,33 @@ export default function FindClinics() {
     })
   }, [])
 
-  const fetchClinics = useCallback(async (params) => {
+  const fetchClinics = useCallback(async (params, isRetry = false) => {
     setLoading(true)
-    setError('')
+    if (!isRetry) setError('')
     try {
       const cleanParams = Object.fromEntries(Object.entries(params).filter(([, v]) => v))
       const data = await publicApi.getClinics(cleanParams)
       setClinics(Array.isArray(data) ? data : data.clinics || data.results || [])
+      setRetryCount(0)
+      setError('')
     } catch (err) {
-      setError(err.message)
+      setError(err.message || 'Network Error')
       setClinics([])
+      // Auto-retry up to 3 times (Render free tier cold start)
+      if (!isRetry || retryCount < 2) {
+        const next = retryCount + 1
+        setRetryCount(next)
+        retryTimer.current = setTimeout(() => fetchClinics(params, true), 6000)
+      }
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [retryCount])
 
-  useEffect(() => { fetchClinics(filters) }, []) // eslint-disable-line
+  useEffect(() => {
+    fetchClinics(filters)
+    return () => { if (retryTimer.current) clearTimeout(retryTimer.current) }
+  }, []) // eslint-disable-line
 
   const handleSearch = (e) => {
     e.preventDefault()
@@ -233,15 +299,10 @@ export default function FindClinics() {
               onChange={val => setFilters(f => ({ ...f, city: val }))}
               cities={cities}
             />
-            <select
+            <SpecialtySearch
               value={filters.specialty}
-              onChange={e => setFilters(f => ({ ...f, specialty: e.target.value }))}
-              className="md:w-52 px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white"
-              style={{ '--tw-ring-color': '#0F2557' }}
-            >
-              <option value="">All Specialties</option>
-              {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+              onChange={val => setFilters(f => ({ ...f, specialty: val }))}
+            />
             <button
               type="submit"
               className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-semibold text-sm text-white whitespace-nowrap transition-colors"
@@ -280,9 +341,15 @@ export default function FindClinics() {
           <div className="text-center py-24">
             <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 text-lg mb-2">Could not load clinics</p>
-            <p className="text-gray-400 text-sm mb-6">{error}</p>
+            {retryCount > 0 && retryCount <= 3 ? (
+              <p className="text-amber-600 text-sm mb-2 font-medium">
+                Server is waking up... auto-retrying ({retryCount}/3)
+              </p>
+            ) : (
+              <p className="text-gray-400 text-sm mb-6">{error}</p>
+            )}
             <button
-              onClick={() => fetchClinics(filters)}
+              onClick={() => { setRetryCount(0); fetchClinics(filters) }}
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white text-sm"
               style={{ background: '#CC1414' }}
             >
