@@ -20,8 +20,8 @@ export function AuthProvider({ children }) {
   const login = async (identifier, password) => {
     const data = await authApi.login(identifier, password)
     sessionStorage.setItem('admin_token', data.access_token)
-    const me = await authApi.me()
-    setUser(me)
+    setUser({ id: data.user_id, full_name: data.full_name, email: identifier, user_type: data.user_type })
+    authApi.me().then(me => setUser(me)).catch(() => {})
   }
 
   const logout = () => {
