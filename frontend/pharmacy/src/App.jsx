@@ -1,4 +1,5 @@
 import InstallPrompt from './components/InstallPrompt'
+import Toaster from './components/Toaster'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
@@ -32,6 +33,7 @@ export default function App() {
     <AuthProvider>
       <>
         <InstallPrompt appName="BH Pharmacy" />
+        <Toaster />
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginRoute/>}/>
