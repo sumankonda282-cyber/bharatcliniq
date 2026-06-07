@@ -54,6 +54,7 @@
   .badge-red    { @apply badge bg-red-100 text-red-800; }
   .badge-gray   { @apply badge bg-gray-100 text-gray-700; }
   .badge-purple { @apply badge bg-purple-100 text-purple-800; }
+  .badge-orange { @apply badge bg-orange-100 text-orange-800; }
 
   /* Page layout */
   .page-header { @apply flex items-center justify-between mb-6; }

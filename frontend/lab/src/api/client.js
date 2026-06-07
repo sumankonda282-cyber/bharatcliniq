@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { toast } from '../utils/toast'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://bharatcliniq-api.onrender.com'
 
@@ -64,6 +65,7 @@ api.interceptors.response.use(
       'Something went wrong'
     const error = new Error(message)
     error.status = status
+    if (status !== 401) toast.error(message)
     return Promise.reject(error)
   }
 )
