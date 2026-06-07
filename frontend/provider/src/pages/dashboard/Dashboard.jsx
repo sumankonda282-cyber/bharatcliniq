@@ -62,9 +62,9 @@ export default function Dashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Today's Appointments" value={stats?.todayAppts} icon={Calendar} color="blue"   to="/appointments" />
-        <StatCard label="Waiting"              value={stats?.waiting}    icon={Clock}     color="orange" to="/appointments" />
-        <StatCard label="Completed"            value={stats?.completed}  icon={CheckCircle} color="green" to="/appointments" />
+        <StatCard label="Today's Appointments" value={stats?.todayAppts} icon={Calendar} color="blue" />
+        <StatCard label="Waiting" value={stats?.waiting} icon={Clock} color="orange" />
+        <StatCard label="Completed" value={stats?.completed} icon={CheckCircle} color="green" />
         <StatCard label="Plan" value={user?.clinic_plan?.toUpperCase() || 'FREE'} icon={Activity} color="purple"
           sub={user?.clinic_verified ? '✓ Verified' : '⚠ Pending verification'} />
       </div>

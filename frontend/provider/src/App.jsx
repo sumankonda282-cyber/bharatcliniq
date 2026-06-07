@@ -6,7 +6,6 @@ import Layout from './components/layout/Layout'
 import { PageLoader } from './components/ui/Spinner'
 import Login from './pages/auth/Login'
 import SetPassword from './pages/auth/SetPassword'
-import AccountSettings from './pages/AccountSettings'
 
 // Lazy-load all pages for performance
 const Dashboard      = lazy(() => import('./pages/dashboard/Dashboard'))
@@ -24,10 +23,9 @@ const Analytics      = lazy(() => import('./pages/analytics/Analytics'))
 const Referrals      = lazy(() => import('./pages/referrals/Referrals'))
 const ClinicAdmin    = lazy(() => import('./pages/admin/ClinicAdmin'))
 const BranchOverview = lazy(() => import('./pages/admin/BranchOverview'))
-const InpatientAdmin = lazy(() => import('./pages/admin/InpatientAdmin'))
+const PlatformAdmin  = lazy(() => import('./pages/platform/PlatformAdmin'))
 const InpatientDesk  = lazy(() => import('./pages/inpatient/InpatientDesk'))
 const AdmissionChart = lazy(() => import('./pages/inpatient/AdmissionChart'))
-const PlatformAdmin  = lazy(() => import('./pages/platform/PlatformAdmin'))
 
 function AppRoutes() {
   const { user, loading } = useAuth()
@@ -63,11 +61,10 @@ function AppRoutes() {
         <Route path="/billing"      element={<Suspense fallback={<PageLoader />}><Billing /></Suspense>} />
         <Route path="/analytics"    element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
         <Route path="/referrals"    element={<Suspense fallback={<PageLoader />}><Referrals /></Suspense>} />
-        <Route path="/admin"           element={<Suspense fallback={<PageLoader />}><ClinicAdmin /></Suspense>} />
-        <Route path="/inpatient-admin" element={<Suspense fallback={<PageLoader />}><InpatientAdmin /></Suspense>} />
-        <Route path="/inpatient" element={<Suspense fallback={<PageLoader />}><InpatientDesk /></Suspense>} />
-        <Route path="/inpatient/admission/:admissionId" element={<Suspense fallback={<PageLoader />}><AdmissionChart /></Suspense>} />
-        <Route path="/platform"        element={<Suspense fallback={<PageLoader />}><PlatformAdmin /></Suspense>} />
+        <Route path="/inpatient"    element={<Suspense fallback={<PageLoader />}><InpatientDesk /></Suspense>} />
+        <Route path="/inpatient/:admissionId" element={<Suspense fallback={<PageLoader />}><AdmissionChart /></Suspense>} />
+        <Route path="/admin"        element={<Suspense fallback={<PageLoader />}><ClinicAdmin /></Suspense>} />
+        <Route path="/platform"     element={<Suspense fallback={<PageLoader />}><PlatformAdmin /></Suspense>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

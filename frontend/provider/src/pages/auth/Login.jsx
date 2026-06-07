@@ -1,9 +1,7 @@
-import { CheckCircle, useState } from 'react'
+import { useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Eye, EyeOff, AlertCircle, Stethoscope, Users, ShieldCheck, KeyRound } from 'lucide-react'
 import BrandLogo from '../../components/BrandLogo'
-
-const API = import.meta.env.VITE_API_URL ?? ''
 
 const FEATURES = [
   { icon: Stethoscope, text: 'Clinical desk — queue, encounters & prescriptions' },
@@ -17,21 +15,6 @@ export default function Login() {
   const [error, setError]   = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
-  const [mode, setMode]             = useState('login')
-  const [forgotForm, setForgotForm] = useState({ identifier: '', note: '' })
-  const [forgotSent, setForgotSent] = useState(false)
-  const [forgotLoading, setForgotLoading] = useState(false)
-
-  const submitForgot = async e => {
-    e.preventDefault(); setForgotLoading(true)
-    try {
-      await fetch(`${API}/api/v1/auth/staff/forgot-password`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(forgotForm),
-      })
-      setForgotSent(true)
-    } finally { setForgotLoading(false) }
-  }
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
@@ -53,58 +36,6 @@ export default function Login() {
       setError(err.message || 'Login failed. Please check your credentials.')
       setLoading(false)
     }
-  }
-
-  if (mode === 'forgot') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-8">
-            <div className="text-2xl font-extrabold" style={{ color: '#CC1414' }}>BHaratCliniq</div>
-            <div className="text-sm mt-1 font-medium text-gray-500">Provider Portal</div>
-          </div>
-          <div className="bg-white rounded-2xl shadow-md p-6 space-y-4">
-            {forgotSent ? (
-              <div className="text-center space-y-4">
-                <CheckCircle className="mx-auto" size={40} style={{ color: '#CC1414' }}/>
-                <p className="text-sm text-gray-700">Your request has been sent to your clinic manager. They will provide a temporary password.</p>
-                <button onClick={() => { setMode('login'); setForgotSent(false); setForgotForm({ identifier: '', note: '' }) }}
-                  className="w-full py-2.5 text-white rounded-xl font-semibold"
-                  style={{ background: '#CC1414' }}>Back to Login</button>
-              </div>
-            ) : (
-              <>
-                <h2 className="font-semibold text-gray-800">Forgot Password</h2>
-                <p className="text-xs text-gray-500">Your request goes to your clinic manager who will reset your password.</p>
-                <form onSubmit={submitForgot} className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Username / Mobile</label>
-                    <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none"
-                      value={forgotForm.identifier}
-                      onChange={e => setForgotForm(f => ({ ...f, identifier: e.target.value }))}
-                      placeholder="Enter your username or mobile" required />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Note (optional)</label>
-                    <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none"
-                      value={forgotForm.note}
-                      onChange={e => setForgotForm(f => ({ ...f, note: e.target.value }))}
-                      placeholder="e.g. urgently needed for night shift" />
-                  </div>
-                  <button type="submit" disabled={forgotLoading}
-                    className="w-full py-2.5 text-white rounded-xl font-semibold disabled:opacity-50"
-                    style={{ background: '#CC1414' }}>
-                    {forgotLoading ? 'Sending…' : 'Send Request'}
-                  </button>
-                  <button type="button" onClick={() => setMode('login')}
-                    className="w-full py-2 text-gray-500 text-sm hover:underline">Back to Login</button>
-                </form>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (
