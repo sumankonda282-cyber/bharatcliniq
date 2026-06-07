@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { Eye, EyeOff, AlertCircle, Activity, ClipboardList, BedDouble, KeyRound } from 'lucide-react'
+import { Eye, EyeOff, AlertCircle, CheckCircle, Activity, ClipboardList, BedDouble, KeyRound } from 'lucide-react'
 
 const FEATURES = [
   { icon: Activity,      text: 'Chart patient vitals and track trends in real time' },
   { icon: ClipboardList, text: 'Write nursing notes and complete shift handoffs' },
   { icon: BedDouble,     text: 'Manage the ward board, MAR and ward rounds' },
 ]
-import { Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react'
 
 const API = import.meta.env.VITE_API_URL ?? ''
 
