@@ -11,7 +11,7 @@ export default defineConfig({
       manifest: {
         name: 'BHaratCliniq',
         short_name: 'BHaratCliniq',
-        description: 'India's Digital Health Network',
+        description: "India's Digital Health Network",
         theme_color: '#0F2557',
         background_color: '#ffffff',
         display: 'standalone',
