@@ -111,7 +111,7 @@ function Footer() {
           <div>
             <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">Contact</h4>
             <ul className="space-y-2.5 text-sm">
-              <li>support@bharatcliniq.com</li>
+              <li>support@bharathhealthsystems.com</li>
               <li>1800-XXX-XXXX (Toll Free)</li>
               <li>Mon–Sat, 9am–6pm IST</li>
             </ul>

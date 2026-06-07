@@ -8,7 +8,7 @@ function isInStandaloneMode() {
   return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone
 }
 
-export default function InstallPrompt({ appName = 'BharatCliniq' }) {
+export default function InstallPrompt({ appName = 'BHarath Health Systems' }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [show, setShow]                     = useState(false)
   const [ios, setIos]                       = useState(false)

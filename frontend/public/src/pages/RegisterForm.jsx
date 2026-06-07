@@ -56,7 +56,7 @@ function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link to="/"><BrandLogo size="md" /></Link>
-          <Link to="/clinics" className="text-gray-600 hover:text-gray-900 font-medium text-sm hidden md:block">Find Clinics</Link>
+          <Link to="/clinics" className="text-gray-600 hover:text-gray-900 font-medium text-sm hidden md:block">Find Care</Link>
         </div>
       </div>
     </nav>
@@ -387,7 +387,7 @@ function ReviewStep({ data, type, onBack, onSubmit, submitting, error, color }) 
       )}
       {error && <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-sm mb-5">{error}</div>}
       <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-        By submitting, you agree to BharatCliniq's Terms of Service and Privacy Policy. Registration will be reviewed within 24 hours.
+        By submitting, you agree to BHarath Health Systems' Terms of Service and Privacy Policy. Registration will be reviewed within 24 hours.
       </p>
       <NavButtons onBack={onBack} onSubmit={onSubmit} color={color} isLast submitting={submitting} />
     </div>
@@ -403,7 +403,7 @@ function SuccessScreen({ typeLabel, color }) {
       </div>
       <h2 className="text-2xl font-bold mb-3" style={{ color }}>Registration Submitted!</h2>
       <p className="text-gray-500 mb-2 max-w-sm mx-auto">
-        Thank you for registering your {typeLabel} with BharatCliniq. Your application is <strong className="text-yellow-600">pending approval</strong>.
+        Thank you for registering your {typeLabel} with BHarath Health Systems. Your application is <strong className="text-yellow-600">pending approval</strong>.
       </p>
       <p className="text-gray-400 text-sm mb-8 max-w-sm mx-auto">
         Our team reviews registrations within 24 hours. Once approved, your login credentials will be sent directly to your registered email and phone.
@@ -627,14 +627,24 @@ function HospitalFlow({ data, onChange, step, setStep, color, onSubmit, submitti
           </label>
         ))}
       </div>
-      <h3 className="font-semibold text-gray-700 mt-5 mb-3">Accreditation</h3>
+      <h3 className="font-semibold text-gray-700 mt-5 mb-3">Accreditation <span className="text-xs font-normal text-gray-400">(select all that apply)</span></h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
-        {['NABH', 'JCI', 'ISO 9001', 'NABL', 'None'].map(acc => (
-          <label key={acc} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer border border-gray-200 rounded-xl px-4 py-3 hover:bg-gray-50">
-            <input type="radio" name="accreditation" value={acc} checked={data.accreditation === acc} onChange={e => onChange('accreditation', e.target.value)} />
-            {acc}
-          </label>
-        ))}
+        {['NABH', 'JCI', 'ISO 9001:2015', 'NABL', 'CAP', 'Not yet accredited'].map(acc => {
+          const selected = Array.isArray(data.accreditation) ? data.accreditation : []
+          return (
+            <label key={acc} className={`flex items-center gap-2 text-sm text-gray-700 cursor-pointer border rounded-xl px-4 py-3 hover:bg-gray-50 transition-colors ${selected.includes(acc) ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}>
+              <input
+                type="checkbox"
+                checked={selected.includes(acc)}
+                onChange={() => {
+                  const next = selected.includes(acc) ? selected.filter(x => x !== acc) : [...selected, acc]
+                  onChange('accreditation', next)
+                }}
+              />
+              {acc}
+            </label>
+          )
+        })}
       </div>
       <NavButtons onBack={() => setStep(1)} onNext={() => setStep(3)} color={color} />
     </div>
@@ -887,7 +897,7 @@ export default function RegisterForm() {
           has_blood_bank:     formData.has_blood_bank,
           has_ambulance:      formData.has_ambulance,
           has_telehealth:     formData.has_telehealth,
-          accreditation:      formData.accreditation,
+          accreditation:      Array.isArray(formData.accreditation) ? formData.accreditation.join(', ') : (formData.accreditation || ''),
           reg_number:         formData.reg_number,
           operating_hours:    formData.operating_hours,
           departments:        formData.departments?.join(', '),

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
-  Search, MapPin, Users, ChevronRight, Building2,
-  Stethoscope, ArrowLeft, X, Star
+  Search, MapPin, Building2, Stethoscope, ArrowLeft, X,
+  Video, CheckCircle, ChevronRight
 } from 'lucide-react'
 import { publicApi } from '../api/client'
 import BrandLogo from '../components/BrandLogo'
@@ -17,7 +17,7 @@ function Navbar() {
         <div className="flex items-center justify-between h-16">
           <Link to="/"><BrandLogo size="md" /></Link>
           <div className="hidden md:flex items-center gap-6">
-            <Link to="/clinics" className="font-semibold text-sm" style={{ color: '#CC1414' }}>Find Clinics</Link>
+            <Link to="/clinics" className="font-semibold text-sm" style={{ color: '#CC1414' }}>Find Care</Link>
             <Link to="/booking/check" className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors">My Booking</Link>
             <Link to="/register" className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors">Register Org</Link>
           </div>
@@ -43,28 +43,99 @@ const SPECIALTIES = [
   'Plastic Surgery', 'Vascular Surgery', 'Palliative Care', 'Dietetics & Nutrition',
 ]
 
-function StarRating({ rating = 0, max = 5 }) {
+const CARD_COLORS = ['#0F2557', '#CC1414', '#138808', '#7C3AED', '#0891B2', '#F5821E']
+
+function getInitials(name = '') {
+  const w = name.trim().split(/\s+/)
+  return w.length >= 2 ? w[0][0] + w[w.length - 1][0] : (w[0] || '?').slice(0, 2)
+}
+
+function DoctorCard({ doctor, clinic }) {
+  const bg = CARD_COLORS[Math.abs(doctor.id || 0) % CARD_COLORS.length]
+
   return (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: max }).map((_, i) => (
-        <Star
-          key={i}
-          className="w-3.5 h-3.5"
-          style={{ fill: i < rating ? '#F5821E' : '#E5E7EB', color: i < rating ? '#F5821E' : '#E5E7EB' }}
-        />
-      ))}
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-all flex flex-col">
+      <div className="flex gap-4">
+        {/* Avatar */}
+        <div
+          className="w-20 h-20 rounded-2xl flex items-center justify-center flex-shrink-0 text-white text-xl font-extrabold uppercase select-none"
+          style={{ background: bg }}
+        >
+          {getInitials(doctor.name)}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h3 className="font-bold text-gray-800 text-base leading-tight truncate">{doctor.name}</h3>
+              <p className="text-sm font-semibold mt-0.5 truncate" style={{ color: '#CC1414' }}>
+                {doctor.specialty || 'General Medicine'}
+              </p>
+              {doctor.qualification && (
+                <p className="text-xs text-gray-400 mt-0.5 truncate">{doctor.qualification}</p>
+              )}
+            </div>
+            {doctor.mci_verified && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 whitespace-nowrap">
+                <CheckCircle className="w-3 h-3" /> Verified
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {(doctor.experience_years || 0) > 0 && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-medium">
+                {doctor.experience_years}+ yrs exp
+              </span>
+            )}
+            {(doctor.fee || 0) > 0 && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 font-medium">
+                ₹{doctor.fee} consult
+              </span>
+            )}
+            {doctor.telehealth_enabled && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 font-medium flex items-center gap-1">
+                <Video className="w-3 h-3" /> Online
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 mt-2 text-xs text-gray-400">
+            <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="truncate font-medium text-gray-500">{clinic.name}</span>
+            <span>·</span>
+            <MapPin className="w-3 h-3 flex-shrink-0" />
+            <span className="truncate">{clinic.city}{clinic.state ? `, ${clinic.state}` : ''}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-2 mt-4 pt-4 border-t border-gray-50">
+        <Link
+          to={`/clinics/${clinic.slug}`}
+          className="flex-1 text-center py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors hover:bg-blue-50"
+          style={{ borderColor: '#0F2557', color: '#0F2557' }}
+        >
+          View Profile
+        </Link>
+        <Link
+          to={`/book?clinic_slug=${clinic.slug}&doctor_id=${doctor.id}`}
+          className="flex-1 text-center py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          style={{ background: '#CC1414' }}
+        >
+          Book Now
+        </Link>
+      </div>
     </div>
   )
 }
 
-function ClinicCard({ clinic }) {
+function ClinicOnlyCard({ clinic }) {
   return (
-    <Link to={`/clinics/${clinic.slug}`} className="block bg-white rounded-2xl shadow-md border border-gray-100 p-5 hover:shadow-lg transition-all group cursor-pointer">
+    <Link to={`/clinics/${clinic.slug}`} className="block bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-all group">
       <div className="flex items-start gap-4">
-        <div
-          className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all"
-          style={{ background: '#0F255710' }}
-        >
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#0F255710' }}>
           {clinic.logo_url ? (
             <img src={clinic.logo_url} alt={clinic.name} className="w-14 h-14 rounded-2xl object-cover" />
           ) : (
@@ -72,31 +143,17 @@ function ClinicCard({ clinic }) {
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold truncate transition-colors group-hover:text-[#CC1414]" style={{ color: '#0F2557' }}>
-            {clinic.name}
-          </h3>
-          <div className="flex items-center gap-1 text-gray-500 text-xs mt-1">
+          <h3 className="font-semibold truncate group-hover:text-[#CC1414] transition-colors" style={{ color: '#0F2557' }}>{clinic.name}</h3>
+          <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
             <Stethoscope className="w-3 h-3 flex-shrink-0" style={{ color: '#F5821E' }} />
-            <span className="truncate" title={clinic.specialty || 'Multi-Specialty'}>{clinic.specialty || 'Multi-Specialty'}</span>
+            <span className="truncate">{clinic.specialty || 'Multi-Specialty'}</span>
           </div>
-          <div className="flex items-center gap-1 text-gray-500 text-xs mt-0.5">
-            <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: '#CC1414' }} />
+          <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
+            <MapPin className="w-3 h-3 flex-shrink-0" />
             <span className="truncate">{clinic.city}{clinic.state ? `, ${clinic.state}` : ''}</span>
           </div>
-          {clinic.rating > 0 && (
-            <div className="mt-1.5">
-              <StarRating rating={Math.round(clinic.rating)} />
-            </div>
-          )}
         </div>
-        <div className="flex flex-col items-end gap-2 flex-shrink-0">
-          <div className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full"
-            style={{ background: '#0F255710', color: '#0F2557' }}>
-            <Users className="w-3 h-3" />
-            {clinic.doctor_count || clinic.doctors?.length || 0} Doctors
-          </div>
-          <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#CC1414] transition-colors" />
-        </div>
+        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#CC1414] transition-colors flex-shrink-0 mt-1" />
       </div>
     </Link>
   )
@@ -231,7 +288,6 @@ export default function FindClinics() {
     } catch (err) {
       setError(err.message || 'Network Error')
       setClinics([])
-      // Auto-retry up to 3 times (Render free tier cold start)
       if (!isRetry || retryCount < 2) {
         const next = retryCount + 1
         setRetryCount(next)
@@ -264,6 +320,18 @@ export default function FindClinics() {
 
   const activeFilters = Object.entries(filters).filter(([, v]) => v)
 
+  // Flatten clinics → doctor cards
+  const doctorCards = []
+  const clinicsWithNoDoctors = []
+  clinics.forEach(clinic => {
+    if (clinic.doctors && clinic.doctors.length > 0) {
+      clinic.doctors.forEach(doc => doctorCards.push({ doctor: doc, clinic }))
+    } else {
+      clinicsWithNoDoctors.push(clinic)
+    }
+  })
+  const totalResults = doctorCards.length + clinicsWithNoDoctors.length
+
   return (
     <div className="min-h-screen" style={{ background: '#F0F4F8' }}>
       <Navbar />
@@ -274,8 +342,8 @@ export default function FindClinics() {
           <Link to="/" className="inline-flex items-center gap-1 text-blue-200 hover:text-white text-sm mb-4 transition-colors">
             <ArrowLeft className="w-4 h-4" /> Back to Home
           </Link>
-          <h1 className="text-3xl font-extrabold mb-1">Find Clinics Near You</h1>
-          <p className="text-blue-200">Discover verified clinics and doctors across India</p>
+          <h1 className="text-3xl font-extrabold mb-1">Find Care Near You</h1>
+          <p className="text-blue-200">Discover verified doctors and clinics across India</p>
         </div>
       </div>
 
@@ -335,12 +403,12 @@ export default function FindClinics() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24">
             <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin mb-4" style={{ borderColor: '#0F2557', borderTopColor: 'transparent' }} />
-            <p className="text-gray-500">Searching clinics...</p>
+            <p className="text-gray-500">Finding doctors and clinics...</p>
           </div>
         ) : error ? (
           <div className="text-center py-24">
             <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg mb-2">Could not load clinics</p>
+            <p className="text-gray-500 text-lg mb-2">Could not load results</p>
             {retryCount > 0 && retryCount <= 3 ? (
               <p className="text-amber-600 text-sm mb-2 font-medium">
                 Server is waking up... auto-retrying ({retryCount}/3)
@@ -356,23 +424,39 @@ export default function FindClinics() {
               Try Again
             </button>
           </div>
-        ) : clinics.length === 0 ? (
+        ) : totalResults === 0 ? (
           <div className="text-center py-24">
             <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg mb-2">No clinics found</p>
-            <p className="text-gray-400 text-sm">Try adjusting your search filters</p>
+            <p className="text-gray-500 text-lg mb-2">No results found</p>
+            <p className="text-gray-400 text-sm">Try adjusting your search filters or search a different city</p>
           </div>
         ) : (
           <>
-            <p className="text-gray-500 text-sm mb-4 font-medium">
-              <span style={{ color: '#0F2557', fontWeight: 700 }}>{clinics.length}</span>{' '}
-              clinic{clinics.length !== 1 ? 's' : ''} found
+            <p className="text-gray-500 text-sm mb-5 font-medium">
+              <span style={{ color: '#0F2557', fontWeight: 700 }}>{totalResults}</span>{' '}
+              result{totalResults !== 1 ? 's' : ''} found
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {clinics.map(clinic => (
-                <ClinicCard key={clinic.id || clinic.slug} clinic={clinic} />
-              ))}
-            </div>
+
+            {doctorCards.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                {doctorCards.map(({ doctor, clinic }) => (
+                  <DoctorCard key={`${clinic.id}-${doctor.id}`} doctor={doctor} clinic={clinic} />
+                ))}
+              </div>
+            )}
+
+            {clinicsWithNoDoctors.length > 0 && (
+              <>
+                {doctorCards.length > 0 && (
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">More Care Providers</h3>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {clinicsWithNoDoctors.map(clinic => (
+                    <ClinicOnlyCard key={clinic.id || clinic.slug} clinic={clinic} />
+                  ))}
+                </div>
+              </>
+            )}
           </>
         )}
       </div>

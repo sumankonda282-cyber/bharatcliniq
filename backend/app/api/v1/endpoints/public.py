@@ -572,6 +572,41 @@ def register_clinic(body: dict, db: Session = Depends(get_db)):
     }
 
 
+# ── Demo Inquiry ──────────────────────────────────────────────────────────────
+
+@router.post("/demo-inquiry")
+def submit_demo_inquiry(body: dict):
+    """Receive demo access request from public landing page. Logs to stdout for admin review."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    name     = body.get("name", "").strip()
+    phone    = body.get("phone", "").strip()
+    email    = body.get("email", "").strip()
+    org_type = body.get("org_type", "").strip()
+    portals  = body.get("portals", [])
+
+    if not name or not (phone or email):
+        raise HTTPException(400, "Name and at least one contact method (phone or email) are required")
+
+    portal_list = ", ".join(portals) if portals else "Not specified"
+    logger.info(
+        "[DEMO INQUIRY] Name=%s | Phone=%s | Email=%s | Org=%s | Portals=%s",
+        name, phone, email, org_type, portal_list,
+    )
+    print(
+        f"\n{'='*60}\n[DEMO INQUIRY RECEIVED — {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}]\n"
+        f"  Name:     {name}\n"
+        f"  Phone:    {phone or 'N/A'}\n"
+        f"  Email:    {email or 'N/A'}\n"
+        f"  Org Type: {org_type or 'Not specified'}\n"
+        f"  Portals:  {portal_list}\n"
+        f"{'='*60}",
+        flush=True,
+    )
+    return {"success": True, "message": "We received your request and will contact you within 24 hours with demo access details."}
+
+
 @router.get("/branding/{clinic_id}")
 def get_clinic_branding(clinic_id: int, db: Session = Depends(get_db)):
     """Public endpoint — returns clinic branding for portal headers."""

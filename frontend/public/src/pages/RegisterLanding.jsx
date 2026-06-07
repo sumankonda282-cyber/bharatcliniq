@@ -2,11 +2,10 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Building2, Stethoscope, Heart, Pill, FlaskConical, Scan,
-  CheckCircle, Copy, ExternalLink, Mail, Phone, Linkedin
+  CheckCircle, Mail, Phone, Linkedin
 } from 'lucide-react'
+import { publicApi } from '../api/client'
 import BrandLogo from '../components/BrandLogo'
-
-const DEMO_URL = import.meta.env.VITE_DEMO_URL || 'https://demo.bharathealthsystems.com'
 
 function Navbar() {
   return (
@@ -15,7 +14,7 @@ function Navbar() {
         <div className="flex items-center justify-between h-16">
           <Link to="/"><BrandLogo size="md" /></Link>
           <div className="flex items-center gap-6">
-            <Link to="/clinics" className="text-gray-600 hover:text-gray-900 font-medium text-sm hidden md:block">Find Clinics</Link>
+            <Link to="/clinics" className="text-gray-600 hover:text-gray-900 font-medium text-sm hidden md:block">Find Care</Link>
             <Link to="/" className="text-gray-600 hover:text-gray-900 font-medium text-sm hidden md:block">Home</Link>
           </div>
         </div>
@@ -72,60 +71,176 @@ const PORTALS = [
   { name: 'Imaging', Icon: Scan, color: '#0891B2', for: 'Imaging / Radiology', features: ['Scan orders', 'DICOM support', 'Reports'] },
 ]
 
-const DEMO_ACCOUNTS = [
-  { icon: '🏥', label: 'Clinic Demo', username: 'demo_clinic', password: 'Demo@1234', url: DEMO_URL },
-  { icon: '🏨', label: 'Hospital Demo', username: 'demo_hospital', password: 'Demo@1234', url: DEMO_URL },
-  { icon: '💊', label: 'Pharmacy Demo', username: 'demo_pharmacy', password: 'Demo@1234', url: DEMO_URL },
+const DEMO_PORTALS = [
+  { id: 'provider',     label: 'Provider Portal',             Icon: Stethoscope, color: '#CC1414', desc: 'EMR, SOAP notes, e-prescriptions' },
+  { id: 'carechart',   label: 'CareChart (Ward Nursing)',     Icon: Heart,       color: '#F5821E', desc: 'MAR, vitals, clinical orders' },
+  { id: 'receptionist',label: 'Staff / Receptionist Portal',  Icon: Building2,   color: '#0F2557', desc: 'Appointments, billing, queue' },
+  { id: 'lab',         label: 'Lab Portal',                  Icon: FlaskConical, color: '#7C3AED', desc: 'Test orders, digital reports' },
+  { id: 'pharmacy',    label: 'Pharmacy Portal',              Icon: Pill,        color: '#138808', desc: 'Dispensing, inventory, prescriptions' },
+  { id: 'imaging',     label: 'Imaging / Radiology Portal',  Icon: Scan,        color: '#0891B2', desc: 'Scan orders, DICOM, reports' },
 ]
 
-function DemoCard({ account }) {
-  const [copied, setCopied] = useState(null)
-  const copy = (text, key) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(key)
-      setTimeout(() => setCopied(null), 2000)
-    })
+const inputCls = (err) =>
+  `w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent transition-all ${err ? 'border-red-400 focus:ring-red-300' : 'border-gray-200 focus:ring-blue-200'}`
+
+function DemoInquiryForm() {
+  const [form, setForm]         = useState({ name: '', phone: '', email: '', org_type: '', portals: [] })
+  const [errors, setErrors]     = useState({})
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted]   = useState(false)
+  const [submitError, setSubmitError] = useState('')
+
+  const validate = () => {
+    const e = {}
+    if (!form.name.trim()) e.name = 'Name is required'
+    if (!form.phone.trim() && !form.email.trim()) e.contact = 'Provide phone or email so we can reach you'
+    return e
   }
+
+  const togglePortal = (id) => {
+    setForm(f => ({
+      ...f,
+      portals: f.portals.includes(id) ? f.portals.filter(p => p !== id) : [...f.portals, id],
+    }))
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    const errs = validate()
+    if (Object.keys(errs).length > 0) { setErrors(errs); return }
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      await publicApi.sendDemoInquiry(form)
+      setSubmitted(true)
+    } catch (err) {
+      setSubmitError(err.message || 'Something went wrong. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (submitted) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-200 p-10 shadow-sm text-center">
+        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <CheckCircle className="w-8 h-8 text-green-500" />
+        </div>
+        <h3 className="text-xl font-bold text-gray-800 mb-2">Request Received!</h3>
+        <p className="text-gray-500 text-sm max-w-xs mx-auto leading-relaxed">
+          Our team will contact you within 24 hours to set up your personalized demo environment with sample data.
+        </p>
+      </div>
+    )
+  }
+
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-xl">{account.icon}</span>
-        <span className="font-semibold text-gray-800">{account.label}</span>
+    <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-4">
+      <div className="mb-2">
+        <h3 className="font-bold text-gray-800 text-lg">Request Demo Access</h3>
+        <p className="text-sm text-gray-500 mt-1">Fill in your details — our team will contact you to set up access.</p>
       </div>
-      <div className="space-y-2 text-sm text-gray-600 mb-4">
-        <div className="flex justify-between items-center">
-          <span className="text-gray-500">URL</span>
-          <span className="font-mono text-xs truncate max-w-[160px]">{account.url.replace('https://', '')}</span>
+
+      {/* Name */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Your Name <span className="text-red-500">*</span></label>
+        <input
+          type="text"
+          value={form.name}
+          onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+          placeholder="Full name"
+          className={inputCls(errors.name)}
+        />
+        {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+      </div>
+
+      {/* Contact */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+          <input
+            type="tel"
+            value={form.phone}
+            onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+            placeholder="+91 98765 43210"
+            className={inputCls(errors.contact)}
+          />
         </div>
-        <div className="flex justify-between items-center">
-          <span className="text-gray-500">Username</span>
-          <span className="font-mono font-medium">{account.username}</span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span className="text-gray-500">Password</span>
-          <span className="font-mono font-medium">{account.password}</span>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+          <input
+            type="email"
+            value={form.email}
+            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+            placeholder="you@example.com"
+            className={inputCls(errors.contact)}
+          />
         </div>
       </div>
-      <div className="flex gap-2">
-        <button
-          onClick={() => copy(`Username: ${account.username}\nPassword: ${account.password}`, 'creds')}
-          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-        >
-          <Copy className="w-3.5 h-3.5" />
-          {copied === 'creds' ? 'Copied!' : 'Copy'}
-        </button>
-        <a
-          href={account.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-white transition-colors"
-          style={{ background: '#0F2557' }}
-        >
-          <ExternalLink className="w-3.5 h-3.5" />
-          Open Demo
-        </a>
+      {errors.contact && <p className="text-red-500 text-xs -mt-2">{errors.contact}</p>}
+
+      {/* Org type */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Organization Type</label>
+        <div className="grid grid-cols-2 gap-2">
+          {['Hospital', 'Clinic', 'Pharmacy', 'Diagnostic Center', 'Other'].map(type => (
+            <label key={type}
+              className={`flex items-center gap-2 text-sm cursor-pointer border rounded-xl px-3 py-2.5 hover:bg-gray-50 transition-colors ${form.org_type === type ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}`}>
+              <input
+                type="radio"
+                name="org_type"
+                value={type}
+                checked={form.org_type === type}
+                onChange={e => setForm(f => ({ ...f, org_type: e.target.value }))}
+              />
+              <span className={form.org_type === type ? 'font-semibold text-blue-700' : ''}>{type}</span>
+            </label>
+          ))}
+        </div>
       </div>
-    </div>
+
+      {/* Portal selection */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Which portals would you like to explore?</label>
+        <div className="space-y-2">
+          {DEMO_PORTALS.map(p => (
+            <label key={p.id}
+              className={`flex items-center gap-3 text-sm cursor-pointer border rounded-xl px-3 py-2.5 hover:bg-gray-50 transition-colors ${form.portals.includes(p.id) ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}`}>
+              <input
+                type="checkbox"
+                checked={form.portals.includes(p.id)}
+                onChange={() => togglePortal(p.id)}
+                className="rounded flex-shrink-0"
+              />
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: p.color + '20' }}>
+                <p.Icon className="w-3.5 h-3.5" style={{ color: p.color }} />
+              </div>
+              <div className="min-w-0">
+                <span className="font-medium text-gray-800">{p.label}</span>
+                <span className="text-gray-400 text-xs ml-1 hidden sm:inline">— {p.desc}</span>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {submitError && (
+        <p className="text-red-500 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-3">{submitError}</p>
+      )}
+
+      <button
+        type="submit"
+        disabled={submitting}
+        className="w-full py-3 rounded-xl font-semibold text-white text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity hover:opacity-90"
+        style={{ background: '#0F2557' }}
+      >
+        {submitting ? (
+          <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Sending...</>
+        ) : (
+          'Request Demo Access →'
+        )}
+      </button>
+    </form>
   )
 }
 
@@ -144,7 +259,7 @@ export default function RegisterLanding() {
             Join India's Digital Health Network
           </h1>
           <p className="text-lg text-blue-200 max-w-2xl mx-auto">
-            BharatHealthSystems powers clinics, hospitals, pharmacies, and diagnostic centers with one integrated platform — patient management, EMR, billing, pharmacy, labs, and more.
+            <span style={{ color: '#CC1414', fontWeight: 900 }}>BH</span>arath Health Systems powers clinics, hospitals, pharmacies, and diagnostic centers with one integrated platform — patient management, EMR, billing, pharmacy, labs, and more.
           </p>
         </div>
       </section>
@@ -221,33 +336,43 @@ export default function RegisterLanding() {
         </div>
       </section>
 
-      {/* ── Section 4: Demo Access ───────────────────────────────────────── */}
+      {/* ── Section 4: Demo Access (Inquiry Form) ────────────────────────── */}
       <section className="py-16 px-4" style={{ background: '#F0F4F8' }}>
         <div className="max-w-5xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-bold text-center mb-2" style={{ color: '#0F2557' }}>
-            Try Before You Register
+            Experience Every Portal Before You Register
           </h2>
           <p className="text-center text-gray-500 mb-10 text-sm">
-            Demo data resets every 24 hours. All features enabled.
+            Request a guided demo. Our team will set up a personalized environment for you — no commitment, no payment required.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+            {/* Left: portal list */}
             <div>
-              <h3 className="text-xl font-bold mb-3" style={{ color: '#0F2557' }}>Explore with no commitment</h3>
-              <p className="text-gray-600 leading-relaxed mb-4">
-                Our demo environment gives you full access to every portal — CareChart, Provider Portal, Receptionist Portal, Pharmacy, Lab, and Imaging. Walk through real workflows before you decide to register.
-              </p>
-              <ul className="space-y-2">
-                {['No credit card or commitment needed', 'All modules fully functional', 'Sample patient and appointment data included', 'Resets to clean state every 24 hours'].map(f => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-gray-700">
-                    <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" /> {f}
-                  </li>
+              <h3 className="text-lg font-bold mb-4" style={{ color: '#0F2557' }}>All 6 Portals Included in Demo</h3>
+              <div className="space-y-3">
+                {DEMO_PORTALS.map(({ id, label, Icon, color, desc }) => (
+                  <div key={id} className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3 shadow-sm">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: color + '18' }}>
+                      <Icon className="w-4 h-4" style={{ color }} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{label}</p>
+                      <p className="text-xs text-gray-400">{desc}</p>
+                    </div>
+                  </div>
                 ))}
-              </ul>
+              </div>
+              <div className="mt-5 rounded-xl p-4 text-sm" style={{ background: '#0F255710', border: '1px solid #0F255730' }}>
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-500" />
+                  <p className="text-gray-600">Full-featured demo with sample patient data, appointments, and workflows pre-loaded. Reset on request.</p>
+                </div>
+              </div>
             </div>
-            <div className="space-y-4">
-              {DEMO_ACCOUNTS.map(acc => <DemoCard key={acc.label} account={acc} />)}
-            </div>
+
+            {/* Right: inquiry form */}
+            <DemoInquiryForm />
           </div>
         </div>
       </section>
@@ -262,15 +387,17 @@ export default function RegisterLanding() {
           {/* Founder Card */}
           <div className="flex flex-col items-center mb-14">
             <div className="w-20 h-20 rounded-full flex items-center justify-center text-xl font-bold text-white mb-4"
-              style={{ background: '#0F2557' }}>BHS</div>
+              style={{ background: '#0F2557' }}>BH</div>
             <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">Founder &amp; CEO</p>
-            <h3 className="text-xl font-bold mb-3" style={{ color: '#0F2557' }}>BharatHealthSystems</h3>
+            <h3 className="text-xl font-bold mb-3" style={{ color: '#0F2557' }}>
+              <span style={{ color: '#CC1414' }}>BH</span>arath Health Systems
+            </h3>
             <blockquote className="text-center text-gray-500 italic max-w-md mb-4 leading-relaxed">
               "Building India's healthcare infrastructure, one clinic at a time."
             </blockquote>
             <div className="flex items-center gap-4 text-sm text-gray-600">
-              <a href="mailto:founder@bharathealthsystems.com" className="flex items-center gap-1.5 hover:text-blue-600 transition-colors">
-                <Mail className="w-4 h-4" /> founder@bharathealthsystems.com
+              <a href="mailto:founder@bharathhealthsystems.com" className="flex items-center gap-1.5 hover:text-blue-600 transition-colors">
+                <Mail className="w-4 h-4" /> founder@bharathhealthsystems.com
               </a>
               <a href="#" className="flex items-center gap-1.5 hover:text-blue-600 transition-colors">
                 <Linkedin className="w-4 h-4" /> LinkedIn
@@ -284,7 +411,7 @@ export default function RegisterLanding() {
             {[
               {
                 title: 'Business Partnerships',
-                lines: ['+91 98765 43210', 'partnerships@bharathealthsystems.com'],
+                lines: ['+91 98765 43210', 'partnerships@bharathhealthsystems.com'],
                 icons: [Phone, Mail],
               },
               {
@@ -294,7 +421,7 @@ export default function RegisterLanding() {
               },
               {
                 title: 'Support',
-                lines: ['1800-XXX-XXXX (Toll Free)', 'support@bharathealthsystems.com'],
+                lines: ['1800-XXX-XXXX (Toll Free)', 'support@bharathhealthsystems.com'],
                 icons: [Phone, Mail],
               },
             ].map(({ title, lines, icons }) => (

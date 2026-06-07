@@ -46,6 +46,9 @@ export const publicApi = {
   // Register clinic
   registerClinic: (data) => api.post('/public/register-clinic', data),
 
+  // Demo inquiry
+  sendDemoInquiry: (data) => api.post('/public/demo-inquiry', data),
+
   // Telehealth
   getTelehealthDoctors: (params) => api.get('/public/telehealth-doctors', { params }),
 

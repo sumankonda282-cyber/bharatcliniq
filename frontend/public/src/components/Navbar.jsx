@@ -15,7 +15,7 @@ export default function Navbar() {
           <Link to="/"><BrandLogo size="md" /></Link>
 
           <div className="hidden md:flex items-center gap-8">
-            <Link to="/clinics" className="text-sm font-medium text-gray-600 hover:text-[#0F2557] transition-colors">Find Clinics</Link>
+            <Link to="/clinics" className="text-sm font-medium text-gray-600 hover:text-[#0F2557] transition-colors">Find Care</Link>
             <Link to="/telehealth" className="text-sm font-medium text-gray-600 hover:text-[#0F2557] transition-colors flex items-center gap-1">
               <Video className="w-3.5 h-3.5" style={{ color: '#F5821E' }} />Telehealth
             </Link>
@@ -47,7 +47,7 @@ export default function Navbar() {
 
         {open && (
           <div className="md:hidden pb-4 pt-2 flex flex-col gap-2 border-t border-gray-100">
-            <Link to="/clinics" className="text-gray-600 font-medium px-2 py-2 text-sm" onClick={() => setOpen(false)}>Find Clinics</Link>
+            <Link to="/clinics" className="text-gray-600 font-medium px-2 py-2 text-sm" onClick={() => setOpen(false)}>Find Care</Link>
             <Link to="/telehealth" className="text-gray-600 font-medium px-2 py-2 text-sm flex items-center gap-1" onClick={() => setOpen(false)}>
               <Video className="w-3.5 h-3.5" style={{ color: '#F5821E' }} />Telehealth
             </Link>
