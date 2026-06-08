@@ -45,7 +45,6 @@ class Settings(BaseSettings):
             "https://www.bharatcliniq.com",
             "https://bharatcliniq-provider.vercel.app",
             "https://bharatcliniq-patient.vercel.app",
-            "https://bharatcliniq-admin.vercel.app",
             "https://bharatcliniq-superadmin.vercel.app",
             "https://bharatcliniq-public.vercel.app",
             "https://bharatcliniq-pharmacy.vercel.app",
@@ -54,6 +53,13 @@ class Settings(BaseSettings):
             "https://bharatcliniq-imaging.vercel.app",
             "https://bharatcliniq-staff.vercel.app",
             "https://bharatcliniq-carechart.vercel.app",
+            # Vercel team-scoped production URLs (actual project domains)
+            "https://bharatcliniq-admin-sumankonda282-cybers-projects.vercel.app",
+            "https://bharatcliniq-admin-git-main-sumankonda282-cybers-projects.vercel.app",
+            "https://bharatcliniq-patient-sumankonda282-cybers-projects.vercel.app",
+            "https://bharatcliniq-patient-git-main-sumankonda282-cybers-projects.vercel.app",
+            "https://bharatcliniq-public-sumankonda282-cybers-projects.vercel.app",
+            "https://bharatcliniq-public-git-main-sumankonda282-cybers-projects.vercel.app",
             # Cloudflare Pages (pages.dev)
             "https://bhs-provider.pages.dev",
             "https://bhs-carechart.pages.dev",
