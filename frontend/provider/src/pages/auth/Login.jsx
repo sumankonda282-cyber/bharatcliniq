@@ -203,7 +203,7 @@ export default function Login() {
           <p className="text-center mt-4" style={{ fontSize: '11px', color: '#9ca3af' }}>
             Clinic not yet registered?{' '}
             <a
-              href={`${import.meta.env.VITE_PUBLIC_URL || 'https://bharatcliniq.com'}/register`}
+              href={`${import.meta.env.VITE_PUBLIC_URL || 'https://www.bharathhealthsystems.com'}/register`}
               style={{ color: '#0F2557', textDecoration: 'underline' }}
             >
               Register your clinic

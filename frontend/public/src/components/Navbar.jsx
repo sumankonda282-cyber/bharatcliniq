@@ -3,8 +3,8 @@ import { Link, useLocation } from 'react-router-dom'
 import { Menu, X, Video, Pill } from 'lucide-react'
 import BrandLogo from './BrandLogo'
 
-const PROVIDER_URL = import.meta.env.VITE_PROVIDER_URL || 'https://bharatcliniq-provider.vercel.app'
-const PATIENT_URL  = import.meta.env.VITE_PATIENT_URL  || 'https://bharatcliniq-patient.vercel.app'
+const PROVIDER_URL = import.meta.env.VITE_PROVIDER_URL || 'https://provider.bharathhealthsystems.com'
+const PATIENT_URL  = import.meta.env.VITE_PATIENT_URL  || 'https://my.bharathhealthsystems.com'
 
 const NAV_LINKS = [
   { to: '/clinics',       label: 'Find Clinics' },
