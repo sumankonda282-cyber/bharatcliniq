@@ -279,11 +279,17 @@ export default function Layout() {
           <span className="text-xs text-gray-400 hidden sm:block">{formatDate(new Date())}</span>
         </div>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
-          <div className={isPatientChart ? '' : 'p-4 md:p-6'}>
-            <Outlet />
-          </div>
+        {/* Page content — overflow-hidden so each page controls its own scroll */}
+        <main className="flex-1 min-h-0 overflow-hidden">
+          {isPatientChart ? (
+            <div className="h-full overflow-hidden flex flex-col">
+              <Outlet />
+            </div>
+          ) : (
+            <div className="h-full overflow-y-auto p-4 md:p-6">
+              <Outlet />
+            </div>
+          )}
         </main>
 
         <ChatWidget />

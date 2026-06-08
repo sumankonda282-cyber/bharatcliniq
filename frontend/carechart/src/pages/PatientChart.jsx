@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import {
   ArrowLeft, Activity, Pill, ClipboardList, FileText, Loader2,
   AlertTriangle, ChevronDown, ChevronUp, Plus, CheckCircle, X,
@@ -182,12 +183,13 @@ function PatientBanner({ admission, onBack }) {
 
 // ── Tab Bar ───────────────────────────────────────────────────────────────────
 
-const TABS = ['Overview', 'Vitals', 'I & O', 'Chart', 'MAR', 'Orders', 'Assessments']
+const NURSE_TABS    = ['Overview', 'Vitals', 'I & O', 'Chart', 'MAR', 'Assessments']
+const PROVIDER_TABS = ['Overview', 'Vitals', 'I & O', 'Chart', 'MAR', 'Orders', 'Assessments']
 
-function TabBar({ active, setActive }) {
+function TabBar({ active, setActive, tabs }) {
   return (
     <div className="bg-white border-b border-gray-200 flex overflow-x-auto scrollbar-none flex-shrink-0">
-      {TABS.map(t => (
+      {tabs.map(t => (
         <button
           key={t}
           onClick={() => setActive(t)}
@@ -1396,6 +1398,8 @@ function AssessmentsTab({ admission }) {
 export default function PatientChart() {
   const { admissionId } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isDoctor = ['doctor', 'clinic_admin', 'provider'].includes(user?.role)
   const [admission, setAdmission] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -1474,10 +1478,12 @@ export default function PatientChart() {
     )
   }
 
+  const tabs = isDoctor ? PROVIDER_TABS : NURSE_TABS
+
   return (
-    <div className="-m-4 md:-m-6 flex flex-col" style={{ minHeight: 'calc(100vh - 56px)' }}>
+    <div className="flex flex-col h-full overflow-hidden">
       <PatientBanner admission={admission} onBack={() => navigate(-1)} />
-      <TabBar active={activeTab} setActive={setActiveTab} />
+      <TabBar active={activeTab} setActive={setActiveTab} tabs={tabs} />
 
       <div className="flex-1 overflow-y-auto bg-gray-50">
         {activeTab === 'Overview' && (

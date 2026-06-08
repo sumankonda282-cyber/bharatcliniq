@@ -635,16 +635,20 @@ export default function MAR() {
     }
   }
 
+  const isDoctor = ['doctor', 'clinic_admin', 'provider'].includes(user?.role)
+
   return (
-    <div>
-      <div className="page-header">
+    <div className="flex flex-col h-full">
+      <div className="page-header flex-shrink-0">
         <h1 className="page-title">Medication Administration Record (MAR)</h1>
       </div>
 
-      <div className="flex gap-4 h-[calc(100vh-160px)]">
-        <PatientList selectedId={selected?.id} onSelect={handleSelect} />
+      <div className="flex gap-4 flex-1 min-h-0">
+        <div className="w-52 flex-shrink-0 card overflow-y-auto">
+          <PatientList selectedId={selected?.id} onSelect={handleSelect} />
+        </div>
 
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto min-w-0">
           {!selected ? (
             <div className="card h-full flex items-center justify-center">
               <div className="empty-state">
@@ -678,11 +682,13 @@ export default function MAR() {
                   <button onClick={() => window.print()} className="flex items-center gap-1.5 text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors">
                     <Printer size={13} />Print MAR
                   </button>
-                  <button onClick={() => { setShowAdd(true); setAddError('') }}
-                    className="flex items-center gap-1.5 text-xs text-white px-3 py-1.5 rounded-lg transition-colors"
-                    style={{ background: '#065F46' }}>
-                    <Plus size={13} />Add Medication
-                  </button>
+                  {isDoctor && (
+                    <button onClick={() => { setShowAdd(true); setAddError('') }}
+                      className="flex items-center gap-1.5 text-xs text-white px-3 py-1.5 rounded-lg transition-colors"
+                      style={{ background: '#065F46' }}>
+                      <Plus size={13} />Order Medication
+                    </button>
+                  )}
                 </div>
               </div>
 

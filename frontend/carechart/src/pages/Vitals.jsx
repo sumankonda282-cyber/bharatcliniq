@@ -111,15 +111,17 @@ export default function Vitals() {
   const recent = vitals.slice(0, 10)
 
   return (
-    <div>
-      <div className="page-header">
+    <div className="flex flex-col h-full">
+      <div className="page-header flex-shrink-0">
         <h1 className="page-title">Vitals Charting</h1>
       </div>
 
-      <div className="flex gap-4 h-[calc(100vh-160px)]">
-        <PatientList selectedId={selected?.id} onSelect={handleSelect} />
+      <div className="flex gap-4 flex-1 min-h-0">
+        <div className="w-52 flex-shrink-0 card overflow-y-auto">
+          <PatientList selectedId={selected?.id} onSelect={handleSelect} />
+        </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-w-0">
           {!selected ? (
             <div className="card h-full flex items-center justify-center">
               <div className="empty-state">
