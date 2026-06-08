@@ -69,10 +69,7 @@ class PathNormalizeMiddleware:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
-    allow_origin_regex=(
-        r"https://bharatcliniq-[a-z0-9]+-sumankonda282-cybers-projects\.vercel\.app"
-        r"|https://bharatcliniq-[a-z]+-git-[a-z0-9-]+-sumankonda282-cybers-projects\.vercel\.app"
-    ),
+    allow_origin_regex=r"https://bharatcliniq-[a-z0-9-]+-sumankonda282-cybers-projects\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
