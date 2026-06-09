@@ -409,73 +409,82 @@ function OverviewTab({ admission, vitals, meds }) {
   ]
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="flex flex-col h-full overflow-y-auto">
+      {/* KPI strip — inline, no cards */}
+      <div className="flex-shrink-0 flex items-center gap-6 px-4 py-2.5 bg-white border-b border-gray-100 flex-wrap">
         {kpis.map(k => (
-          <div key={k.label} className={`bg-white rounded-xl border p-4 ${k.warn ? 'border-red-200' : 'border-gray-200'}`}>
-            <div className={`text-2xl font-bold ${k.warn ? 'text-red-600' : 'text-emerald-700'}`}>{k.value}</div>
-            <div className="text-xs text-gray-500 mt-0.5">{k.label}</div>
+          <div key={k.label} className="flex items-baseline gap-1.5">
+            <span className={`text-lg font-bold ${k.warn ? 'text-red-600' : 'text-emerald-700'}`}>{k.value}</span>
+            <span className="text-xs text-gray-400">{k.label}</span>
           </div>
         ))}
+        {lv?.recorded_at && (
+          <span className="text-xs text-gray-300 ml-auto">Vitals {timeAgo(lv.recorded_at)}</span>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-        {vCards.map(v => {
-          const curr = lv?.[v.key]
-          const bad  = isAbnormal(v.key, curr)
-          const hist = vHistory(v.key)
-          return (
-            <div key={v.key} className={`bg-white rounded-xl border p-3 ${bad ? 'border-red-200' : 'border-gray-200'}`}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-500">{v.label}</span>
-                {bad && <AlertTriangle size={11} className="text-red-500" />}
-              </div>
-              <div className={`text-xl font-bold ${bad ? 'text-red-600' : 'text-emerald-700'}`}>
-                {curr != null ? `${curr}${v.unit}` : '—'}
-              </div>
-              {v.sec && lv?.[v.sec.key] != null && (
-                <div className="text-xs text-gray-400">{v.sec.label}: {lv[v.sec.key]}</div>
-              )}
-              <div className="mt-1"><Sparkline values={hist} color={bad ? '#dc2626' : '#065F46'} /></div>
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><User size={13} /> Patient Info</h3>
-          <div className="space-y-1">
-            {[
-              ['Name',      p.full_name || admission.patient_name || '—'],
-              ['Age / Sex', age ? `${age} yrs / ${(p.gender||'').toUpperCase().slice(0,1)||'?'}` : '—'],
-              ['Blood Group',p.blood_group || '—'],
-              ['Contact',   p.phone || p.contact_number || '—'],
-              ['Address',   p.address || '—'],
-            ].map(([l, v]) => (
-              <div key={l} className="flex gap-2 text-sm">
-                <span className="text-gray-400 w-24 flex-shrink-0 text-xs">{l}</span>
-                <span className="text-gray-700 font-medium text-xs truncate">{v}</span>
-              </div>
-            ))}
+      <div className="p-4 space-y-4">
+        {/* Vitals — compact inline grid with sparklines */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Latest Vitals</p>
+          <div className="grid grid-cols-3 lg:grid-cols-6 gap-0 border border-gray-200 rounded-lg overflow-hidden bg-white">
+            {vCards.map((v, vi) => {
+              const curr = lv?.[v.key]
+              const bad  = isAbnormal(v.key, curr)
+              const hist = vHistory(v.key)
+              return (
+                <div key={v.key} className={`px-3 py-2 ${vi > 0 ? 'border-l border-gray-100' : ''} ${bad ? 'bg-red-50' : ''}`}>
+                  <div className="text-xs text-gray-400 mb-0.5">{v.label}</div>
+                  <div className={`text-base font-bold leading-tight ${bad ? 'text-red-600' : 'text-emerald-700'}`}>
+                    {curr != null ? `${curr}${v.unit}` : '—'}
+                  </div>
+                  {v.sec && lv?.[v.sec.key] != null && (
+                    <div className="text-xs text-gray-300">/{lv[v.sec.key]}</div>
+                  )}
+                  {bad && <AlertTriangle size={10} className="text-red-400 mt-0.5" />}
+                  <Sparkline values={hist} width={80} height={24} color={bad ? '#dc2626' : '#065F46'} />
+                </div>
+              )
+            })}
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><Calendar size={13} /> Admission Info</h3>
-          <div className="space-y-1">
-            {[
-              ['Admitted',   fmtDateTime(admission.admitted_at || admission.admission_date)],
-              ['Department', admission.department_name || '—'],
-              ['Ward / Bed', `${admission.ward_name || '—'} / Bed ${admission.bed_number || '—'}`],
-              ['IP Number',  admission.admission_number || admission.ip_number || '—'],
-              ['Diagnosis',  admission.primary_diagnosis || '—'],
-              ['Doctor',     admission.attending_doctor?.full_name || admission.admitting_doctor_name || '—'],
-            ].map(([l, v]) => (
-              <div key={l} className="flex gap-2 text-sm">
-                <span className="text-gray-400 w-24 flex-shrink-0 text-xs">{l}</span>
-                <span className="text-gray-700 font-medium text-xs truncate">{v}</span>
-              </div>
-            ))}
+
+        {/* Patient + Admission info — two-column prose table */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1"><User size={11} /> Patient</p>
+            <dl className="space-y-0.5">
+              {[
+                ['Name',       p.full_name || admission.patient_name || '—'],
+                ['Age / Sex',  age ? `${age} yrs / ${(p.gender||'').toUpperCase().slice(0,1)||'?'}` : '—'],
+                ['Blood Group',p.blood_group || '—'],
+                ['Contact',    p.phone || p.contact_number || '—'],
+                ['Address',    p.address || '—'],
+              ].map(([l, v]) => (
+                <div key={l} className="flex gap-2 py-0.5 border-b border-gray-50 last:border-0">
+                  <dt className="text-xs text-gray-400 w-24 flex-shrink-0">{l}</dt>
+                  <dd className="text-xs text-gray-700 font-medium truncate">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1"><Calendar size={11} /> Admission</p>
+            <dl className="space-y-0.5">
+              {[
+                ['Admitted',   fmtDateTime(admission.admitted_at || admission.admission_date)],
+                ['Department', admission.department_name || '—'],
+                ['Ward / Bed', `${admission.ward_name || '—'} / Bed ${admission.bed_number || '—'}`],
+                ['IP Number',  admission.admission_number || admission.ip_number || '—'],
+                ['Diagnosis',  admission.primary_diagnosis || '—'],
+                ['Doctor',     admission.attending_doctor?.full_name || admission.admitting_doctor_name || '—'],
+              ].map(([l, v]) => (
+                <div key={l} className="flex gap-2 py-0.5 border-b border-gray-50 last:border-0">
+                  <dt className="text-xs text-gray-400 w-24 flex-shrink-0">{l}</dt>
+                  <dd className="text-xs text-gray-700 font-medium truncate">{v}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </div>
       </div>
@@ -490,7 +499,7 @@ function ProviderView({ admission, notes, setNotes, meds, admissionId }) {
   const [text, setText]         = useState('')
   const [noteType, setNoteType] = useState('Progress Note')
   const [saving, setSaving]     = useState(false)
-  const [expanded, setExpanded] = useState(0)
+  const [collapsed, setCollapsed] = useState({})
   const textRef = useRef(null)
 
   const NOTE_TYPES = ['Progress Note','SOAP Note','Nursing Note','Procedure Note','Discharge Summary']
@@ -534,48 +543,55 @@ function ProviderView({ admission, notes, setNotes, meds, admissionId }) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Compose */}
-      <div className="flex-shrink-0 p-3 border-b border-gray-100 bg-white">
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
+      <div className="flex-shrink-0 border-b border-gray-200 bg-white">
+        <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5 flex-wrap border-b border-gray-100">
           <select value={noteType} onChange={e => setNoteType(e.target.value)}
-            className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-emerald-400">
+            className="border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-emerald-400">
             {NOTE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
-          <span className="text-xs text-gray-400">Dot-phrases: .soap .shift .normal .pain .fall</span>
+          <span className="text-xs text-gray-300 hidden sm:block">.soap .shift .normal .pain .fall</span>
           <div className="flex-1" />
           <button onClick={continueSameRx} disabled={saving || !meds.length}
-            className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-lg hover:bg-emerald-100 disabled:opacity-50">
+            className="text-xs text-emerald-600 hover:text-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed">
             Continue Same Rx
           </button>
         </div>
-        <textarea ref={textRef} value={text} onChange={handleInput} rows={4}
-          placeholder="Write clinical note… (dot-phrases expand on type)"
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none" />
-        <div className="flex justify-end mt-1.5">
+        <textarea ref={textRef} value={text} onChange={handleInput} rows={3}
+          placeholder="Write clinical note…"
+          className="w-full px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none resize-none placeholder-gray-300" />
+        <div className="flex items-center justify-end gap-2 px-3 pb-2">
+          <span className="text-xs text-gray-300 flex-1">{text.length > 0 ? `${text.length} chars` : ''}</span>
           <button onClick={submit} disabled={!text.trim() || saving}
-            className="bg-emerald-600 text-white text-xs px-4 py-1.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5">
+            className="bg-emerald-600 text-white text-xs px-4 py-1.5 rounded hover:bg-emerald-700 disabled:opacity-40 flex items-center gap-1.5">
             {saving ? <Loader2 size={12} className="animate-spin" /> : <PenLine size={12} />} Sign & Submit
           </button>
         </div>
       </div>
-      {/* Notes timeline */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-1">
-        {notes.length === 0 && <p className="text-sm text-gray-400 text-center py-8">No notes yet.</p>}
-        {notes.map((n, i) => (
-          <div key={n.id || i} className="border-l-2 border-emerald-200 pl-3 py-1.5">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-xs font-medium text-emerald-700">{n.note_type}</span>
-              <span className="text-xs text-gray-400">{fmtDateTime(n.created_at)}</span>
-              {n.author?.full_name && <span className="text-xs text-gray-400">· {n.author.full_name}</span>}
-              <button onClick={() => setExpanded(expanded === i ? -1 : i)} className="ml-auto text-gray-400 hover:text-gray-600">
-                {expanded === i ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-              </button>
+      {/* Notes — prose format, thin dividers */}
+      <div className="flex-1 overflow-y-auto">
+        {notes.length === 0 && <p className="text-sm text-gray-400 text-center py-10">No notes yet.</p>}
+        {notes.map((n, i) => {
+          const isCollapsed = collapsed[i]
+          return (
+            <div key={n.id || i} className="px-4 py-3 border-b border-gray-100 last:border-0">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-xs font-semibold text-emerald-700">{n.note_type}</span>
+                <span className="text-xs text-gray-300">·</span>
+                <span className="text-xs text-gray-400">{fmtDateTime(n.created_at)}</span>
+                {n.author?.full_name && (
+                  <><span className="text-xs text-gray-300">·</span>
+                  <span className="text-xs text-gray-400">{n.author.full_name}</span></>
+                )}
+                <button onClick={() => setCollapsed(c => ({...c, [i]: !c[i]}))} className="ml-auto text-gray-300 hover:text-gray-500">
+                  {isCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+                </button>
+              </div>
+              {!isCollapsed && (
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{n.content}</p>
+              )}
             </div>
-            {expanded === i
-              ? <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">{n.content}</pre>
-              : <p className="text-xs text-gray-600 line-clamp-2">{n.content}</p>
-            }
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
