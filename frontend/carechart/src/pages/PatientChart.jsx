@@ -5,7 +5,8 @@ import {
   ArrowLeft, Activity, Pill, FileText, Loader2, AlertTriangle,
   ChevronDown, ChevronUp, Plus, X, FlaskConical, Printer,
   LayoutDashboard, ClipboardCheck, Scissors, PenLine, Search,
-  Lock, User, Calendar, ArrowRight, PillIcon
+  Lock, User, Calendar, ArrowRight, PillIcon, Bell, Settings,
+  CheckCircle2, Circle
 } from 'lucide-react'
 import api from '../api/client'
 import { usePin } from '../contexts/PinContext'
@@ -152,9 +153,160 @@ function Sparkline({ values, width = 100, height = 32, color = '#065F46' }) {
   )
 }
 
+// ── Vitals freshness ──────────────────────────────────────────────────────────
+
+function vitalsFreshness(recordedAt) {
+  if (!recordedAt) return 'none'
+  const mins = (Date.now() - new Date(recordedAt).getTime()) / 60000
+  if (mins < 120) return 'green'
+  if (mins < 240) return 'yellow'
+  return 'red'
+}
+
+const FRESHNESS_DOT = {
+  green:  'bg-green-400 shadow-green-300',
+  yellow: 'bg-yellow-400 shadow-yellow-300',
+  red:    'bg-red-500 shadow-red-300 animate-pulse',
+  none:   'bg-gray-400',
+}
+
+// ── VitalsModal ───────────────────────────────────────────────────────────────
+
+const VITALS_FIELDS = [
+  { key: 'temperature',      label: 'Temperature',   unit: '°C',    placeholder: '37.0' },
+  { key: 'bp_systolic',      label: 'BP Systolic',   unit: 'mmHg',  placeholder: '120' },
+  { key: 'bp_diastolic',     label: 'BP Diastolic',  unit: 'mmHg',  placeholder: '80' },
+  { key: 'pulse',            label: 'Pulse',         unit: 'bpm',   placeholder: '72' },
+  { key: 'spo2',             label: 'SpO₂',          unit: '%',     placeholder: '98' },
+  { key: 'respiration_rate', label: 'Resp Rate',     unit: '/min',  placeholder: '16' },
+  { key: 'pain_score',       label: 'Pain Score',    unit: '/10',   placeholder: '0' },
+  { key: 'weight',           label: 'Weight',        unit: 'kg',    placeholder: '' },
+]
+
+function VitalsModal({ admissionId, onClose, onSaved }) {
+  const [vals, setVals]   = useState({})
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr]     = useState('')
+
+  const set = k => e => setVals(v => ({ ...v, [k]: e.target.value }))
+
+  const save = async () => {
+    setSaving(true); setErr('')
+    try {
+      const payload = {}
+      VITALS_FIELDS.forEach(f => { if (vals[f.key] !== '' && vals[f.key] != null) payload[f.key] = Number(vals[f.key]) })
+      payload.notes = notes
+      const r = await api.post(`/inpatient/admissions/${admissionId}/vitals`, payload)
+      onSaved(r.data)
+      onClose()
+    } catch (e) {
+      setErr(e?.response?.data?.detail || 'Failed to save vitals')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-800 flex items-center gap-2">
+            <Activity size={15} className="text-emerald-600" /> Record Vitals
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+        </div>
+        <div className="p-4 grid grid-cols-2 gap-3">
+          {VITALS_FIELDS.map(f => {
+            const val = vals[f.key] ?? ''
+            const bad = val !== '' && isAbnormal(f.key, Number(val))
+            return (
+              <div key={f.key}>
+                <label className="text-xs text-gray-500 block mb-0.5">{f.label} <span className="text-gray-300">{f.unit}</span></label>
+                <input
+                  type="number"
+                  value={val}
+                  onChange={set(f.key)}
+                  placeholder={f.placeholder}
+                  className={`w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 ${bad ? 'border-red-300 bg-red-50 focus:ring-red-400 text-red-700' : 'border-gray-300 focus:ring-emerald-400'}`}
+                />
+                {bad && <span className="text-xs text-red-500">Abnormal</span>}
+              </div>
+            )
+          })}
+          <div className="col-span-2">
+            <label className="text-xs text-gray-500 block mb-0.5">Notes</label>
+            <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes…"
+              className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+          </div>
+        </div>
+        {err && <p className="px-4 pb-2 text-xs text-red-600">{err}</p>}
+        <div className="flex justify-end gap-2 px-4 pb-4">
+          <button onClick={onClose} className="text-xs text-gray-500 px-3 py-1.5 rounded hover:bg-gray-100">Cancel</button>
+          <button onClick={save} disabled={saving}
+            className="bg-emerald-600 text-white text-xs px-4 py-1.5 rounded hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5">
+            {saving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Save Vitals
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── ClinicalAlerts ────────────────────────────────────────────────────────────
+
+function ClinicalAlerts({ meds, allergies }) {
+  const alerts = []
+  const active = meds.filter(m => m.is_active !== false && !m.is_past)
+
+  // Drug-allergy conflicts (first word match)
+  allergies.forEach(al => {
+    const aWord = (al.display || '').toLowerCase().split(' ')[0]
+    if (!aWord) return
+    active.forEach(m => {
+      const mWord = (m.drug_name || m.medication_name || m.name || '').toLowerCase().split(' ')[0]
+      if (mWord && (mWord.includes(aWord) || aWord.includes(mWord))) {
+        alerts.push({
+          type: 'allergy', sev: al.severity,
+          msg: `${m.drug_name || m.name} — allergy to ${al.display} (${al.severity || 'unknown severity'})`,
+        })
+      }
+    })
+  })
+
+  // Duplicate active medications (same first word)
+  const seen = {}
+  active.forEach(m => {
+    const w = (m.drug_name || m.medication_name || m.name || '').toLowerCase().split(' ')[0]
+    if (!w) return
+    if (seen[w]) alerts.push({ type: 'duplicate', sev: 'moderate', msg: `Possible duplicate order: ${w}` })
+    else seen[w] = true
+  })
+
+  if (alerts.length === 0) return null
+  return (
+    <div>
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+        <Bell size={11} className="text-red-400" /> Clinical Alerts
+        <span className="bg-red-100 text-red-600 text-xs px-1.5 py-0.5 rounded-full font-bold">{alerts.length}</span>
+      </p>
+      <div className="space-y-1">
+        {alerts.map((a, i) => {
+          const high = a.sev === 'life-threatening' || a.sev === 'severe'
+          return (
+            <div key={i} className={`text-xs px-3 py-1.5 rounded flex items-start gap-2 ${high ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`}>
+              <AlertTriangle size={11} className="mt-0.5 flex-shrink-0" />
+              <span>{a.msg}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ── PatientBanner ─────────────────────────────────────────────────────────────
 
-function PatientBanner({ admission, vitals, onBack, onAllergyOpen }) {
+function PatientBanner({ admission, vitals, onBack, onAllergyOpen, onVitalsOpen }) {
   if (!admission) return null
   const p = admission.patient || {}
   const name   = p.full_name || admission.patient_name || 'Unknown'
@@ -216,19 +368,23 @@ function PatientBanner({ admission, vitals, onBack, onAllergyOpen }) {
         <span className="text-xs text-emerald-200 hidden sm:block">Dr. <span className="text-white font-medium">{doctor}</span></span>
         {diag !== '—' && <span className="text-xs text-emerald-100/60 truncate max-w-xs hidden md:block" title={diag}>· {diag}</span>}
       </div>
-      {/* Row 3 — vitals strip */}
-      {strip.length > 0 && (
-        <div className="flex items-center gap-4 px-3 pb-2 pt-0.5">
-          {strip.map(v => (
-            <span key={v.key} className={`text-xs ${isAbnormal(v.key, v.key === 'bp_systolic' ? lv?.bp_systolic : parseFloat(v.val)) ? 'text-red-300 font-bold' : 'text-emerald-100'}`}>
-              <span className="text-white/40 mr-0.5">{v.label}:</span>{v.val}
-            </span>
-          ))}
-          {lv?.recorded_at && (
-            <span className="text-xs text-white/35 ml-auto">{timeAgo(lv.recorded_at)}</span>
-          )}
-        </div>
-      )}
+      {/* Row 3 — vitals strip with freshness dot */}
+      <div className="flex items-center gap-3 px-3 pb-2 pt-0.5">
+        <button
+          onClick={onVitalsOpen}
+          title="Record vitals"
+          className={`w-3 h-3 rounded-full flex-shrink-0 shadow-sm transition-transform hover:scale-125 ${FRESHNESS_DOT[vitalsFreshness(lv?.recorded_at)]}`}
+        />
+        {strip.map(v => (
+          <span key={v.key} className={`text-xs ${isAbnormal(v.key, v.key === 'bp_systolic' ? lv?.bp_systolic : parseFloat(v.val)) ? 'text-red-300 font-bold' : 'text-emerald-100'}`}>
+            <span className="text-white/40 mr-0.5">{v.label}:</span>{v.val}
+          </span>
+        ))}
+        {!strip.length && <span className="text-xs text-white/40">No vitals — click dot to record</span>}
+        {lv?.recorded_at && (
+          <span className="text-xs text-white/35 ml-auto">{timeAgo(lv.recorded_at)}</span>
+        )}
+      </div>
     </div>
   )
 }
@@ -381,7 +537,7 @@ function ChartNav({ active, setActive }) {
 
 // ── Section: Patient Dashboard ─────────────────────────────────────────────────
 
-function OverviewTab({ admission, vitals, meds }) {
+function OverviewTab({ admission, vitals, meds, allergies, onVitalsOpen }) {
   const p       = admission.patient || {}
   const lv      = vitals[0] || null
   const admitted = admission.admitted_at || admission.admission_date
@@ -424,9 +580,20 @@ function OverviewTab({ admission, vitals, meds }) {
       </div>
 
       <div className="p-4 space-y-4">
+        {/* Clinical alerts */}
+        <ClinicalAlerts meds={meds} allergies={allergies || []} />
+
         {/* Vitals — compact inline grid with sparklines */}
         <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Latest Vitals</p>
+          <div className="flex items-center gap-2 mb-2">
+            <button onClick={onVitalsOpen} title="Record vitals"
+              className={`w-3 h-3 rounded-full flex-shrink-0 shadow-sm transition-transform hover:scale-125 ${FRESHNESS_DOT[vitalsFreshness(lv?.recorded_at)]}`} />
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Latest Vitals</p>
+            <button onClick={onVitalsOpen}
+              className="ml-auto text-xs text-emerald-600 hover:text-emerald-800 flex items-center gap-1">
+              <Plus size={11} /> Record
+            </button>
+          </div>
           <div className="grid grid-cols-3 lg:grid-cols-6 gap-0 border border-gray-200 rounded-lg overflow-hidden bg-white">
             {vCards.map((v, vi) => {
               const curr = lv?.[v.key]
@@ -729,13 +896,35 @@ function ProviderView({ admission, notes, setNotes, meds, admissionId }) {
 
 // ── Section: MAR ──────────────────────────────────────────────────────────────
 
-function MARTab({ meds }) {
+function MARTab({ meds, admissionId }) {
+  const TODAY = new Date().toISOString().slice(0, 10)
   const [marState, setMarState] = useState({})
+  const [loadingMAR, setLoadingMAR] = useState(true)
 
-  const scheduled = meds.filter(m => !m.is_past && !(!m.is_active))
+  const scheduled = meds.filter(m => !m.is_past && m.is_active !== false)
   const allSlots  = [...new Set(scheduled.flatMap(m => FREQ_SLOTS[m.frequency || m.freq || 'OD'] || ['08:00']))].sort()
 
-  const toggle = (key, val) => setMarState(s => ({ ...s, [key]: s[key] === val ? null : val }))
+  // Load saved MAR records for today
+  useEffect(() => {
+    api.get(`/inpatient/admissions/${admissionId}/mar`, { params: { date: TODAY } })
+      .then(r => {
+        const saved = {}
+        ;(r.data || []).forEach(rec => {
+          saved[`${rec.medication_index ?? rec.med_index}-${rec.time_slot}`] = rec.status
+        })
+        setMarState(saved)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMAR(false))
+  }, [admissionId, TODAY])
+
+  const toggle = (key, val, medIdx, slot) => {
+    const next = marState[key] === val ? null : val
+    setMarState(s => ({ ...s, [key]: next }))
+    api.post(`/inpatient/admissions/${admissionId}/mar`, {
+      date: TODAY, medication_index: medIdx, time_slot: slot, status: next,
+    }).catch(() => {})
+  }
 
   if (scheduled.length === 0) return (
     <div className="flex items-center justify-center h-full text-gray-400">
@@ -771,16 +960,19 @@ function MARTab({ meds }) {
                   </td>
                   <td className="px-3 py-2 text-xs text-gray-500">{m.route || '—'}</td>
                   {allSlots.map(slot => {
-                    const scheduled = slots.includes(slot)
+                    const isScheduled = slots.includes(slot)
                     const key = `${mi}-${slot}`
                     const st  = marState[key]
-                    if (!scheduled) return <td key={slot} className="px-2 py-2 text-center text-gray-100">·</td>
+                    const now = new Date()
+                    const [sh, sm] = slot.split(':').map(Number)
+                    const slotPast = now.getHours() > sh || (now.getHours() === sh && now.getMinutes() > sm + 30)
+                    if (!isScheduled) return <td key={slot} className="px-2 py-2 text-center text-gray-100">·</td>
                     return (
-                      <td key={slot} className="px-2 py-2">
+                      <td key={slot} className={`px-2 py-2 ${!st && slotPast ? 'bg-red-50/40' : ''}`}>
                         <div className="flex flex-col gap-0.5 items-center">
-                          <button onClick={() => toggle(key, 'given')}
+                          <button onClick={() => toggle(key, 'given', mi, slot)}
                             className={`text-xs px-1.5 py-0.5 rounded transition-colors leading-none ${st === 'given' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700'}`}>G</button>
-                          <button onClick={() => toggle(key, 'held')}
+                          <button onClick={() => toggle(key, 'held', mi, slot)}
                             className={`text-xs px-1.5 py-0.5 rounded transition-colors leading-none ${st === 'held' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-600'}`}>H</button>
                         </div>
                       </td>
@@ -986,18 +1178,32 @@ function OrdersInvestigationsSection({ admissionId }) {
 // ── Section: Notes / Assessments ─────────────────────────────────────────────
 
 function NotesAssessmentsSection({ admissionId }) {
-  const { requestPin }  = usePin()
-  const [catFilter, setCatFilter] = useState('All')
+  const { requestPin } = usePin()
+  const GKEY = `asmGroups_${admissionId}`
+  const [catFilter, setCatFilter] = useState('Groups')
   const [search, setSearch]       = useState('')
   const [activeForm, setActiveForm] = useState(null)
   const [submissions, setSubmissions] = useState([])
-  const [savedGroups] = useState(['Clinical', 'Safety'])
+  const [groups, setGroups] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(GKEY)) || [
+      { name: 'Clinical', formIds: ['pain','braden','morse','io','wound'] },
+      { name: 'Safety',   formIds: ['gcs','restraint','incident'] },
+    ] } catch { return [] }
+  })
+  const [groupMgr, setGroupMgr] = useState(false)
+  const [newGroupName, setNewGroupName] = useState('')
+  const [activeGroup, setActiveGroup] = useState(groups[0]?.name || '')
 
-  const categories = ['All', ...new Set(ASSESSMENT_FORMS.map(f => f.category))]
-  const filtered   = ASSESSMENT_FORMS.filter(f =>
-    (catFilter === 'All' || f.category === catFilter) &&
-    (search === '' || f.label.toLowerCase().includes(search.toLowerCase()))
-  )
+  const saveGroups = g => { setGroups(g); localStorage.setItem(GKEY, JSON.stringify(g)) }
+
+  const categories = ['Groups', 'All', ...new Set(ASSESSMENT_FORMS.map(f => f.category))]
+
+  const filtered = catFilter === 'Groups'
+    ? (groups.find(g => g.name === activeGroup)?.formIds || []).map(id => ASSESSMENT_FORMS.find(f => f.id === id)).filter(Boolean)
+    : ASSESSMENT_FORMS.filter(f =>
+        (catFilter === 'All' || f.category === catFilter) &&
+        (search === '' || f.label.toLowerCase().includes(search.toLowerCase()))
+      )
 
   const handleSubmit = async formData => {
     try {
@@ -1010,25 +1216,108 @@ function NotesAssessmentsSection({ admissionId }) {
     } catch {}
   }
 
+  const toggleFormInGroup = (groupName, formId) => {
+    const updated = groups.map(g => {
+      if (g.name !== groupName) return g
+      const has = g.formIds.includes(formId)
+      return { ...g, formIds: has ? g.formIds.filter(id => id !== formId) : [...g.formIds, formId] }
+    })
+    saveGroups(updated)
+  }
+
+  const addGroup = () => {
+    if (!newGroupName.trim()) return
+    const updated = [...groups, { name: newGroupName.trim(), formIds: [] }]
+    saveGroups(updated); setNewGroupName(''); setActiveGroup(newGroupName.trim())
+  }
+
+  const removeGroup = name => {
+    const updated = groups.filter(g => g.name !== name)
+    saveGroups(updated)
+    if (activeGroup === name) setActiveGroup(updated[0]?.name || '')
+  }
+
   return (
     <div className="flex h-full overflow-hidden">
-      <div className="w-60 flex-shrink-0 border-r border-gray-100 bg-white flex flex-col">
+      <div className="w-64 flex-shrink-0 border-r border-gray-100 bg-white flex flex-col">
         <div className="p-3 border-b border-gray-100 space-y-2">
-          <div className="relative">
-            <Search size={12} className="absolute left-2.5 top-2 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search forms…"
-              className="w-full border border-gray-200 rounded-lg pl-7 pr-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+          <div className="flex items-center gap-1.5">
+            <div className="relative flex-1">
+              <Search size={12} className="absolute left-2.5 top-2 text-gray-400" />
+              <input value={search} onChange={e => { setSearch(e.target.value); if (e.target.value) setCatFilter('All') }}
+                placeholder="Search forms…"
+                className="w-full border border-gray-200 rounded-lg pl-7 pr-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+            </div>
+            <button onClick={() => setGroupMgr(g => !g)} title="Manage groups"
+              className={`p-1.5 rounded-lg border transition-colors ${groupMgr ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'border-gray-200 text-gray-400 hover:border-emerald-300'}`}>
+              <Settings size={13} />
+            </button>
           </div>
           <div className="flex gap-1 flex-wrap">
             {categories.map(c => (
-              <button key={c} onClick={() => setCatFilter(c)}
+              <button key={c} onClick={() => { setCatFilter(c); setSearch('') }}
                 className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${catFilter === c ? 'bg-emerald-600 text-white border-emerald-600' : 'border-gray-200 text-gray-500 hover:border-emerald-300'}`}>
                 {c}
               </button>
             ))}
           </div>
+          {catFilter === 'Groups' && groups.length > 0 && (
+            <div className="flex gap-1 flex-wrap">
+              {groups.map(g => (
+                <button key={g.name} onClick={() => setActiveGroup(g.name)}
+                  className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors ${activeGroup === g.name ? 'bg-emerald-700 text-white' : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'}`}>
+                  <Lock size={8} /> {g.name}
+                  <span className="opacity-60">({groups.find(x => x.name === g.name)?.formIds.length || 0})</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Group manager */}
+        {groupMgr && (
+          <div className="border-b border-gray-100 p-3 bg-gray-50 space-y-2">
+            <p className="text-xs font-semibold text-gray-600">Manage Groups</p>
+            <div className="flex gap-1">
+              <input value={newGroupName} onChange={e => setNewGroupName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addGroup()}
+                placeholder="New group name…"
+                className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+              <button onClick={addGroup} disabled={!newGroupName.trim()}
+                className="bg-emerald-600 text-white text-xs px-2 py-1 rounded hover:bg-emerald-700 disabled:opacity-50">Add</button>
+            </div>
+            {groups.map(g => (
+              <div key={g.name} className="flex items-center justify-between text-xs">
+                <span className="font-medium text-gray-700">{g.name} <span className="text-gray-400">({g.formIds.length} forms)</span></span>
+                <button onClick={() => removeGroup(g.name)} className="text-red-400 hover:text-red-600"><X size={11} /></button>
+              </div>
+            ))}
+            {catFilter === 'Groups' && activeGroup && (
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Forms in "{activeGroup}":</p>
+                <div className="max-h-32 overflow-y-auto space-y-0.5">
+                  {ASSESSMENT_FORMS.map(f => {
+                    const inGroup = groups.find(g => g.name === activeGroup)?.formIds.includes(f.id)
+                    return (
+                      <button key={f.id} onClick={() => toggleFormInGroup(activeGroup, f.id)}
+                        className={`w-full text-left text-xs px-2 py-1 rounded flex items-center gap-2 ${inGroup ? 'bg-emerald-50 text-emerald-700' : 'text-gray-500 hover:bg-gray-100'}`}>
+                        {inGroup ? <CheckCircle2 size={11} /> : <Circle size={11} className="opacity-40" />}
+                        {f.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+          {filtered.length === 0 && (
+            <p className="text-xs text-gray-400 text-center py-4">
+              {catFilter === 'Groups' ? 'No forms in this group. Use ⚙ to add forms.' : 'No forms found.'}
+            </p>
+          )}
           {filtered.map(f => (
             <button key={f.id} onClick={() => setActiveForm(f)}
               className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${activeForm?.id === f.id ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
@@ -1036,16 +1325,6 @@ function NotesAssessmentsSection({ admissionId }) {
               <span className="text-xs text-gray-400">{f.category}</span>
             </button>
           ))}
-        </div>
-        <div className="p-3 border-t border-gray-100">
-          <p className="text-xs font-medium text-gray-500 mb-1.5">Quick Groups</p>
-          <div className="flex flex-wrap gap-1">
-            {savedGroups.map(g => (
-              <span key={g} className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                <Lock size={9} /> {g}
-              </span>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -1309,19 +1588,23 @@ export default function PatientChart() {
   const [error, setError]         = useState(null)
   const [section, setSection]     = useState('dashboard')
   const [showAllergy, setShowAllergy] = useState(false)
+  const [showVitals, setShowVitals]   = useState(false)
+  const [allergies, setAllergies]     = useState([])
 
   const load = useCallback(async () => {
     try {
-      const [admR, vitR, notR, medR] = await Promise.all([
+      const [admR, vitR, notR, medR, algR] = await Promise.all([
         api.get(`/inpatient/admissions/${id}`),
         api.get(`/inpatient/admissions/${id}/vitals`),
         api.get(`/inpatient/admissions/${id}/notes`),
         api.get(`/inpatient/admissions/${id}/medications`),
+        api.get(`/inpatient/admissions/${id}/allergies`).catch(() => ({ data: [] })),
       ])
       setAdmission(admR.data)
       setVitals(vitR.data || [])
       setNotes(notR.data || [])
       setMeds(medR.data || [])
+      setAllergies(algR.data || [])
     } catch (e) {
       setError(e?.response?.data?.detail || 'Failed to load patient chart')
     } finally {
@@ -1352,9 +1635,9 @@ export default function PatientChart() {
 
   const renderSection = () => {
     switch (section) {
-      case 'dashboard':   return <OverviewTab admission={admission} vitals={vitals} meds={meds} />
+      case 'dashboard':   return <OverviewTab admission={admission} vitals={vitals} meds={meds} allergies={allergies} onVitalsOpen={() => setShowVitals(true)} />
       case 'provider':    return <ProviderView admission={admission} notes={notes} setNotes={setNotes} meds={meds} admissionId={id} />
-      case 'mar':         return <MARTab meds={meds} />
+      case 'mar':         return <MARTab meds={meds} admissionId={id} />
       case 'medications': return <MedicationChartSection admissionId={id} meds={meds} setMeds={setMeds} />
       case 'orders':      return <OrdersInvestigationsSection admissionId={id} />
       case 'notes':       return <NotesAssessmentsSection admissionId={id} />
@@ -1371,6 +1654,7 @@ export default function PatientChart() {
         vitals={vitals}
         onBack={() => navigate(-1)}
         onAllergyOpen={() => setShowAllergy(true)}
+        onVitalsOpen={() => setShowVitals(true)}
       />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <ChartNav active={section} setActive={setSection} />
@@ -1380,6 +1664,13 @@ export default function PatientChart() {
       </div>
       {showAllergy && (
         <AllergyPanel admissionId={id} onClose={() => setShowAllergy(false)} />
+      )}
+      {showVitals && (
+        <VitalsModal
+          admissionId={id}
+          onClose={() => setShowVitals(false)}
+          onSaved={v => { setVitals(prev => [v, ...prev]); setShowVitals(false) }}
+        />
       )}
     </div>
   )
