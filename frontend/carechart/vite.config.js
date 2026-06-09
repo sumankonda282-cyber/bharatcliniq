@@ -7,6 +7,16 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
+        navigateFallback: '/index.html',
+        // Never cache index.html — always fetch fresh from network
+        navigateFallbackDenylist: [/^\/api\//],
+        runtimeCaching: [],
+      },
       includeAssets: ['favicon.ico'],
       manifest: {
         name: 'BHaratCliniq CareChart',

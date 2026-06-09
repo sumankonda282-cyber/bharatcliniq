@@ -1,0 +1,16 @@
+# index.html must never be cached — always serve the latest build entry point
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# Service worker must also never be cached
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/workbox-*.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+# Hashed assets are safe to cache forever (content hash changes with each build)
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
