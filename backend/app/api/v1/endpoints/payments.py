@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.dependencies import get_current_staff
+from app.core.security import get_current_staff
 from app.db.session import get_db
 from app.models.models import Invoice
 
