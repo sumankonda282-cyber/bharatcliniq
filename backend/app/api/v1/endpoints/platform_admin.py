@@ -55,13 +55,64 @@ def _generate_username(full_name: str, db) -> str:
             return username
     raise Exception("Could not generate unique username")
 
-# ── Rate Card ─────────────────────────────────────────────────────────────────
+# ── Rate Card (fallback defaults — live values come from platform_settings) ──
 RATE_CARD = {
     "free":       {"price_per_doctor": 0,    "max_doctors": 2,   "label": "Free"},
     "basic":      {"price_per_doctor": 999,  "max_doctors": 10,  "label": "Basic"},
     "pro":        {"price_per_doctor": 799,  "max_doctors": 999, "label": "Pro"},
     "enterprise": {"price_per_doctor": 0,    "max_doctors": 999, "label": "Enterprise"},
 }
+
+# Full pricing config — editable in the admin portal (Plans & Pricing page).
+# Stored in platform_settings under key "pricing"; this is the seed/fallback.
+DEFAULT_PRICING = {
+    "plans": {
+        "clinic": [
+            {"key": "free",       "label": "Free",       "model": "per_doctor", "price_per_doctor": 0,   "max_doctors": 2},
+            {"key": "basic",      "label": "Basic",      "model": "per_doctor", "price_per_doctor": 999, "max_doctors": 10},
+            {"key": "pro",        "label": "Pro",        "model": "per_doctor", "price_per_doctor": 799, "max_doctors": 999},
+            {"key": "enterprise", "label": "Enterprise", "model": "custom",     "price_per_doctor": 0,   "max_doctors": 999},
+        ],
+        "hospital": [
+            {"key": "standard", "label": "Standard", "model": "base_plus_doctor",
+             "base_monthly": 4999, "included_doctors": 5, "price_per_extra_doctor": 599,
+             "modules": {"pharmacy": 1499, "lab": 1499, "imaging": 1999}},
+            {"key": "enterprise", "label": "Enterprise", "model": "custom"},
+        ],
+        "pharmacy": [
+            {"key": "free",     "label": "Free",     "model": "flat", "monthly": 0,    "note": "1 user · 100 bills/mo"},
+            {"key": "standard", "label": "Standard", "model": "flat", "monthly": 799,  "note": "Single store"},
+            {"key": "pro",      "label": "Pro",      "model": "flat", "monthly": 1499, "note": "Multi-user / branch + analytics"},
+        ],
+        "diagnostic": [
+            {"key": "standard", "label": "Standard", "model": "flat", "monthly": 1499, "note": "Lab"},
+            {"key": "pro",      "label": "Pro",      "model": "flat", "monthly": 2499, "note": "Lab + Imaging + NABL formats"},
+        ],
+    },
+    "telehealth": {"patient_fee": 5, "provider_fee": 5, "gst_percent": 18},
+    "cycle_discounts": {"monthly": 0, "quarterly": 5, "half_yearly": 10, "yearly": 15},
+}
+
+
+def get_pricing(db) -> dict:
+    """Live pricing config: platform_settings['pricing'] with seed fallback."""
+    from app.models.models import PlatformSetting
+    row = db.query(PlatformSetting).filter(PlatformSetting.key == "pricing").first()
+    if row and isinstance(row.value, dict) and row.value.get("plans"):
+        return row.value
+    return DEFAULT_PRICING
+
+
+def get_rate_card(db) -> dict:
+    """Clinic plans in the legacy RATE_CARD shape (used by MRR / billing summaries)."""
+    card = {}
+    for p in get_pricing(db).get("plans", {}).get("clinic", []):
+        card[p["key"]] = {
+            "price_per_doctor": p.get("price_per_doctor", 0),
+            "max_doctors":      p.get("max_doctors", 999),
+            "label":            p.get("label", p["key"].title()),
+        }
+    return card or RATE_CARD
 
 ROLES_NEEDING_VERIFICATION = ['pharmacist', 'lab_technician', 'imaging_tech', 'nurse']
 
@@ -113,7 +164,8 @@ def _clinic_summary(c, db):
     admin = db.query(Staff).filter(Staff.clinic_id == c.id, Staff.role == "clinic_admin").first()
     doctors = _doctor_count(db, c.id)
     plan = c.subscription_plan or "free"
-    rate = RATE_CARD.get(plan, RATE_CARD["free"])
+    card = get_rate_card(db)
+    rate = card.get(plan, card.get("free", RATE_CARD["free"]))
     monthly_bill = doctors * rate["price_per_doctor"]
     return {
         "id":            c.id,
@@ -167,10 +219,11 @@ def platform_dashboard(db: Session = Depends(get_db), current=Depends(get_curren
 
     # Estimated MRR across all active clinics
     clinics = db.query(Clinic).filter(Clinic.status == "active").all()
+    card = get_rate_card(db)
     mrr = 0
     for c in clinics:
         plan = c.subscription_plan or "free"
-        rate = RATE_CARD.get(plan, RATE_CARD["free"])
+        rate = card.get(plan, card.get("free", RATE_CARD["free"]))
         doctors = _doctor_count(db, c.id)
         mrr += doctors * rate["price_per_doctor"]
 
@@ -185,7 +238,7 @@ def platform_dashboard(db: Session = Depends(get_db), current=Depends(get_curren
         "pending_staff":    pending_staff,
         "new_this_month":   new_this_month,
         "mrr":              mrr,
-        "rate_card":        RATE_CARD,
+        "rate_card":        card,
     }
 
 
@@ -251,14 +304,15 @@ def get_clinic_detail(
 
     # Billing breakdown
     plan = clinic.subscription_plan or "free"
-    rate = RATE_CARD.get(plan, RATE_CARD["free"])
+    _card = get_rate_card(db)
+    rate = _card.get(plan, _card.get("free", RATE_CARD["free"]))
     doctor_count = _doctor_count(db, clinic_id)
     summary["billing"] = {
         "plan":              plan,
         "price_per_doctor":  rate["price_per_doctor"],
         "active_doctors":    doctor_count,
         "monthly_total":     doctor_count * rate["price_per_doctor"],
-        "rate_card":         RATE_CARD,
+        "rate_card":         _card,
     }
 
     # Audit log for this clinic
@@ -458,14 +512,15 @@ def change_plan(
     current=Depends(get_current_platform_admin),
 ):
     plan = body.get("plan")
-    if plan not in RATE_CARD:
-        raise HTTPException(400, f"Plan must be one of {list(RATE_CARD.keys())}")
+    card = get_rate_card(db)
+    if plan not in card:
+        raise HTTPException(400, f"Plan must be one of {list(card.keys())}")
     clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
     if not clinic:
         raise HTTPException(404, "Clinic not found")
     old_plan = clinic.subscription_plan
     active_doctors = _doctor_count(db, clinic_id)
-    max_allowed = RATE_CARD[plan]["max_doctors"]
+    max_allowed = card[plan]["max_doctors"]
     if active_doctors > max_allowed:
         raise HTTPException(400,
             f"Cannot downgrade to {plan}: clinic has {active_doctors} active doctors "
@@ -475,7 +530,7 @@ def change_plan(
     _log(db, "changed_plan", "clinic", clinic_id, clinic.name, current,
          reason=f"{old_plan} → {plan}")
     db.commit()
-    return {"message": f"Plan changed to {plan}", "monthly_bill": active_doctors * RATE_CARD[plan]["price_per_doctor"]}
+    return {"message": f"Plan changed to {plan}", "monthly_bill": active_doctors * card[plan]["price_per_doctor"]}
 
 
 # ── Staff Verification ────────────────────────────────────────────────────────
@@ -669,8 +724,9 @@ def get_reports(
     }
 
     # Plan distribution
+    _card = get_rate_card(db)
     plan_dist = {}
-    for plan in RATE_CARD:
+    for plan in _card:
         plan_dist[plan] = db.query(func.count(Clinic.id)).filter(
             Clinic.subscription_plan == plan, Clinic.status == "active"
         ).scalar()
@@ -687,7 +743,7 @@ def get_reports(
     total_mrr = 0
     for c in active_clinics:
         plan = c.subscription_plan or "free"
-        rate = RATE_CARD.get(plan, RATE_CARD["free"])
+        rate = _card.get(plan, _card.get("free", RATE_CARD["free"]))
         doctors = _doctor_count(db, c.id)
         bill = doctors * rate["price_per_doctor"]
         total_mrr += bill
@@ -1715,3 +1771,59 @@ async def create_clinic_direct(
             "note": "Credentials emailed to the admin. Temp password expires in 7 days.",
         },
     }
+
+
+# ── Plans & Pricing (editable from admin portal) ──────────────────────────────
+
+@router.get("/pricing")
+def get_pricing_config(
+    db: Session = Depends(get_db),
+    current=Depends(get_current_platform_admin),
+):
+    """Full pricing config: per-org-type plans, telehealth fees, cycle discounts."""
+    return get_pricing(db)
+
+
+@router.put("/pricing")
+def update_pricing_config(
+    body: dict,
+    db: Session = Depends(get_db),
+    current=Depends(get_current_platform_admin),
+):
+    """
+    Replace the pricing config. Takes effect immediately across MRR,
+    billing summaries, plan validation, and the public pricing endpoint.
+    """
+    from app.models.models import PlatformSetting
+
+    if not isinstance(body, dict) or not isinstance(body.get("plans"), dict):
+        raise HTTPException(400, "Body must contain a 'plans' object")
+    for org_type, plans in body["plans"].items():
+        if org_type not in ("clinic", "hospital", "pharmacy", "diagnostic"):
+            raise HTTPException(400, f"Unknown org type: {org_type}")
+        if not isinstance(plans, list) or not all(isinstance(p, dict) and p.get("key") for p in plans):
+            raise HTTPException(400, f"plans.{org_type} must be a list of plan objects with a 'key'")
+
+    row = db.query(PlatformSetting).filter(PlatformSetting.key == "pricing").first()
+    if row:
+        row.value = body
+        row.updated_by = current.id
+    else:
+        db.add(PlatformSetting(key="pricing", value=body, updated_by=current.id))
+
+    _log(db, "update_pricing", "platform", 0, "Plans & Pricing", current)
+    db.commit()
+    return get_pricing(db)
+
+
+@router.post("/pricing/reset")
+def reset_pricing_config(
+    db: Session = Depends(get_db),
+    current=Depends(get_current_platform_admin),
+):
+    """Restore the default pricing (removes the stored override)."""
+    from app.models.models import PlatformSetting
+    db.query(PlatformSetting).filter(PlatformSetting.key == "pricing").delete()
+    _log(db, "reset_pricing", "platform", 0, "Plans & Pricing", current)
+    db.commit()
+    return DEFAULT_PRICING

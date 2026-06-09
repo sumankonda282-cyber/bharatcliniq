@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import {
   LayoutDashboard, Clock, Building2, ShieldCheck,
   ClipboardList, BarChart3, LogOut, Menu, X, Search, CreditCard, Hospital,
-  FileSpreadsheet, Settings, RefreshCw, HelpCircle, Users
+  FileSpreadsheet, Settings, RefreshCw, HelpCircle, Users, IndianRupee
 } from 'lucide-react'
 
 const NAV = [
@@ -13,6 +13,7 @@ const NAV = [
   { to: '/pending',            icon: Clock,            label: 'Pending Approvals' },
   { to: '/clinics',            icon: Building2,        label: 'All Clinics' },
   { to: '/subscriptions',      icon: CreditCard,       label: 'Subscriptions' },
+  { to: '/pricing',            icon: IndianRupee,      label: 'Plans & Pricing' },
   { to: '/staff',              icon: ShieldCheck,      label: 'Staff Verification' },
   { to: '/audit',              icon: ClipboardList,    label: 'Audit Log' },
   { to: '/reports',            icon: BarChart3,        label: 'Reports' },

@@ -67,4 +67,9 @@ export const adminApi = {
 
   // Direct clinic creation
   createClinicDirect: (body) => api.post('/platform/clinics/create-direct', body),
+
+  // Plans & Pricing (editable)
+  getPricing:    ()     => api.get('/platform/pricing'),
+  updatePricing: (body) => api.put('/platform/pricing', body),
+  resetPricing:  ()     => api.post('/platform/pricing/reset'),
 }

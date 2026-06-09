@@ -59,6 +59,15 @@ export default function Navbar() {
           {/* Desktop CTAs */}
           <div className="hidden lg:flex items-center gap-2.5">
             <a
+              href={`${PATIENT_URL}/appointments`}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-semibold text-sm transition-all hover:opacity-90"
+              style={{ background: '#ECFDF5', color: '#047857' }}
+              title="Booked a video visit? Join it from your portal"
+            >
+              <Video className="w-3.5 h-3.5" />
+              Join video visit
+            </a>
+            <a
               href={PROVIDER_URL}
               className="inline-flex items-center px-4 py-2 rounded-xl border-2 font-semibold text-sm transition-all"
               style={{ borderColor: '#0F2557', color: '#0F2557' }}
@@ -102,7 +111,12 @@ export default function Navbar() {
                 {label}
               </Link>
             ))}
-            <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+            <a href={`${PATIENT_URL}/appointments`}
+              className="flex items-center justify-center gap-1.5 mt-3 py-2.5 rounded-xl font-semibold text-sm"
+              style={{ background: '#ECFDF5', color: '#047857' }}>
+              <Video className="w-4 h-4" /> Join video visit
+            </a>
+            <div className="flex gap-2 mt-2 pt-3 border-t border-gray-100">
               <a href={PROVIDER_URL}
                 className="flex-1 text-center py-2.5 rounded-xl border-2 font-semibold text-sm"
                 style={{ borderColor: '#0F2557', color: '#0F2557' }}>

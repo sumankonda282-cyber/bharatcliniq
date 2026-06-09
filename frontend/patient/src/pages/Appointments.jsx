@@ -10,10 +10,23 @@ const STATUS_BADGE = {
 
 function TelehealthJoinModal({ appt, onClose }) {
   const [consented, setConsented] = useState(false)
-  const handleJoin = () => {
-    const url = `https://meet.jit.si/bhs-appt-${appt.id}`
-    window.open(url, '_blank', 'noopener')
-    onClose()
+  const [joining, setJoining] = useState(false)
+  const [err, setErr] = useState('')
+
+  const handleJoin = async () => {
+    setJoining(true); setErr('')
+    try {
+      // Gated by the session state machine: opens 15 min before the slot,
+      // closes after the visit ends, revives only if the doctor approves a rejoin.
+      const res = await api.post(`/portal/appointments/${appt.id}/join`)
+      const url = res.token ? `${res.url}?t=${res.token}` : res.url
+      window.open(url, '_blank', 'noopener')
+      onClose()
+    } catch (e) {
+      setErr(e.message || 'Could not join the visit')
+    } finally {
+      setJoining(false)
+    }
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
@@ -36,12 +49,15 @@ function TelehealthJoinModal({ appt, onClose }) {
           <input type="checkbox" checked={consented} onChange={e => setConsented(e.target.checked)} className="mt-0.5 w-4 h-4 flex-shrink-0" />
           <span className="text-sm text-gray-700">I consent to this telemedicine consultation</span>
         </label>
+        {err && (
+          <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">{err}</div>
+        )}
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600">Cancel</button>
-          <button onClick={handleJoin} disabled={!consented}
+          <button onClick={handleJoin} disabled={!consented || joining}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-50"
             style={{ background: '#CC1414' }}>
-            <Video size={14} /> Join Now
+            <Video size={14} /> {joining ? 'Connecting…' : 'Join Now'}
           </button>
         </div>
       </div>

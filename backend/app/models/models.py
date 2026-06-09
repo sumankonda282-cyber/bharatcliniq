@@ -1506,3 +1506,57 @@ class MaintenanceRequest(Base):
     submitter = relationship("Staff", foreign_keys=[submitted_by])
     assignee  = relationship("Staff", foreign_keys=[assigned_to])
     clinic    = relationship("Clinic", foreign_keys=[clinic_id])
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Platform settings (editable pricing & global config)
+# ═══════════════════════════════════════════════════════════════════
+
+class PlatformSetting(Base):
+    """Key-value JSON config editable from the admin portal (pricing, fees, discounts)."""
+    __tablename__ = "platform_settings"
+    key        = Column(String(100), primary_key=True)
+    value      = Column(JSON, nullable=False, default=dict)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    updated_by = Column(Integer, ForeignKey("platform_admins.id"), nullable=True)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Telehealth sessions — lifecycle + join gating
+# ═══════════════════════════════════════════════════════════════════
+
+class TelehealthSession(Base):
+    """
+    One row per telehealth appointment. Controls when join tokens may be
+    issued and whether the Daily room exists (room name is deterministic:
+    bc-{appointment_id}, so the patient's link never changes).
+    States: scheduled | ready | in_progress | completed | expired | cancelled
+    """
+    __tablename__ = "telehealth_sessions"
+    id              = Column(Integer, primary_key=True, index=True)
+    appointment_id  = Column(Integer, ForeignKey("appointments.id"), unique=True, nullable=False, index=True)
+    clinic_id       = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    room_name       = Column(String(100), nullable=False)
+    state           = Column(String(30), default="scheduled", index=True)
+    slot_start      = Column(DateTime, nullable=False)   # IST naive, matches appointment storage
+    slot_end        = Column(DateTime, nullable=False)
+    room_expires_at = Column(DateTime, nullable=True)
+    doctor_first_joined_at  = Column(DateTime, nullable=True)
+    patient_first_joined_at = Column(DateTime, nullable=True)
+    completed_at    = Column(DateTime, nullable=True)
+    completed_by    = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    reopen_count    = Column(Integer, default=0)
+    reopened_until  = Column(DateTime, nullable=True)    # doctor-approved rejoin window
+    created_at      = Column(DateTime, server_default=func.now())
+
+
+class TelehealthSessionEvent(Base):
+    """Audit trail of session transitions — doubles as refund evidence."""
+    __tablename__ = "telehealth_session_events"
+    id         = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("telehealth_sessions.id"), nullable=False, index=True)
+    event_type = Column(String(50), nullable=False)   # created|doctor_joined|patient_joined|completed|expired|rejoin_window|room_deleted
+    actor_type = Column(String(20), nullable=True)    # staff|patient|system
+    actor_id   = Column(Integer, nullable=True)
+    payload    = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())

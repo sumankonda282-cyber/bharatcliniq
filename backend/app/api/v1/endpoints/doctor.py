@@ -313,14 +313,11 @@ async def join_telehealth(
     current: Staff = Depends(require_doctor),
 ):
     """
-    Doctor joins a telehealth session.
-    Creates a private Daily.co room on first join; doctor receives owner token.
-    Falls back to public Jitsi if Daily.co is not configured (dev/demo only).
-    Compliance: logs join timestamp per Telemedicine Practice Guidelines 2020.
+    Doctor joins a telehealth session — delegates to the session-gated logic
+    (slot-anchored expiry, state machine, knocking). Owner token issued.
+    Compliance: join timestamps logged per Telemedicine Practice Guidelines 2020.
     """
-    from datetime import datetime as _dt
-    from app.utils.video import get_or_create_room, create_meeting_token, jitsi_fallback_url
-    from app.core.config import settings as _s
+    from app.api.v1.endpoints.telehealth import issue_join
 
     appt = db.query(Appointment).filter(
         Appointment.id == appointment_id,
@@ -328,37 +325,5 @@ async def join_telehealth(
     ).first()
     if not appt:
         raise HTTPException(404, "Appointment not found")
-    if appt.mode != "telehealth":
-        raise HTTPException(400, "This is not a telehealth appointment")
 
-    room_name = appt.telehealth_room or f"bc-{appointment_id}"
-
-    if _s.DAILY_API_KEY:
-        room = await get_or_create_room(room_name, exp_minutes=120)
-        if room:
-            if not appt.telehealth_room:
-                appt.telehealth_room = room_name
-            token = await create_meeting_token(room_name, is_owner=True, exp_minutes=120)
-            appt.telehealth_joined_at = _dt.utcnow()
-            appt.status = "in_progress"
-            db.commit()
-            return {
-                "provider": "daily.co",
-                "room": room_name,
-                "url": room.get("url", f"https://{_s.DAILY_DOMAIN}/{room_name}"),
-                "token": token,
-                "joined_at": appt.telehealth_joined_at.isoformat(),
-            }
-
-    # Fallback — Jitsi (no auth, dev/demo only)
-    appt.telehealth_room = room_name
-    appt.telehealth_joined_at = _dt.utcnow()
-    appt.status = "in_progress"
-    db.commit()
-    return {
-        "provider": "jitsi",
-        "room": room_name,
-        "url": jitsi_fallback_url(room_name),
-        "token": None,
-        "joined_at": appt.telehealth_joined_at.isoformat(),
-    }
+    return await issue_join(db, appt, role="doctor", actor_id=current.id)

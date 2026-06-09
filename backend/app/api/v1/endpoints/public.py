@@ -728,3 +728,12 @@ def track_online_pharmacy_order(
         "status_label": status_labels.get(o.status, o.status),
         "created_at": o.created_at.isoformat() if o.created_at else None,
     }
+
+
+# ── Public Pricing (powers landing page / pricing calculator) ─────────────────
+
+@router.get("/pricing")
+def public_pricing(db: Session = Depends(get_db)):
+    """Live plan pricing — edited by the platform admin, read by the public site."""
+    from app.api.v1.endpoints.platform_admin import get_pricing
+    return get_pricing(db)

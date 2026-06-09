@@ -16,6 +16,7 @@ import HospitalSettings from './pages/HospitalSettings'
 import AssessmentTemplates from './pages/AssessmentTemplates'
 import AccountSettings from './pages/AccountSettings'
 import TeamAdmins from './pages/TeamAdmins'
+import PlansPricing from './pages/PlansPricing'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="assessment-templates" element={<AssessmentTemplates />} />
           <Route path="account"      element={<AccountSettings />} />
           <Route path="team-admins"  element={<TeamAdmins />} />
+          <Route path="pricing"      element={<PlansPricing />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

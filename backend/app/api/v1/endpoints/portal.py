@@ -134,6 +134,36 @@ def portal_appointments(current=Depends(get_current_patient), db: Session = Depe
     return {"appointments": result}
 
 
+@router.post("/appointments/{appointment_id}/join")
+async def portal_join_telehealth(
+    appointment_id: int,
+    current=Depends(get_current_patient),
+    db: Session = Depends(get_db),
+):
+    """
+    Patient joins their telehealth visit. Gated by the session state machine:
+    opens 15 min before the slot, closes 30 min after, dies at completion,
+    revives only inside a doctor-approved rejoin window. Patient gets a
+    non-owner token and waits in the knocking lobby until the doctor admits.
+    """
+    from app.models.models import Appointment
+    from app.api.v1.endpoints.telehealth import issue_join
+
+    patient_ids = [
+        p.id for p in db.query(Patient).filter(Patient.portal_user_id == current.id).all()
+    ]
+    if not patient_ids:
+        raise HTTPException(404, "Appointment not found")
+    appt = db.query(Appointment).filter(
+        Appointment.id == appointment_id,
+        Appointment.patient_id.in_(patient_ids),
+    ).first()
+    if not appt:
+        raise HTTPException(404, "Appointment not found")
+
+    return await issue_join(db, appt, role="patient", actor_id=current.id)
+
+
 @router.get("/prescriptions")
 def portal_prescriptions(current=Depends(get_current_patient), db: Session = Depends(get_db)):
     from app.models.models import Prescription, DoctorProfile, Clinic

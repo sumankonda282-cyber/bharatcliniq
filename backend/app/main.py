@@ -33,6 +33,7 @@ from app.api.v1.endpoints.chat import router as chat_router
 from app.api.v1.endpoints.inpatient import router as inpatient_router
 from app.api.v1.endpoints.maintenance import router as maintenance_router
 from app.api.v1.endpoints.payments import router as payments_router
+from app.api.v1.endpoints.telehealth import router as telehealth_router
 
 app = FastAPI(
     title="BharatCliniq API v2",
@@ -120,6 +121,7 @@ app.include_router(chat_router, prefix=PREFIX)
 app.include_router(inpatient_router, prefix=PREFIX)
 app.include_router(maintenance_router, prefix=PREFIX)
 app.include_router(payments_router, prefix=PREFIX)
+app.include_router(telehealth_router, prefix=PREFIX)
 
 # -----------------------------
 # Static Uploads
