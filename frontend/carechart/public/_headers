@@ -1,4 +1,4 @@
-# Never cache the HTML entry point — always serve the latest build
+# Cache policy — force fresh HTML, immutable hashed assets
 /
   Cache-Control: no-cache, no-store, must-revalidate
 
