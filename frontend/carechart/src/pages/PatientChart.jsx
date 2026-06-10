@@ -5,7 +5,7 @@ import {
   ArrowLeft, Activity, Pill, FileText, Loader2, AlertTriangle,
   ChevronDown, ChevronUp, Plus, X, FlaskConical, Printer,
   LayoutDashboard, ClipboardCheck, Scissors, PenLine, Search,
-  Lock, User, Calendar, ArrowRight, PillIcon
+  Lock, LockOpen, User, Calendar, ArrowRight, PillIcon
 } from 'lucide-react'
 import api from '../api/client'
 import { usePin } from '../contexts/PinContext'
@@ -154,7 +154,7 @@ function Sparkline({ values, width = 100, height = 32, color = '#065F46' }) {
 
 // ── PatientBanner ─────────────────────────────────────────────────────────────
 
-function PatientBanner({ admission, vitals, onBack, onAllergyOpen }) {
+function PatientBanner({ admission, vitals, onBack, onAllergyOpen, onVitalsOpen, isLocked, onManageLock }) {
   if (!admission) return null
   const p = admission.patient || {}
   const name   = p.full_name || admission.patient_name || 'Unknown'
@@ -205,6 +205,13 @@ function PatientBanner({ admission, vitals, onBack, onAllergyOpen }) {
         <button onClick={() => window.print()} className="text-white/60 hover:text-white flex-shrink-0 ml-1" title="Print">
           <Printer size={15} />
         </button>
+        <button
+          onClick={onManageLock}
+          title={isLocked ? 'Chart locked — click to manage' : 'Lock this chart'}
+          className={`flex-shrink-0 ml-1 transition-colors ${isLocked ? 'text-amber-300 hover:text-amber-200' : 'text-white/40 hover:text-white/70'}`}
+        >
+          {isLocked ? <Lock size={15} /> : <LockOpen size={15} />}
+        </button>
       </div>
       {/* Row 2 — location */}
       <div className="flex items-center gap-3 px-3 pb-1 pt-0.5 flex-wrap">
@@ -229,6 +236,230 @@ function PatientBanner({ admission, vitals, onBack, onAllergyOpen }) {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── ChartLockOverlay ──────────────────────────────────────────────────────────
+
+const ADMIN_ROLES = ['clinic_admin', 'clinic_manager', 'platform_admin']
+
+function ChartLockOverlay({ admissionId, isAdmin, patientName, onUnlocked, onBack }) {
+  const [pin, setPin] = useState(['', '', '', ''])
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState('')
+  const r0 = useRef(), r1 = useRef(), r2 = useRef(), r3 = useRef()
+  const refs = [r0, r1, r2, r3]
+
+  const changePin = (i, val) => {
+    if (!/^\d?$/.test(val)) return
+    const next = [...pin]; next[i] = val; setPin(next)
+    if (val && i < 3) refs[i + 1].current?.focus()
+    else if (val && i === 3) { const full = [...pin]; full[3] = val; verifyPin(full.join('')) }
+  }
+
+  const onKeyDown = (i, e) => {
+    if (e.key === 'Backspace' && !pin[i] && i > 0) refs[i - 1].current?.focus()
+  }
+
+  const verifyPin = async (pinStr) => {
+    if (loading) return
+    setLoading(true); setError('')
+    try {
+      const r = await api.post(`/inpatient/admissions/${admissionId}/verify-pin`, { pin: pinStr })
+      if (r.data?.verified) { sessionStorage.setItem(`chart_unlocked_${admissionId}`, '1'); onUnlocked() }
+      else { setError('Incorrect PIN'); setPin(['', '', '', '']); setTimeout(() => refs[0].current?.focus(), 50) }
+    } catch (e) {
+      setError(e?.response?.data?.detail || 'Verification failed')
+      setPin(['', '', '', '']); setTimeout(() => refs[0].current?.focus(), 50)
+    } finally { setLoading(false) }
+  }
+
+  const adminOverride = async () => {
+    if (loading) return
+    setLoading(true); setError('')
+    try {
+      const r = await api.post(`/inpatient/admissions/${admissionId}/verify-pin`, { pin: '0000' })
+      if (r.data?.verified) { sessionStorage.setItem(`chart_unlocked_${admissionId}`, '1'); onUnlocked() }
+      else setError('Override failed — contact system admin')
+    } catch (e) { setError(e?.response?.data?.detail || 'Override failed') }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <div className="absolute inset-0 z-[100] bg-gray-900/80 backdrop-blur-sm flex items-center justify-center">
+      <div className="bg-white rounded-2xl shadow-2xl p-7 w-full max-w-sm mx-4">
+        <div className="text-center mb-5">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-amber-100 mb-3">
+            <Lock size={28} className="text-amber-600" />
+          </div>
+          <h2 className="font-bold text-gray-900 text-lg">Chart Locked</h2>
+          <p className="text-gray-500 text-sm mt-1">
+            <span className="font-medium">{patientName}</span>'s chart is protected.{' '}
+            {isAdmin ? 'Use admin override or enter PIN.' : 'Enter the 4-digit PIN to access.'}
+          </p>
+        </div>
+        <div className="flex justify-center gap-3 mb-4">
+          {[0, 1, 2, 3].map(i => (
+            <input
+              key={i} ref={refs[i]}
+              type="password" inputMode="numeric" maxLength={1}
+              value={pin[i]}
+              onChange={e => changePin(i, e.target.value)}
+              onKeyDown={e => onKeyDown(i, e)}
+              disabled={loading} autoFocus={i === 0}
+              className="w-12 h-12 text-center text-xl font-bold border-2 rounded-xl focus:outline-none focus:border-emerald-600 border-gray-300 disabled:opacity-50"
+            />
+          ))}
+        </div>
+        {error && <p className="text-red-600 text-xs text-center mb-3">{error}</p>}
+        {loading && <p className="text-emerald-600 text-sm text-center mb-3 animate-pulse">Verifying…</p>}
+        {isAdmin && (
+          <button onClick={adminOverride} disabled={loading}
+            className="w-full py-2.5 bg-amber-50 border border-amber-300 text-amber-800 rounded-xl text-sm font-semibold hover:bg-amber-100 transition-colors mb-3 disabled:opacity-50">
+            Admin Override (bypass PIN)
+          </button>
+        )}
+        <button onClick={onBack} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600">
+          ← Back to Ward Rounds
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── ManageLockModal ───────────────────────────────────────────────────────────
+
+function ManageLockModal({ admissionId, isLocked, isAdmin, onClose, onChanged }) {
+  const [step, setStep]             = useState(1)
+  const [newPin, setNewPin]         = useState(['', '', '', ''])
+  const [confirmPin, setConfirmPin] = useState(['', '', '', ''])
+  const [unlockPin, setUnlockPin]   = useState(['', '', '', ''])
+  const [loading, setLoading]       = useState(false)
+  const [error, setError]           = useState('')
+  const nr = [useRef(), useRef(), useRef(), useRef()]
+  const cr = [useRef(), useRef(), useRef(), useRef()]
+  const ur = [useRef(), useRef(), useRef(), useRef()]
+
+  const changeNew = (i, val) => {
+    if (!/^\d?$/.test(val)) return
+    const next = [...newPin]; next[i] = val; setNewPin(next)
+    if (val && i < 3) nr[i + 1].current?.focus()
+    else if (val && i === 3) { setStep(2); setTimeout(() => cr[0].current?.focus(), 50) }
+  }
+
+  const changeConfirm = (i, val) => {
+    if (!/^\d?$/.test(val)) return
+    const next = [...confirmPin]; next[i] = val; setConfirmPin(next)
+    if (val && i < 3) cr[i + 1].current?.focus()
+    else if (val && i === 3) { const full = [...confirmPin]; full[3] = val; submitLock([...newPin].join(''), full.join('')) }
+  }
+
+  const changeUnlock = (i, val) => {
+    if (!/^\d?$/.test(val)) return
+    const next = [...unlockPin]; next[i] = val; setUnlockPin(next)
+    if (val && i < 3) ur[i + 1].current?.focus()
+    else if (val && i === 3) { const full = [...unlockPin]; full[3] = val; submitUnlock(full.join('')) }
+  }
+
+  const submitLock = async (p, c) => {
+    if (loading) return
+    if (p !== c) { setError('PINs do not match'); setConfirmPin(['', '', '', '']); setTimeout(() => cr[0].current?.focus(), 50); return }
+    setLoading(true); setError('')
+    try {
+      await api.post(`/inpatient/admissions/${admissionId}/lock`, { pin: p })
+      sessionStorage.setItem(`chart_unlocked_${admissionId}`, '1')
+      onChanged(true)
+    } catch (e) { setError(e?.response?.data?.detail || 'Failed to lock chart') }
+    finally { setLoading(false) }
+  }
+
+  const submitUnlock = async (pinStr) => {
+    if (loading) return
+    setLoading(true); setError('')
+    try {
+      await api.post(`/inpatient/admissions/${admissionId}/unlock`, { pin: pinStr })
+      sessionStorage.removeItem(`chart_unlocked_${admissionId}`)
+      onChanged(false)
+    } catch (e) {
+      setError(e?.response?.data?.detail || 'Incorrect PIN')
+      setUnlockPin(['', '', '', '']); setTimeout(() => ur[0].current?.focus(), 50)
+    } finally { setLoading(false) }
+  }
+
+  const adminUnlock = async () => {
+    if (loading) return
+    setLoading(true); setError('')
+    try {
+      await api.post(`/inpatient/admissions/${admissionId}/unlock`, {})
+      sessionStorage.removeItem(`chart_unlocked_${admissionId}`)
+      onChanged(false)
+    } catch (e) { setError(e?.response?.data?.detail || 'Failed to unlock') }
+    finally { setLoading(false) }
+  }
+
+  const PinRow = ({ arr, refs: rfs, onChange, autoFocus }) => (
+    <div className="flex justify-center gap-3 my-3">
+      {[0, 1, 2, 3].map(i => (
+        <input
+          key={i} ref={rfs[i]}
+          type="password" inputMode="numeric" maxLength={1}
+          value={arr[i]}
+          onChange={e => onChange(i, e.target.value)}
+          onKeyDown={e => { if (e.key === 'Backspace' && !arr[i] && i > 0) rfs[i - 1].current?.focus() }}
+          disabled={loading}
+          autoFocus={autoFocus && i === 0}
+          className="w-12 h-12 text-center text-xl font-bold border-2 rounded-xl focus:outline-none focus:border-emerald-600 border-gray-300 disabled:opacity-50"
+        />
+      ))}
+    </div>
+  )
+
+  return (
+    <div className="fixed inset-0 z-[200] bg-black/50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-gray-900 flex items-center gap-2">
+            <Lock size={16} className="text-emerald-700" />
+            {isLocked ? 'Chart is Locked' : 'Lock This Chart'}
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+        </div>
+
+        {error && <div className="text-red-600 text-xs text-center mb-3 bg-red-50 py-2 rounded-lg">{error}</div>}
+        {loading && <p className="text-emerald-600 text-sm text-center mb-3 animate-pulse">Processing…</p>}
+
+        {!isLocked && (
+          <>
+            <p className="text-sm text-gray-500 mb-1">{step === 1 ? 'Set a 4-digit PIN to lock this chart.' : 'Re-enter PIN to confirm.'}</p>
+            {step === 1 && <PinRow arr={newPin}     refs={nr} onChange={changeNew}     autoFocus />}
+            {step === 2 && <PinRow arr={confirmPin} refs={cr} onChange={changeConfirm} autoFocus />}
+            {step === 2 && (
+              <button onClick={() => { setStep(1); setNewPin(['','','','']); setConfirmPin(['','','','']); setError('') }}
+                className="w-full mt-2 py-2 text-sm text-gray-400 hover:text-gray-600">
+                ← Start over
+              </button>
+            )}
+          </>
+        )}
+
+        {isLocked && isAdmin && (
+          <>
+            <p className="text-sm text-gray-500 mb-3">As an admin you can remove this lock without a PIN.</p>
+            <button onClick={adminUnlock} disabled={loading}
+              className="w-full py-2.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm font-semibold hover:bg-red-100 transition-colors disabled:opacity-50">
+              Remove Lock (Admin Override)
+            </button>
+          </>
+        )}
+
+        {isLocked && !isAdmin && (
+          <>
+            <p className="text-sm text-gray-500 mb-1">Enter the current PIN to permanently remove this lock.</p>
+            <PinRow arr={unlockPin} refs={ur} onChange={changeUnlock} autoFocus />
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -1155,6 +1386,8 @@ function PerioperativeSection({ admissionId }) {
 export default function PatientChart() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isAdmin = ADMIN_ROLES.includes(user?.role)
   const [admission, setAdmission] = useState(null)
   const [vitals, setVitals]       = useState([])
   const [notes, setNotes]         = useState([])
@@ -1162,7 +1395,9 @@ export default function PatientChart() {
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState(null)
   const [section, setSection]     = useState('dashboard')
-  const [showAllergy, setShowAllergy] = useState(false)
+  const [showAllergy, setShowAllergy]       = useState(false)
+  const [chartLocked, setChartLocked]       = useState(false)
+  const [showManageLock, setShowManageLock] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -1176,6 +1411,9 @@ export default function PatientChart() {
       setVitals(vitR.data || [])
       setNotes(notR.data || [])
       setMeds(medR.data || [])
+      if (admR.data?.is_locked && !sessionStorage.getItem(`chart_unlocked_${id}`)) {
+        setChartLocked(true)
+      }
     } catch (e) {
       setError(e?.response?.data?.detail || 'Failed to load patient chart')
     } finally {
@@ -1204,6 +1442,8 @@ export default function PatientChart() {
 
   if (!admission) return null
 
+  const patientName = admission.patient?.full_name || admission.patient_name || 'Patient'
+
   const renderSection = () => {
     switch (section) {
       case 'dashboard':   return <OverviewTab admission={admission} vitals={vitals} meds={meds} />
@@ -1219,12 +1459,15 @@ export default function PatientChart() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden relative">
       <PatientBanner
         admission={admission}
         vitals={vitals}
         onBack={() => navigate(-1)}
         onAllergyOpen={() => setShowAllergy(true)}
+        onVitalsOpen={() => {}}
+        isLocked={admission.is_locked}
+        onManageLock={() => setShowManageLock(true)}
       />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <ChartNav active={section} setActive={setSection} />
@@ -1232,6 +1475,27 @@ export default function PatientChart() {
           {renderSection()}
         </div>
       </div>
+      {chartLocked && (
+        <ChartLockOverlay
+          admissionId={id}
+          isAdmin={isAdmin}
+          patientName={patientName}
+          onUnlocked={() => setChartLocked(false)}
+          onBack={() => navigate(-1)}
+        />
+      )}
+      {showManageLock && (
+        <ManageLockModal
+          admissionId={id}
+          isLocked={admission.is_locked}
+          isAdmin={isAdmin}
+          onClose={() => setShowManageLock(false)}
+          onChanged={(locked) => {
+            setAdmission(a => ({ ...a, is_locked: locked }))
+            setShowManageLock(false)
+          }}
+        />
+      )}
       {showAllergy && (
         <AllergyPanel admissionId={id} onClose={() => setShowAllergy(false)} />
       )}

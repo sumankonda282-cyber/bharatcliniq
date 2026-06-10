@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.db.session import get_db
-from app.core.security import get_current_staff
+from app.core.security import get_current_staff, hash_password, verify_password
 from app.models.models import (
     Clinic, Staff, Patient, Appointment,
     Department, Ward, Bed, Admission, AdmissionTransfer,
@@ -559,17 +559,102 @@ def discharge_admission(
     return {"detail": "discharged", "discharged_at": adm.discharged_at}
 
 
+_ADMIN_ROLES = {'clinic_admin', 'clinic_manager', 'platform_admin'}
+
+
+@router.post("/admissions/{admission_id}/lock")
+def lock_chart(
+    admission_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    pin = body.get("pin", "")
+    if not pin or not str(pin).isdigit() or len(str(pin)) != 4:
+        raise HTTPException(status_code=400, detail="PIN must be exactly 4 digits")
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == current.clinic_id,
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Admission not found")
+    adm.chart_pin_hash = hash_password(str(pin))
+    db.commit()
+    return {"locked": True}
+
+
+@router.post("/admissions/{admission_id}/unlock")
+def unlock_chart(
+    admission_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == current.clinic_id,
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Admission not found")
+    if current.role in _ADMIN_ROLES:
+        adm.chart_pin_hash = None
+        db.commit()
+        return {"locked": False, "method": "admin_override"}
+    pin = str(body.get("pin", ""))
+    if not adm.chart_pin_hash:
+        adm.chart_pin_hash = None
+        db.commit()
+        return {"locked": False}
+    if not verify_password(pin, adm.chart_pin_hash):
+        raise HTTPException(status_code=403, detail="Incorrect PIN")
+    adm.chart_pin_hash = None
+    db.commit()
+    return {"locked": False}
+
+
+@router.post("/admissions/{admission_id}/verify-pin")
+def verify_chart_pin(
+    admission_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == current.clinic_id,
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Admission not found")
+    if current.role in _ADMIN_ROLES:
+        return {"verified": True, "admin_override": True, "locked": bool(adm.chart_pin_hash)}
+    if not adm.chart_pin_hash:
+        return {"verified": True, "locked": False}
+    pin = str(body.get("pin", ""))
+    if not verify_password(pin, adm.chart_pin_hash):
+        raise HTTPException(status_code=403, detail="Incorrect PIN")
+    return {"verified": True, "locked": True}
+
+
 def _admission_dict(a: Admission) -> dict:
-    pat  = a.patient  if hasattr(a, 'patient')  and a.patient  else None
-    dept = a.department if hasattr(a, 'department') and a.department else None
-    ward = a.ward  if hasattr(a, 'ward')  and a.ward  else None
-    bed  = a.bed   if hasattr(a, 'bed')   and a.bed   else None
+    pat  = a.patient     if hasattr(a, 'patient')     and a.patient     else None
+    dept = a.department  if hasattr(a, 'department')  and a.department  else None
+    ward = a.ward        if hasattr(a, 'ward')        and a.ward        else None
+    bed  = a.bed         if hasattr(a, 'bed')         and a.bed         else None
+    doc  = a.doctor      if hasattr(a, 'doctor')      and a.doctor      else None
     return {
         "id": a.id,
         "admission_number": a.admission_number,
         "patient_id": a.patient_id,
         "patient_name": pat.full_name if pat else None,
         "uhid": pat.clinic_patient_id if pat else None,
+        "patient": {
+            "full_name":    pat.full_name    if pat else None,
+            "age":          pat.age          if pat and hasattr(pat, 'age') else None,
+            "gender":       pat.gender       if pat else None,
+            "blood_group":  pat.blood_group  if pat and hasattr(pat, 'blood_group') else None,
+            "date_of_birth":pat.date_of_birth if pat and hasattr(pat, 'date_of_birth') else None,
+            "mrn":          pat.clinic_patient_id if pat else None,
+        } if pat else None,
         "department_id": a.department_id,
         "department_name": dept.name if dept else None,
         "ward_id": a.ward_id,
@@ -578,12 +663,14 @@ def _admission_dict(a: Admission) -> dict:
         "bed_number": bed.bed_number if bed else None,
         "admission_type": a.admission_type,
         "admitting_doctor_id": a.admitting_doctor_id,
+        "admitting_doctor_name": doc.full_name if doc else None,
         "primary_diagnosis": a.primary_diagnosis,
         "admitted_at": a.admitted_at,
         "admission_date": a.admitted_at,
         "discharged_at": a.discharged_at,
         "expected_discharge": a.expected_discharge,
         "status": a.status,
+        "is_locked": bool(getattr(a, 'chart_pin_hash', None)),
         "tpa_id": a.tpa_id,
         "insurance_company": a.insurance_company,
         "policy_number": a.policy_number,

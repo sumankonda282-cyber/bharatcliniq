@@ -1081,6 +1081,7 @@ class Admission(Base):
     discharged_at         = Column(DateTime, nullable=True)
     expected_discharge    = Column(Date, nullable=True)
     status                = Column(String(20), default='active')
+    chart_pin_hash        = Column(String, nullable=True)
     tpa_id                = Column(String(50), nullable=True)
     insurance_company     = Column(String(200), nullable=True)
     policy_number         = Column(String(100), nullable=True)
