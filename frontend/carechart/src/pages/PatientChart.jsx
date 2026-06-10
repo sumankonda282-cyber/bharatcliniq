@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronUp, Plus, X, FlaskConical, Printer,
   LayoutDashboard, ClipboardCheck, Scissors, PenLine, Search,
   Lock, User, Calendar, ArrowRight, PillIcon, Bell, Settings,
-  CheckCircle2, Circle
+  CheckCircle2, Circle, MapPin, Clock, Stethoscope
 } from 'lucide-react'
 import api from '../api/client'
 import { usePin } from '../contexts/PinContext'
@@ -87,17 +87,18 @@ const ASSESSMENT_FORMS = [
   { id: 'consent',   label: 'Informed Consent',             category: 'Medico-Legal'   },
   { id: 'incident',  label: 'Incident Report',              category: 'Safety'         },
   { id: 'anesthesia',label: 'Anesthesia Pre-Op',            category: 'Perioperative'  },
-  { id: 'transfer',  label: 'Patient Transfer Note',        category: 'Transfer'       },
 ]
 
 const DEFAULT_FLOW_STAGES = [
-  { id: 'opd',      label: 'OPD',               time: null, sendDoc: '', recvDoc: '', notes: '' },
-  { id: 'casualty', label: 'Casualty / ER',      time: null, sendDoc: '', recvDoc: '', notes: '' },
-  { id: 'ward',     label: 'Ward',               time: null, sendDoc: '', recvDoc: '', notes: '' },
-  { id: 'icu',      label: 'ICU',                time: null, sendDoc: '', recvDoc: '', notes: '' },
-  { id: 'ot',       label: 'Operation Theatre',  time: null, sendDoc: '', recvDoc: '', notes: '' },
-  { id: 'discharge',label: 'Discharge',          time: null, sendDoc: '', recvDoc: '', notes: '' },
+  { id: 'opd',      type: 'OPD',      label: 'OPD',               time: '', sendDoc: '', recvDoc: '', notes: '', hospital: '' },
+  { id: 'casualty', type: 'Casualty', label: 'Casualty / ER',     time: '', sendDoc: '', recvDoc: '', notes: '', hospital: '' },
+  { id: 'ward',     type: 'Ward',     label: 'Ward',              time: '', sendDoc: '', recvDoc: '', notes: '', hospital: '' },
+  { id: 'icu',      type: 'ICU',      label: 'ICU',               time: '', sendDoc: '', recvDoc: '', notes: '', hospital: '' },
+  { id: 'ot',       type: 'OT',       label: 'Operation Theatre', time: '', sendDoc: '', recvDoc: '', notes: '', hospital: '' },
+  { id: 'discharge',type: 'Discharge',label: 'Discharge',         time: '', sendDoc: '', recvDoc: '', notes: '', hospital: '' },
 ]
+
+const FLOW_LOCATION_TYPES = ['OPD','Casualty','Ward','ICU','OT','Branch Hospital','External Hospital','Home','Other']
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -131,6 +132,10 @@ function isAbnormal(key, val) {
   if (!r) return false
   const n = Number(val)
   return n < r.min || n > r.max
+}
+
+function todayLong() {
+  return new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 // ── Sparkline ─────────────────────────────────────────────────────────────────
@@ -259,7 +264,6 @@ function ClinicalAlerts({ meds, allergies }) {
   const alerts = []
   const active = meds.filter(m => m.is_active !== false && !m.is_past)
 
-  // Drug-allergy conflicts (first word match)
   allergies.forEach(al => {
     const aWord = (al.display || '').toLowerCase().split(' ')[0]
     if (!aWord) return
@@ -274,7 +278,6 @@ function ClinicalAlerts({ meds, allergies }) {
     })
   })
 
-  // Duplicate active medications (same first word)
   const seen = {}
   active.forEach(m => {
     const w = (m.drug_name || m.medication_name || m.name || '').toLowerCase().split(' ')[0]
@@ -310,35 +313,34 @@ function ClinicalAlerts({ meds, allergies }) {
 function PatientBanner({ admission, vitals, onBack, onAllergyOpen, onVitalsOpen }) {
   if (!admission) return null
   const p = admission.patient || {}
-  const name   = p.full_name || admission.patient_name || 'Unknown'
-  const mrn    = p.mrn || admission.mrn || admission.uhid || '—'
-  const bhid   = p.bhid || p.bharatcliniq_id || admission.bhid || '—'
-  const dob    = p.date_of_birth || admission.date_of_birth
-  const age    = dob ? Math.floor((Date.now() - new Date(dob)) / 86400000 / 365.25) : null
-  const sex    = (p.gender || p.sex || '').toUpperCase().slice(0, 1) || '?'
-  const bg     = p.blood_group || admission.blood_group
-  const dept   = admission.department_name || ''
-  const ward   = admission.ward_name || '—'
-  const bed    = admission.bed_number || '—'
-  const ipNo   = admission.admission_number || admission.ip_number || `IP${admission.id}`
+  const name    = p.full_name || admission.patient_name || 'Unknown'
+  const mrn     = p.mrn || admission.mrn || admission.uhid || '—'
+  const bhid    = p.bhid || p.bharatcliniq_id || admission.bhid || '—'
+  const dob     = p.date_of_birth || admission.date_of_birth
+  const age     = dob ? Math.floor((Date.now() - new Date(dob)) / 86400000 / 365.25) : null
+  const sex     = (p.gender || p.sex || '').toUpperCase().slice(0, 1) || '?'
+  const bg      = p.blood_group || admission.blood_group
+  const dept    = admission.department_name || ''
+  const ward    = admission.ward_name || '—'
+  const bed     = admission.bed_number || '—'
+  const ipNo    = admission.admission_number || admission.ip_number || `IP${admission.id}`
   const admitted = admission.admitted_at || admission.admission_date
-  const days   = admitted ? Math.max(1, Math.floor((Date.now() - new Date(admitted)) / 86400000) + 1) : null
-  const doctor = admission.attending_doctor?.full_name || admission.primary_doctor?.full_name
+  const days    = admitted ? Math.max(1, Math.floor((Date.now() - new Date(admitted)) / 86400000) + 1) : null
+  const doctor  = admission.attending_doctor?.full_name || admission.primary_doctor?.full_name
     || admission.admitting_doctor_name || admission.doctor?.full_name || '—'
-  const diag   = admission.primary_diagnosis || admission.diagnosis || '—'
-  const lv     = vitals?.[0] || null
+  const diag    = admission.primary_diagnosis || admission.diagnosis || '—'
+  const lv      = vitals?.[0] || null
 
   const strip = [
-    { label: 'T', key: 'temperature',      val: lv?.temperature != null      ? `${lv.temperature}°C`                              : null },
-    { label: 'BP',key: 'bp_systolic',      val: lv?.bp_systolic != null      ? `${lv.bp_systolic}/${lv.bp_diastolic ?? '?'}`      : null },
-    { label: 'P', key: 'pulse',            val: lv?.pulse != null            ? `${lv.pulse}`                                      : null },
-    { label: 'SpO₂',key:'spo2',           val: lv?.spo2 != null             ? `${lv.spo2}%`                                      : null },
-    { label: 'RR',key: 'respiration_rate', val: lv?.respiration_rate != null ? `${lv.respiration_rate}`                           : null },
+    { label: 'T',    key: 'temperature',      val: lv?.temperature != null      ? `${lv.temperature}°C`                         : null },
+    { label: 'BP',   key: 'bp_systolic',      val: lv?.bp_systolic != null      ? `${lv.bp_systolic}/${lv.bp_diastolic ?? '?'}` : null },
+    { label: 'P',    key: 'pulse',            val: lv?.pulse != null            ? `${lv.pulse}`                                 : null },
+    { label: 'SpO₂', key: 'spo2',            val: lv?.spo2 != null             ? `${lv.spo2}%`                                 : null },
+    { label: 'RR',   key: 'respiration_rate', val: lv?.respiration_rate != null ? `${lv.respiration_rate}`                      : null },
   ].filter(v => v.val != null)
 
   return (
     <div className="flex-shrink-0 shadow-md" style={{ background: '#065F46' }}>
-      {/* Row 1 — identity */}
       <div className="flex items-center gap-2.5 px-3 pt-2.5 pb-1">
         <button onClick={onBack} className="text-white/70 hover:text-white flex-shrink-0">
           <ArrowLeft size={17} />
@@ -359,7 +361,6 @@ function PatientBanner({ admission, vitals, onBack, onAllergyOpen, onVitalsOpen 
           <Printer size={15} />
         </button>
       </div>
-      {/* Row 2 — location */}
       <div className="flex items-center gap-3 px-3 pb-1 pt-0.5 flex-wrap">
         <span className="text-xs text-emerald-100">{dept}{ward !== '—' ? ` · ${ward}` : ''}{bed !== '—' ? ` · Bed ${bed}` : ''}</span>
         <span className="text-xs text-white/30">·</span>
@@ -369,7 +370,6 @@ function PatientBanner({ admission, vitals, onBack, onAllergyOpen, onVitalsOpen 
         <span className="text-xs text-emerald-200 hidden sm:block">Dr. <span className="text-white font-medium">{doctor}</span></span>
         {diag !== '—' && <span className="text-xs text-emerald-100/60 truncate max-w-xs hidden md:block" title={diag}>· {diag}</span>}
       </div>
-      {/* Row 3 — vitals strip with freshness dot */}
       <div className="flex items-center gap-3 px-3 pb-2 pt-0.5">
         <button
           onClick={onVitalsOpen}
@@ -393,11 +393,11 @@ function PatientBanner({ admission, vitals, onBack, onAllergyOpen, onVitalsOpen 
 // ── AllergyPanel ──────────────────────────────────────────────────────────────
 
 function AllergyPanel({ admissionId, onClose }) {
-  const [allergies, setAllergies]       = useState([])
-  const [loading, setLoading]           = useState(true)
-  const [saving, setSaving]             = useState(false)
-  const [manualMode, setManualMode]     = useState(false)
-  const [manualName, setManualName]     = useState('')
+  const [allergies, setAllergies]           = useState([])
+  const [loading, setLoading]               = useState(true)
+  const [saving, setSaving]                 = useState(false)
+  const [manualMode, setManualMode]         = useState(false)
+  const [manualName, setManualName]         = useState('')
   const [manualReaction, setManualReaction] = useState('')
   const [manualSeverity, setManualSeverity] = useState('moderate')
 
@@ -536,7 +536,7 @@ function ChartNav({ active, setActive }) {
   )
 }
 
-// ── Section: Patient Dashboard ─────────────────────────────────────────────────
+// ── Section: Patient Dashboard ────────────────────────────────────────────────
 
 function OverviewTab({ admission, vitals, meds, allergies, onVitalsOpen }) {
   const p       = admission.patient || {}
@@ -567,7 +567,6 @@ function OverviewTab({ admission, vitals, meds, allergies, onVitalsOpen }) {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      {/* KPI strip — inline, no cards */}
       <div className="flex-shrink-0 flex items-center gap-6 px-4 py-2.5 bg-white border-b border-gray-100 flex-wrap">
         {kpis.map(k => (
           <div key={k.label} className="flex items-baseline gap-1.5">
@@ -581,10 +580,8 @@ function OverviewTab({ admission, vitals, meds, allergies, onVitalsOpen }) {
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Clinical alerts */}
         <ClinicalAlerts meds={meds} allergies={allergies || []} />
 
-        {/* Vitals — compact inline grid with sparklines */}
         <div>
           <div className="flex items-center gap-2 mb-2">
             <button onClick={onVitalsOpen} title="Record vitals"
@@ -617,7 +614,6 @@ function OverviewTab({ admission, vitals, meds, allergies, onVitalsOpen }) {
           </div>
         </div>
 
-        {/* Patient + Admission info — two-column prose table */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1"><User size={11} /> Patient</p>
@@ -662,7 +658,6 @@ function OverviewTab({ admission, vitals, meds, allergies, onVitalsOpen }) {
 
 // ── Section: Provider View ────────────────────────────────────────────────────
 
-// Assessment form field definitions for inline fill
 const FORM_FIELDS = {
   pain:      [{ k:'location', l:'Pain Location' },{ k:'score', l:'Score (0–10)' },{ k:'character', l:'Character (sharp/dull/burning…)' },{ k:'duration', l:'Duration' },{ k:'aggravating', l:'Aggravating factors' },{ k:'relieving', l:'Relieving factors' }],
   braden:    [{ k:'sensory', l:'Sensory perception (1–4)' },{ k:'moisture', l:'Moisture (1–4)' },{ k:'activity', l:'Activity (1–4)' },{ k:'mobility', l:'Mobility (1–4)' },{ k:'nutrition', l:'Nutrition (1–4)' },{ k:'friction', l:'Friction/Shear (1–3)' }],
@@ -676,17 +671,6 @@ const FORM_FIELDS = {
   consent:   [{ k:'procedure', l:'Procedure' },{ k:'risks_explained', l:'Risks explained' },{ k:'alternatives', l:'Alternatives discussed' },{ k:'questions', l:'Patient questions addressed' },{ k:'witness', l:'Witness name' }],
   incident:  [{ k:'type', l:'Incident type' },{ k:'time', l:'Time of incident' },{ k:'description', l:'Description' },{ k:'injury', l:'Injury sustained' },{ k:'action', l:'Immediate action taken' }],
   anesthesia:[{ k:'asa_class', l:'ASA classification' },{ k:'airway', l:'Airway assessment' },{ k:'npo_status', l:'NPO status' },{ k:'previous_anesthesia', l:'Previous anaesthesia issues' },{ k:'plan', l:'Anaesthesia plan' }],
-  transfer:  [
-    { k: 'from_location',    l: 'Transferring From (Ward/Unit)' },
-    { k: 'to_location',      l: 'Transferring To (Ward/Unit/Hospital)' },
-    { k: 'transfer_type',    l: 'Transfer Type (Internal Ward / Branch Hospital / External Hospital / Home)' },
-    { k: 'reason',           l: 'Reason for Transfer' },
-    { k: 'clinical_status',  l: 'Clinical Status at Transfer' },
-    { k: 'active_issues',    l: 'Active Issues / Ongoing Treatment' },
-    { k: 'sending_doctor',   l: 'Sending Doctor' },
-    { k: 'receiving_doctor', l: 'Receiving Doctor / Hospital' },
-    { k: 'instructions',     l: 'Special Instructions / Handover Notes' },
-  ],
 }
 
 function formatAssessmentNote(form, data) {
@@ -695,7 +679,61 @@ function formatAssessmentNote(form, data) {
   return `${form.label}\n${'─'.repeat(form.label.length)}\n${lines}`
 }
 
-function ProviderView({ admission, notes, setNotes, meds, vitals, admissionId, onTransferFormSigned }) {
+function buildWardRoundNote(admission, vitals, meds) {
+  const lv      = vitals?.[0] || null
+  const admitted = admission?.admitted_at || admission?.admission_date
+  const days    = admitted ? Math.max(1, Math.floor((Date.now() - new Date(admitted)) / 86400000) + 1) : '?'
+  const diag    = admission?.primary_diagnosis || admission?.diagnosis || '[diagnosis]'
+  const activeMeds = meds.filter(m => m.is_active !== false && !m.is_past)
+
+  const vLine = lv
+    ? `BP ${lv.bp_systolic ?? '?'}/${lv.bp_diastolic ?? '?'} mmHg · HR ${lv.pulse ?? '?'} bpm · Temp ${lv.temperature ?? '?'}°C · SpO₂ ${lv.spo2 ?? '?'}% · Pain ${lv.pain_score ?? '?'}/10`
+    : 'Vitals not recorded'
+
+  const medLines = activeMeds.length
+    ? activeMeds.map(m => {
+        const name  = m.drug_name || m.medication_name || m.name || 'Unknown'
+        const dose  = m.dose ? ` ${m.dose}${m.unit ? m.unit : ''}` : ''
+        const freq  = m.frequency || m.freq || ''
+        const route = m.route || ''
+        return `  • ${name}${dose} ${freq} ${route}`.trimEnd()
+      }).join('\n')
+    : '  (No active medications)'
+
+  return `Ward Round — ${todayLong()}
+
+Patient reviewed. No new complaints. ${diag}. Day ${days} of admission.
+
+Vitals: ${vLine}
+
+Active Medications (unchanged):
+${medLines}
+
+Assessment: Clinically stable.
+Plan: Continue current treatment. Review in 24 hours.`
+}
+
+function buildSOAPNote(admission, vitals) {
+  const lv      = vitals?.[0] || null
+  const admitted = admission?.admitted_at || admission?.admission_date
+  const days    = admitted ? Math.max(1, Math.floor((Date.now() - new Date(admitted)) / 86400000) + 1) : '?'
+  const diag    = admission?.primary_diagnosis || admission?.diagnosis || '[diagnosis]'
+
+  const sys  = lv?.bp_systolic ?? '?'
+  const dia  = lv?.bp_diastolic ?? '?'
+  const hr   = lv?.pulse ?? '?'
+  const temp = lv?.temperature ?? '?'
+  const spo2 = lv?.spo2 ?? '?'
+  const rr   = lv?.respiration_rate ?? '?'
+
+  return `S: Patient reports [symptoms]. [changes since last review].
+O: BP ${sys}/${dia}, HR ${hr}, Temp ${temp}°C, SpO₂ ${spo2}%, RR ${rr}
+   Examination: [findings].
+A: ${diag}. Day ${days} of admission. [stable/improving/deteriorating].
+P: [plan — medications, investigations, review].`
+}
+
+function ProviderView({ admission, notes, setNotes, meds, admissionId, vitals }) {
   const { requestPin } = usePin()
   const [text, setText]           = useState('')
   const [noteType, setNoteType]   = useState('Progress Note')
@@ -703,7 +741,6 @@ function ProviderView({ admission, notes, setNotes, meds, vitals, admissionId, o
   const [collapsed, setCollapsed] = useState({})
   const textRef = useRef(null)
 
-  // Right panel state
   const [formSearch, setFormSearch]     = useState('')
   const [catTab, setCatTab]             = useState('All')
   const [selectedForm, setSelectedForm] = useState(null)
@@ -711,8 +748,7 @@ function ProviderView({ admission, notes, setNotes, meds, vitals, admissionId, o
   const [formSaving, setFormSaving]     = useState(false)
 
   const NOTE_TYPES = ['Progress Note','SOAP Note','Nursing Note','Procedure Note','Discharge Summary']
-
-  const CAT_TABS = ['All', ...Array.from(new Set(ASSESSMENT_FORMS.map(f => f.category)))]
+  const CAT_TABS   = ['All', ...Array.from(new Set(ASSESSMENT_FORMS.map(f => f.category)))]
 
   const filteredForms = ASSESSMENT_FORMS.filter(f => {
     const matchCat  = catTab === 'All' || f.category === catTab
@@ -743,36 +779,23 @@ function ProviderView({ admission, notes, setNotes, meds, vitals, admissionId, o
   const continueSameRx = async () => {
     setSaving(true)
     try {
-      await requestPin('Continue same Rx')
-      const v = vitals?.[0]
-      const vitalLine = v
-        ? `BP ${v.systolic || '—'}/${v.diastolic || '—'} mmHg · HR ${v.heart_rate || '—'} bpm · Temp ${v.temperature || '—'}°C · SpO₂ ${v.spo2 || '—'}% · Pain ${v.pain_score ?? '—'}/10`
-        : 'Vitals not charted'
-      const activeMeds = (meds || []).filter(m => m.status === 'active' || !m.status)
-      const medLines = activeMeds.length
-        ? activeMeds.map(m => `  • ${m.drug_name || m.name} ${m.dose || ''} ${m.frequency || ''}`.trim()).join('\n')
-        : '  • (no active medications)'
-      const p = admission?.patient || {}
-      const content = [
-        `Ward Round — ${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`,
-        `Patient: ${p.full_name || admission?.patient_name || '—'} | MRN: ${p.mrn || p.uhid || '—'}`,
-        '',
-        `Subjective: Patient reviewed. No new complaints.`,
-        '',
-        `Objective:`,
-        `  Vitals: ${vitalLine}`,
-        '',
-        `Active Medications (unchanged):`,
-        medLines,
-        '',
-        `Assessment: Clinically stable. No change in condition.`,
-        '',
-        `Plan: Continue current treatment plan. No medication changes today.`,
-      ].join('\n')
-      await api.post(`/inpatient/admissions/${admissionId}/notes`, { note_type: 'Progress Note', content })
-      setNotes(prev => [{ id: Date.now(), note_type: 'Progress Note', content, created_at: new Date().toISOString() }, ...prev])
+      await requestPin('Continue same Rx — ward round note')
+      const content = buildWardRoundNote(admission, vitals, meds)
+      const r = await api.post(`/inpatient/admissions/${admissionId}/notes`, {
+        note_type: 'Progress Note', content,
+      }).catch(() => null)
+      setNotes(prev => [
+        r?.data || { id: Date.now(), note_type: 'Progress Note', content, created_at: new Date().toISOString() },
+        ...prev,
+      ])
     } catch {}
     finally { setSaving(false) }
+  }
+
+  const fillSOAP = () => {
+    setText(buildSOAPNote(admission, vitals))
+    setNoteType('SOAP Note')
+    setTimeout(() => textRef.current?.focus(), 50)
   }
 
   const submitForm = async () => {
@@ -788,9 +811,6 @@ function ProviderView({ admission, notes, setNotes, meds, vitals, admissionId, o
         r?.data || { id: Date.now(), note_type: selectedForm.label, content, created_at: new Date().toISOString() },
         ...prev,
       ])
-      if (selectedForm.id === 'transfer' && typeof onTransferFormSigned === 'function') {
-        onTransferFormSigned({ ...formData })
-      }
       setSelectedForm(null)
       setFormData({})
       setFormSearch('')
@@ -802,10 +822,8 @@ function ProviderView({ admission, notes, setNotes, meds, vitals, admissionId, o
 
   return (
     <div className="flex h-full overflow-hidden">
-
-      {/* ── Left: compose + timeline ── */}
+      {/* Left: compose + timeline */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden border-r border-gray-100">
-        {/* Compose */}
         <div className="flex-shrink-0 border-b border-gray-200 bg-white">
           <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5 flex-wrap border-b border-gray-100">
             <select value={noteType} onChange={e => setNoteType(e.target.value)}
@@ -814,13 +832,25 @@ function ProviderView({ admission, notes, setNotes, meds, vitals, admissionId, o
             </select>
             <span className="text-xs text-gray-300 hidden sm:block">.soap .shift .normal .pain .fall</span>
             <div className="flex-1" />
-            <button onClick={continueSameRx} disabled={saving || !meds.length}
-              className="text-xs text-emerald-600 hover:text-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed">
-              Continue Same Rx
+            <button
+              onClick={fillSOAP}
+              disabled={saving}
+              className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-2.5 py-1 rounded hover:bg-blue-100 disabled:opacity-40 flex items-center gap-1"
+              title="Pre-fill SOAP template with latest vitals"
+            >
+              <FileText size={11} /> SOAP Fill
+            </button>
+            <button
+              onClick={continueSameRx}
+              disabled={saving || !meds.length}
+              className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+              title="Generate ward round note with current vitals and active medications"
+            >
+              <Stethoscope size={11} /> Continue Same Rx
             </button>
           </div>
-          <textarea ref={textRef} value={text} onChange={handleInput} rows={3}
-            placeholder="Write clinical note — SOAP, observation, or free text…"
+          <textarea ref={textRef} value={text} onChange={handleInput} rows={5}
+            placeholder="Write clinical note — SOAP, observation, or free text… (try .soap, .shift, .normal)"
             className="w-full px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none resize-none placeholder-gray-300" />
           <div className="flex items-center px-3 pb-2 gap-2">
             <span className="text-xs text-gray-300 flex-1">{text.length > 0 ? `${text.length} chars` : ''}</span>
@@ -830,7 +860,6 @@ function ProviderView({ admission, notes, setNotes, meds, vitals, admissionId, o
             </button>
           </div>
         </div>
-        {/* Notes timeline */}
         <div className="flex-1 overflow-y-auto">
           {notes.length === 0 && <p className="text-sm text-gray-400 text-center py-10">No notes yet.</p>}
           {notes.map((n, i) => {
@@ -858,11 +887,10 @@ function ProviderView({ admission, notes, setNotes, meds, vitals, admissionId, o
         </div>
       </div>
 
-      {/* ── Right: assessment form panel ── */}
+      {/* Right: assessment form panel */}
       <div className="flex-shrink-0 flex flex-col overflow-hidden bg-white" style={{ width: 272 }}>
         <div className="flex-shrink-0 px-3 pt-3 pb-0 border-b border-gray-100">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Assessment Forms</p>
-          {/* Search */}
           <div className="relative mb-2">
             <Search size={12} className="absolute left-2.5 top-2 text-gray-400" />
             <input
@@ -872,7 +900,6 @@ function ProviderView({ admission, notes, setNotes, meds, vitals, admissionId, o
               className="w-full border border-gray-200 rounded-lg pl-7 pr-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
             />
           </div>
-          {/* Category tabs */}
           <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
             {CAT_TABS.map(tab => (
               <button
@@ -890,7 +917,6 @@ function ProviderView({ admission, notes, setNotes, meds, vitals, admissionId, o
         </div>
 
         {selectedForm ? (
-          /* Inline form fill */
           <div className="flex-1 overflow-y-auto flex flex-col">
             <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2 border-b border-gray-100 bg-gray-50">
               <button onClick={() => { setSelectedForm(null); setFormData({}) }} className="text-gray-400 hover:text-gray-600">
@@ -932,7 +958,6 @@ function ProviderView({ admission, notes, setNotes, meds, vitals, admissionId, o
             </div>
           </div>
         ) : (
-          /* Form list */
           <div className="flex-1 overflow-y-auto p-1.5">
             {filteredForms.map(f => (
               <button
@@ -958,13 +983,12 @@ function ProviderView({ admission, notes, setNotes, meds, vitals, admissionId, o
 
 function MARTab({ meds, admissionId }) {
   const TODAY = new Date().toISOString().slice(0, 10)
-  const [marState, setMarState] = useState({})
+  const [marState, setMarState]   = useState({})
   const [loadingMAR, setLoadingMAR] = useState(true)
 
   const scheduled = meds.filter(m => !m.is_past && m.is_active !== false)
   const allSlots  = [...new Set(scheduled.flatMap(m => FREQ_SLOTS[m.frequency || m.freq || 'OD'] || ['08:00']))].sort()
 
-  // Load saved MAR records for today
   useEffect(() => {
     api.get(`/inpatient/admissions/${admissionId}/mar`, { params: { date: TODAY } })
       .then(r => {
@@ -1165,8 +1189,8 @@ function MedicationChartSection({ admissionId, meds, setMeds }) {
 // ── Section: Orders / Investigations ─────────────────────────────────────────
 
 function OrdersInvestigationsSection({ admissionId }) {
-  const [orders, setOrders]   = useState([])
-  const [loading, setLoading] = useState(true)
+  const [orders, setOrders]     = useState([])
+  const [loading, setLoading]   = useState(true)
   const [expanded, setExpanded] = useState({})
   const [newOrder, setNewOrder] = useState('')
   const [orderType, setOrderType] = useState('Lab')
@@ -1240,8 +1264,8 @@ function OrdersInvestigationsSection({ admissionId }) {
 function NotesAssessmentsSection({ admissionId }) {
   const { requestPin } = usePin()
   const GKEY = `asmGroups_${admissionId}`
-  const [catFilter, setCatFilter] = useState('Groups')
-  const [search, setSearch]       = useState('')
+  const [catFilter, setCatFilter]   = useState('Groups')
+  const [search, setSearch]         = useState('')
   const [activeForm, setActiveForm] = useState(null)
   const [submissions, setSubmissions] = useState([])
   const [groups, setGroups] = useState(() => {
@@ -1250,9 +1274,9 @@ function NotesAssessmentsSection({ admissionId }) {
       { name: 'Safety',   formIds: ['gcs','restraint','incident'] },
     ] } catch { return [] }
   })
-  const [groupMgr, setGroupMgr] = useState(false)
+  const [groupMgr, setGroupMgr]       = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
-  const [activeGroup, setActiveGroup] = useState(groups[0]?.name || '')
+  const [activeGroup, setActiveGroup]   = useState(groups[0]?.name || '')
 
   const saveGroups = g => { setGroups(g); localStorage.setItem(GKEY, JSON.stringify(g)) }
 
@@ -1334,7 +1358,6 @@ function NotesAssessmentsSection({ admissionId }) {
           )}
         </div>
 
-        {/* Group manager */}
         {groupMgr && (
           <div className="border-b border-gray-100 p-3 bg-gray-50 space-y-2">
             <p className="text-xs font-semibold text-gray-600">Manage Groups</p>
@@ -1375,7 +1398,7 @@ function NotesAssessmentsSection({ admissionId }) {
         <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
           {filtered.length === 0 && (
             <p className="text-xs text-gray-400 text-center py-4">
-              {catFilter === 'Groups' ? 'No forms in this group. Use ⚙ to add forms.' : 'No forms found.'}
+              {catFilter === 'Groups' ? 'No forms in this group. Use gear icon to add forms.' : 'No forms found.'}
             </p>
           )}
           {filtered.map(f => (
@@ -1431,178 +1454,239 @@ function NotesAssessmentsSection({ admissionId }) {
 
 // ── Section: Patient Flow Sheet ───────────────────────────────────────────────
 
-function PatientFlowSheetSection({ pendingTransfer }) {
-  const [stages, setStages]             = useState(DEFAULT_FLOW_STAGES)
-  const [activeStage, setActive]        = useState(null)
-  const [newName, setNewName]           = useState('')
-  const [adding, setAdding]             = useState(false)
-  const [transferBanner, setTransferBanner] = useState(false)
-  const prevTransferRef                 = useRef(null)
-
-  // When a signed transfer form arrives, inject a new flow sheet stage
-  useEffect(() => {
-    if (!pendingTransfer) return
-    if (pendingTransfer === prevTransferRef.current) return
-    prevTransferRef.current = pendingTransfer
-
-    const toLabel = pendingTransfer.to_location || 'Transfer'
-    const id = `transfer_${Date.now()}`
-    setStages(ss => {
-      const last = ss.length - 1
-      const newStage = {
-        id,
-        label:         toLabel,
-        time:          new Date().toISOString(),
-        sendDoc:       pendingTransfer.sending_doctor   || '',
-        recvDoc:       pendingTransfer.receiving_doctor || '',
-        notes:         [
-          pendingTransfer.reason           ? `Reason: ${pendingTransfer.reason}`           : '',
-          pendingTransfer.clinical_status  ? `Status: ${pendingTransfer.clinical_status}`  : '',
-          pendingTransfer.active_issues    ? `Issues: ${pendingTransfer.active_issues}`    : '',
-          pendingTransfer.instructions     ? `Instructions: ${pendingTransfer.instructions}` : '',
-        ].filter(Boolean).join('\n'),
-        fromAssessment: true,
-        transferData:  pendingTransfer,
-      }
-      return [...ss.slice(0, last), newStage, ...ss.slice(last)]
-    })
-    setTransferBanner(true)
-  }, [pendingTransfer])
+function PatientFlowSheetSection({ admission }) {
+  const [stages, setStages]         = useState(DEFAULT_FLOW_STAGES)
+  const [activeStage, setActiveStage] = useState(null)
+  const [adding, setAdding]         = useState(false)
+  const [newLabel, setNewLabel]     = useState('')
+  const [newType, setNewType]       = useState('Ward')
 
   const update = (id, field, val) =>
     setStages(ss => ss.map(s => s.id === id ? { ...s, [field]: val } : s))
 
-  const arrive = id =>
-    setStages(ss => ss.map(s => s.id === id ? { ...s, time: new Date().toISOString() } : s))
+  const markArrived = (id, e) => {
+    e.stopPropagation()
+    const now = new Date().toISOString().slice(0, 16)
+    setStages(ss => ss.map(s => s.id === id ? { ...s, time: now } : s))
+  }
+
+  const removeStage = (id, e) => {
+    e.stopPropagation()
+    setStages(ss => ss.filter(s => s.id !== id))
+    if (activeStage === id) setActiveStage(null)
+  }
 
   const addStage = () => {
-    if (!newName.trim()) return
+    if (!newLabel.trim()) return
     const id = `custom_${Date.now()}`
     setStages(ss => {
-      const last = ss.length - 1
-      return [...ss.slice(0, last), { id, label: newName.trim(), time: null, sendDoc: '', recvDoc: '', notes: '' }, ...ss.slice(last)]
+      const lastIdx = ss.length - 1
+      return [
+        ...ss.slice(0, lastIdx),
+        { id, type: newType, label: newLabel.trim(), time: '', sendDoc: '', recvDoc: '', notes: '', hospital: '' },
+        ...ss.slice(lastIdx),
+      ]
     })
-    setNewName(''); setAdding(false)
+    setNewLabel(''); setNewType('Ward'); setAdding(false)
   }
 
   const isDefault = id => DEFAULT_FLOW_STAGES.some(d => d.id === id)
-
   const sel = stages.find(s => s.id === activeStage)
 
+  const completedWithNotes = stages.filter(s => s.time && (s.notes || s.sendDoc || s.recvDoc || s.hospital))
+
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-5">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-gray-700 text-sm">Patient Transfer Flow</h2>
+        <div>
+          <h2 className="font-semibold text-gray-700 text-sm">Patient Journey Flow</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Track patient movement across care settings. Click a stage to edit details.</p>
+        </div>
         <button onClick={() => setAdding(true)}
           className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg hover:bg-emerald-100 flex items-center gap-1">
           <Plus size={12} /> Add Stage
         </button>
       </div>
 
-      {/* Transfer-from-assessment banner */}
-      {transferBanner && (
-        <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 rounded-lg px-4 py-2.5">
-          <CheckCircle2 size={15} className="text-green-600 flex-shrink-0" />
-          <span className="text-sm font-medium flex-1">Transfer form signed. New flow sheet stage added.</span>
-          <button onClick={() => setTransferBanner(false)} className="text-green-500 hover:text-green-700"><X size={14} /></button>
-        </div>
-      )}
-
       {adding && (
-        <div className="bg-white rounded-xl border border-gray-200 p-3 flex gap-2">
-          <input value={newName} onChange={e => setNewName(e.target.value)}
-            placeholder="Stage name (e.g. NICU, Radiology, Burns Ward)…"
-            className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400"
-            onKeyDown={e => e.key === 'Enter' && addStage()} />
-          <button onClick={addStage} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg">Add</button>
-          <button onClick={() => setAdding(false)} className="text-xs text-gray-500 px-2 py-1.5 rounded-lg hover:bg-gray-100">Cancel</button>
+        <div className="bg-white rounded-xl border border-gray-200 p-3 flex flex-wrap gap-2 items-end">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500">Location type</label>
+            <select value={newType} onChange={e => setNewType(e.target.value)}
+              className="border border-gray-300 rounded px-2 py-1.5 text-sm">
+              {FLOW_LOCATION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1 flex-1 min-w-32">
+            <label className="text-xs text-gray-500">Location name</label>
+            <input value={newLabel} onChange={e => setNewLabel(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addStage()}
+              placeholder="e.g. Ward A, Apollo Chennai…"
+              className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+          </div>
+          <button onClick={addStage} disabled={!newLabel.trim()}
+            className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50">Add</button>
+          <button onClick={() => { setAdding(false); setNewLabel('') }}
+            className="text-xs text-gray-500 px-2 py-1.5 rounded-lg hover:bg-gray-100">Cancel</button>
         </div>
       )}
 
-      {/* Flow chart */}
+      {/* Horizontal timeline */}
       <div className="overflow-x-auto pb-2">
         <div className="flex items-center gap-0 min-w-max">
-          {stages.map((s, i) => (
-            <div key={s.id} className="flex items-center">
-              <div
-                onClick={() => setActive(activeStage === s.id ? null : s.id)}
-                className={`cursor-pointer flex flex-col items-center gap-1 w-28 p-2.5 rounded-xl border-2 transition-all ${
-                  s.time ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white hover:border-emerald-200'
-                } ${activeStage === s.id ? 'ring-2 ring-emerald-300 ring-offset-1' : ''}`}
-              >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${s.time ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
-                  {i + 1}
-                </div>
-                <span className="text-xs font-medium text-gray-700 text-center leading-tight">{s.label}</span>
-                {s.fromAssessment && (
-                  <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold leading-tight">
-                    From Assessment
-                  </span>
-                )}
-                {s.time
-                  ? <span className="text-xs text-emerald-600 font-medium">{fmtTime(s.time)}</span>
-                  : (
-                    <button onClick={e => { e.stopPropagation(); arrive(s.id) }}
-                      className="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded hover:bg-emerald-700 mt-0.5">
+          {stages.map((s, i) => {
+            const hasDate = !!s.time
+            const isActive = activeStage === s.id
+            return (
+              <div key={s.id} className="flex items-center">
+                <div
+                  onClick={() => setActiveStage(isActive ? null : s.id)}
+                  className={`cursor-pointer flex flex-col items-center gap-1 w-28 px-2 py-2.5 rounded-xl border-2 transition-all select-none ${
+                    hasDate
+                      ? 'border-emerald-400 bg-emerald-50'
+                      : 'border-dashed border-gray-300 bg-white hover:border-emerald-300 hover:bg-emerald-50/30'
+                  } ${isActive ? 'ring-2 ring-emerald-300 ring-offset-1 shadow-md' : ''}`}
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold ${hasDate ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                    {i + 1}
+                  </div>
+                  <span className="text-xs font-semibold text-gray-700 text-center leading-tight">{s.label}</span>
+                  {s.type !== s.label && (
+                    <span className="text-[10px] text-gray-400 text-center">{s.type}</span>
+                  )}
+                  {hasDate ? (
+                    <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-0.5">
+                      <Clock size={9} /> {fmtTime(s.time)}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={e => markArrived(s.id, e)}
+                      className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded hover:bg-emerald-700 mt-0.5 leading-tight"
+                    >
                       Arrived
                     </button>
-                  )
-                }
-                {!isDefault(s.id) && (
-                  <button onClick={e => { e.stopPropagation(); setStages(ss => ss.filter(x => x.id !== s.id)) }}
-                    className="text-gray-300 hover:text-red-400 mt-0.5"><X size={10} /></button>
+                  )}
+                  {!isDefault(s.id) && (
+                    <button
+                      onClick={e => removeStage(s.id, e)}
+                      className="text-gray-300 hover:text-red-400 mt-0.5"
+                    >
+                      <X size={10} />
+                    </button>
+                  )}
+                </div>
+                {i < stages.length - 1 && (
+                  <div className="flex items-center px-0.5">
+                    <div className={`w-5 h-px ${stages[i].time && stages[i + 1].time ? 'bg-emerald-300' : 'bg-gray-200'}`} />
+                    <ArrowRight size={10} className={`-ml-px ${stages[i].time && stages[i + 1].time ? 'text-emerald-400' : 'text-gray-300'}`} />
+                  </div>
                 )}
               </div>
-              {i < stages.length - 1 && (
-                <div className="flex items-center px-0.5">
-                  <div className="w-5 h-px bg-gray-300" />
-                  <ArrowRight size={10} className="text-gray-300 -ml-px" />
-                </div>
-              )}
-            </div>
-          ))}
+            )
+          })}
+          {/* Add stage placeholder */}
+          <div className="flex items-center">
+            <div className="w-5 h-px bg-gray-200 mx-0.5" />
+            <button
+              onClick={() => setAdding(true)}
+              className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-1 text-gray-300 hover:border-emerald-300 hover:text-emerald-400 transition-colors"
+            >
+              <Plus size={16} />
+              <span className="text-[10px]">Add</span>
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* Inline edit panel for selected stage */}
       {sel && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
-              {sel.label}
-              {sel.fromAssessment && (
-                <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">From Assessment</span>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50 rounded-t-xl">
+            <div className="flex items-center gap-2">
+              <MapPin size={14} className="text-emerald-600" />
+              <span className="font-semibold text-gray-800 text-sm">{sel.label}</span>
+              <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">{sel.type}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {sel.time && <span className="text-xs text-emerald-600 font-medium">Arrived: {fmtDateTime(sel.time)}</span>}
+              <button onClick={() => setActiveStage(null)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+            </div>
+          </div>
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Location type</label>
+                <select value={sel.type} onChange={e => update(sel.id, 'type', e.target.value)}
+                  className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400">
+                  {FLOW_LOCATION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Location name</label>
+                <input value={sel.label} onChange={e => update(sel.id, 'label', e.target.value)}
+                  placeholder="e.g. Ward A, Apollo Chennai, Home"
+                  className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Date / Time</label>
+                <input type="datetime-local" value={sel.time || ''}
+                  onChange={e => update(sel.id, 'time', e.target.value)}
+                  className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+              </div>
+              {(sel.type === 'Branch Hospital' || sel.type === 'External Hospital') && (
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Hospital name</label>
+                  <input value={sel.hospital || ''} onChange={e => update(sel.id, 'hospital', e.target.value)}
+                    placeholder="Hospital name…"
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+                </div>
               )}
-            </h3>
-            {sel.time && <span className="text-xs text-emerald-600 font-medium">Arrived: {fmtDateTime(sel.time)}</span>}
-          </div>
-          {sel.fromAssessment && sel.transferData && (
-            <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs text-blue-700 space-y-0.5">
-              {sel.transferData.from_location   && <div><span className="font-medium">From:</span> {sel.transferData.from_location}</div>}
-              {sel.transferData.to_location     && <div><span className="font-medium">To:</span> {sel.transferData.to_location}</div>}
-              {sel.transferData.transfer_type   && <div><span className="font-medium">Type:</span> {sel.transferData.transfer_type}</div>}
-              {sel.transferData.clinical_status && <div><span className="font-medium">Clinical status:</span> {sel.transferData.clinical_status}</div>}
-              {sel.transferData.active_issues   && <div><span className="font-medium">Active issues:</span> {sel.transferData.active_issues}</div>}
             </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-gray-500 block mb-1">Sending Doctor</label>
-              <input value={sel.sendDoc} onChange={e => update(sel.id, 'sendDoc', e.target.value)}
-                placeholder="Dr. Name"
-                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500 block mb-1">Receiving Doctor</label>
-              <input value={sel.recvDoc} onChange={e => update(sel.id, 'recvDoc', e.target.value)}
-                placeholder="Dr. Name"
-                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Sending doctor</label>
+                <input value={sel.sendDoc} onChange={e => update(sel.id, 'sendDoc', e.target.value)}
+                  placeholder="Dr. Name"
+                  className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Receiving doctor</label>
+                <input value={sel.recvDoc} onChange={e => update(sel.id, 'recvDoc', e.target.value)}
+                  placeholder="Dr. Name"
+                  className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Notes / Plan</label>
+                <textarea value={sel.notes} onChange={e => update(sel.id, 'notes', e.target.value)}
+                  rows={3} placeholder="Key treatment, clinical summary, reason for transfer…"
+                  className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400 resize-none" />
+              </div>
             </div>
           </div>
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">Transfer Notes</label>
-            <textarea value={sel.notes} onChange={e => update(sel.id, 'notes', e.target.value)}
-              rows={2} placeholder="Clinical handover notes…"
-              className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400 resize-none" />
+        </div>
+      )}
+
+      {/* Completed stage cards */}
+      {completedWithNotes.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Stage Notes</p>
+          <div className="space-y-2">
+            {completedWithNotes.map(s => (
+              <div key={s.id} className="bg-white rounded-lg border border-gray-200 px-4 py-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-semibold text-emerald-700">{s.label}</span>
+                  <span className="text-xs text-gray-400">{s.type}</span>
+                  <span className="text-xs text-gray-300 ml-auto">{fmtDateTime(s.time)}</span>
+                </div>
+                {(s.sendDoc || s.recvDoc) && (
+                  <p className="text-xs text-gray-500 mb-1">
+                    {s.sendDoc ? `From: Dr. ${s.sendDoc}` : ''}{s.sendDoc && s.recvDoc ? ' → ' : ''}{s.recvDoc ? `To: Dr. ${s.recvDoc}` : ''}
+                  </p>
+                )}
+                {s.hospital && <p className="text-xs text-gray-500 mb-1">Hospital: {s.hospital}</p>}
+                {s.notes && <p className="text-xs text-gray-600 whitespace-pre-wrap">{s.notes}</p>}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -1614,7 +1698,7 @@ function PatientFlowSheetSection({ pendingTransfer }) {
 
 function PerioperativeSection({ admissionId }) {
   const { requestPin } = usePin()
-  const [tab, setTab]   = useState('preop')
+  const [tab, setTab]     = useState('preop')
   const [forms, setForms] = useState({ preop: {}, intraop: {}, postop: {} })
   const [saving, setSaving] = useState(false)
 
@@ -1700,17 +1784,16 @@ function PerioperativeSection({ admissionId }) {
 export default function PatientChart() {
   const { admissionId } = useParams()
   const navigate = useNavigate()
-  const [admission, setAdmission] = useState(null)
-  const [vitals, setVitals]       = useState([])
-  const [notes, setNotes]         = useState([])
-  const [meds, setMeds]           = useState([])
-  const [loading, setLoading]     = useState(true)
-  const [error, setError]         = useState(null)
-  const [section, setSection]     = useState('dashboard')
-  const [showAllergy, setShowAllergy]     = useState(false)
-  const [showVitals, setShowVitals]       = useState(false)
-  const [allergies, setAllergies]         = useState([])
-  const [pendingTransfer, setPendingTransfer] = useState(null)
+  const [admission, setAdmission]   = useState(null)
+  const [vitals, setVitals]         = useState([])
+  const [notes, setNotes]           = useState([])
+  const [meds, setMeds]             = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState(null)
+  const [section, setSection]       = useState('dashboard')
+  const [showAllergy, setShowAllergy] = useState(false)
+  const [showVitals, setShowVitals]   = useState(false)
+  const [allergies, setAllergies]     = useState([])
 
   const load = useCallback(async () => {
     try {
@@ -1757,12 +1840,12 @@ export default function PatientChart() {
   const renderSection = () => {
     switch (section) {
       case 'dashboard':   return <OverviewTab admission={admission} vitals={vitals} meds={meds} allergies={allergies} onVitalsOpen={() => setShowVitals(true)} />
-      case 'provider':    return <ProviderView admission={admission} notes={notes} setNotes={setNotes} meds={meds} vitals={vitals} admissionId={admissionId} onTransferFormSigned={data => setPendingTransfer({ ...data, _ts: Date.now() })} />
+      case 'provider':    return <ProviderView admission={admission} notes={notes} setNotes={setNotes} meds={meds} admissionId={admissionId} vitals={vitals} />
       case 'mar':         return <MARTab meds={meds} admissionId={admissionId} />
       case 'medications': return <MedicationChartSection admissionId={admissionId} meds={meds} setMeds={setMeds} />
       case 'orders':      return <OrdersInvestigationsSection admissionId={admissionId} />
       case 'notes':       return <NotesAssessmentsSection admissionId={admissionId} />
-      case 'flowsheet':   return <PatientFlowSheetSection admission={admission} pendingTransfer={pendingTransfer} />
+      case 'flowsheet':   return <PatientFlowSheetSection admission={admission} />
       case 'periop':      return <PerioperativeSection admissionId={admissionId} />
       default:            return null
     }
