@@ -692,16 +692,21 @@ function ProviderView({ admission, notes, setNotes, meds, admissionId }) {
   const textRef = useRef(null)
 
   // Right panel state
-  const [formSearch, setFormSearch]   = useState('')
+  const [formSearch, setFormSearch]     = useState('')
+  const [catTab, setCatTab]             = useState('All')
   const [selectedForm, setSelectedForm] = useState(null)
-  const [formData, setFormData]       = useState({})
-  const [formSaving, setFormSaving]   = useState(false)
+  const [formData, setFormData]         = useState({})
+  const [formSaving, setFormSaving]     = useState(false)
 
   const NOTE_TYPES = ['Progress Note','SOAP Note','Nursing Note','Procedure Note','Discharge Summary']
 
-  const filteredForms = formSearch.length > 0
-    ? ASSESSMENT_FORMS.filter(f => f.label.toLowerCase().includes(formSearch.toLowerCase()) || f.category.toLowerCase().includes(formSearch.toLowerCase()))
-    : ASSESSMENT_FORMS
+  const CAT_TABS = ['All', ...Array.from(new Set(ASSESSMENT_FORMS.map(f => f.category)))]
+
+  const filteredForms = ASSESSMENT_FORMS.filter(f => {
+    const matchCat  = catTab === 'All' || f.category === catTab
+    const matchText = formSearch.length === 0 || f.label.toLowerCase().includes(formSearch.toLowerCase()) || f.category.toLowerCase().includes(formSearch.toLowerCase())
+    return matchCat && matchText
+  })
 
   const handleInput = e => {
     let val = e.target.value
@@ -816,9 +821,10 @@ function ProviderView({ admission, notes, setNotes, meds, admissionId }) {
 
       {/* ── Right: assessment form panel ── */}
       <div className="flex-shrink-0 flex flex-col overflow-hidden bg-white" style={{ width: 272 }}>
-        <div className="flex-shrink-0 px-3 pt-3 pb-2 border-b border-gray-100">
+        <div className="flex-shrink-0 px-3 pt-3 pb-0 border-b border-gray-100">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Assessment Forms</p>
-          <div className="relative">
+          {/* Search */}
+          <div className="relative mb-2">
             <Search size={12} className="absolute left-2.5 top-2 text-gray-400" />
             <input
               value={formSearch}
@@ -826,6 +832,21 @@ function ProviderView({ admission, notes, setNotes, meds, admissionId }) {
               placeholder="Search forms…"
               className="w-full border border-gray-200 rounded-lg pl-7 pr-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
             />
+          </div>
+          {/* Category tabs */}
+          <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+            {CAT_TABS.map(tab => (
+              <button
+                key={tab}
+                onClick={() => { setCatTab(tab); setSelectedForm(null); setFormData({}) }}
+                className="flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-colors"
+                style={catTab === tab
+                  ? { background: '#065F46', color: '#fff' }
+                  : { background: '#f3f4f6', color: '#6b7280' }}
+              >
+                {tab}
+              </button>
+            ))}
           </div>
         </div>
 
