@@ -32,7 +32,8 @@
     <meta name="msapplication-config" content="/browserconfig.xml" />
     <meta name="theme-color" content="#0F2557" />
 
-    </head>
+    <script>if("serviceWorker"in navigator)navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})})</script>
+</head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
