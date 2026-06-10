@@ -55,6 +55,13 @@ export function AuthProvider({ children }) {
     if (r.clinic_id) localStorage.setItem('clinic_id', String(r.clinic_id))
     if (r.branch_id) localStorage.setItem('branch_id', String(r.branch_id))
     setUser(r)
+    return r
+  }
+
+  const refreshUser = async () => {
+    const u = await api.get('/auth/staff/me')
+    setUser(u)
+    return u
   }
 
   const logout = () => {
@@ -66,7 +73,7 @@ export function AuthProvider({ children }) {
     window.location.href = '/login'
   }
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>{children}</AuthContext.Provider>
 }
 
 export const useAuth = () => useContext(AuthContext)

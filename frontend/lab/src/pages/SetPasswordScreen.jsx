@@ -1,21 +1,19 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
-import api from '../api/client'
 import { Eye, EyeOff, CheckCircle2, Circle, ShieldCheck, LogOut } from 'lucide-react'
+import api from '../api/client'
+import { useAuth } from '../contexts/AuthContext'
 
-const ACCENT = '#1D4ED8'
+const ACCENT = '#7C3AED'
 
 const RULES = [
-  { key: 'length',  label: '8+ characters',        test: p => p.length >= 8 },
-  { key: 'upper',   label: 'One uppercase letter',  test: p => /[A-Z]/.test(p) },
-  { key: 'digit',   label: 'One number',            test: p => /\d/.test(p) },
-  { key: 'special', label: 'One special character', test: p => /[!@#$%^&*()\-_=+[\]{}|;:,.<>?]/.test(p) },
+  { key: 'length',  label: '8+ characters',         test: p => p.length >= 8 },
+  { key: 'upper',   label: 'One uppercase letter',   test: p => /[A-Z]/.test(p) },
+  { key: 'digit',   label: 'One number',             test: p => /\d/.test(p) },
+  { key: 'special', label: 'One special character',  test: p => /[!@#$%^&*()\-_=+[\]{}|;:,.<>?]/.test(p) },
 ]
 
-export default function SetPassword() {
-  const { user, logout, refreshUser } = useAuth()
-  const navigate = useNavigate()
+export default function SetPasswordScreen({ onDone }) {
+  const { user, logout } = useAuth()
   const [pw, setPw]           = useState('')
   const [confirm, setConfirm] = useState('')
   const [showPw, setShowPw]   = useState(false)
@@ -33,8 +31,7 @@ export default function SetPassword() {
     setSaving(true); setError('')
     try {
       await api.post('/auth/staff/set-password', { new_password: pw })
-      await refreshUser()
-      navigate('/', { replace: true })
+      await onDone()
     } catch (err) {
       setError(err?.response?.data?.detail || err?.message || 'Failed to set password. Please try again.')
     } finally { setSaving(false) }
@@ -52,7 +49,7 @@ export default function SetPassword() {
           <p className="text-sm text-gray-500 mt-2 leading-relaxed">
             Welcome{user?.full_name ? `, ${user.full_name}` : ''}!<br />
             You're signed in with a temporary password.<br />
-            Set a personal password to access the Receptionist Portal.
+            Set a personal password to access BH Lab.
           </p>
         </div>
 
@@ -72,7 +69,7 @@ export default function SetPassword() {
               <div className="relative">
                 <input
                   type={showPw ? 'text' : 'password'}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm pr-10 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm pr-10 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
                   placeholder="Create a strong password"
                   value={pw}
                   onChange={e => { setPw(e.target.value); setError('') }}
@@ -87,12 +84,12 @@ export default function SetPassword() {
 
             <div className="grid grid-cols-2 gap-1.5">
               {RULES.map(r => {
-                const ok      = pw.length > 0 && r.test(pw)
-                const touched = pw.length > 0
+                const ok       = pw.length > 0 && r.test(pw)
+                const touched  = pw.length > 0
                 return (
                   <div key={r.key} className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-colors ${
                     !touched ? 'bg-gray-50 text-gray-400'
-                    : ok ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-500'
+                    : ok ? 'bg-emerald-50 text-violet-700' : 'bg-red-50 text-red-500'
                   }`}>
                     {ok ? <CheckCircle2 size={11} className="flex-shrink-0" /> : <Circle size={11} className="flex-shrink-0" />}
                     {r.label}
@@ -107,9 +104,7 @@ export default function SetPassword() {
                 <input
                   type={showCf ? 'text' : 'password'}
                   className={`w-full border rounded-xl px-3 py-2.5 text-sm pr-10 focus:outline-none focus:ring-1 transition-colors ${
-                    confirm.length > 0
-                      ? matches ? 'border-blue-500 focus:ring-blue-500' : 'border-red-300 focus:ring-red-400'
-                      : 'border-gray-200 focus:ring-blue-600 focus:border-blue-600'
+                    confirm.length > 0 ? (matches ? 'border-violet-400 focus:ring-violet-500' : 'border-red-300 focus:ring-red-400') : 'border-gray-200 focus:ring-violet-500 focus:border-violet-500'
                   }`}
                   placeholder="Re-enter your password"
                   value={confirm}
@@ -124,7 +119,7 @@ export default function SetPassword() {
                 <p className="text-xs text-red-500 mt-1">Passwords don't match</p>
               )}
               {matches && (
-                <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                <p className="text-xs text-violet-600 mt-1 flex items-center gap-1">
                   <CheckCircle2 size={11} /> Passwords match
                 </p>
               )}

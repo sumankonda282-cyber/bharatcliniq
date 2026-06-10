@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import AccountSettings from './pages/AccountSettings'
 import Login from './pages/Login'
+import SetPasswordScreen from './pages/SetPasswordScreen'
 import Dashboard from './pages/Dashboard'
 import Orders from './pages/Orders'
 import POS from './pages/POS'
@@ -28,6 +29,13 @@ function LoginRoute() {
   if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 size={36} className="animate-spin text-gray-400"/></div>
   return user ? <Navigate to="/" replace/> : <Login/>
 }
+
+function ForceResetGuard({ children }) {
+  const { user, refreshUser } = useAuth()
+  if (user?.force_reset) return <SetPasswordScreen onDone={refreshUser} />
+  return children
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -35,6 +43,7 @@ export default function App() {
         <InstallPrompt appName="BH Pharmacy" />
         <Toaster />
         <BrowserRouter>
+          <ForceResetGuard>
           <Routes>
             <Route path="/login" element={<LoginRoute/>}/>
             <Route path="/account" element={<Guard><AccountSettings/></Guard>}/>
@@ -53,6 +62,7 @@ export default function App() {
             </Route>
             <Route path="*" element={<Navigate to="/" replace/>}/>
           </Routes>
+          </ForceResetGuard>
         </BrowserRouter>
       </>
     </AuthProvider>

@@ -6,6 +6,7 @@ import { PinProvider } from './contexts/PinContext'
 import { Loader2 } from 'lucide-react'
 
 const Login                  = lazy(() => import('./pages/Login'))
+const SetPasswordScreen      = lazy(() => import('./pages/SetPasswordScreen'))
 const PinSetup               = lazy(() => import('./pages/PinSetup'))
 const WardSetup              = lazy(() => import('./pages/WardSetup'))
 const Dashboard              = lazy(() => import('./pages/Dashboard'))
@@ -33,10 +34,18 @@ function AppLoader() {
 }
 
 function AppRoutes() {
-  const { user, loading } = useAuth()
+  const { user, loading, refreshUser } = useAuth()
   const { setupComplete } = useWardSession()
 
   if (loading) return <AppLoader />
+
+  if (user?.force_reset) {
+    return (
+      <Suspense fallback={<AppLoader />}>
+        <SetPasswordScreen onDone={refreshUser} />
+      </Suspense>
+    )
+  }
 
   if (!user) {
     return (

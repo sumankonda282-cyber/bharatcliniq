@@ -5,6 +5,7 @@ import Toaster from './components/Toaster'
 import InstallPrompt from './components/InstallPrompt'
 import Layout from './components/Layout'
 import Login from './pages/Login'
+import SetPasswordScreen from './pages/SetPasswordScreen'
 import Dashboard from './pages/Dashboard'
 import Orders from './pages/Orders'
 import Tests from './pages/Tests'
@@ -31,12 +32,20 @@ function LoginRoute() {
   return user ? <Navigate to="/" replace /> : <Login />
 }
 
+
+function ForceResetGuard({ children }) {
+  const { user, refreshUser } = useAuth()
+  if (user?.force_reset) return <SetPasswordScreen onDone={refreshUser} />
+  return children
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <Toaster />
       <InstallPrompt appName="BH Lab" />
       <BrowserRouter>
+        <ForceResetGuard>
         <Routes>
           <Route path="/login"   element={<LoginRoute />} />
           <Route path="/account" element={<Guard><AccountSettings /></Guard>} />
@@ -52,6 +61,7 @@ export default function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </ForceResetGuard>
       </BrowserRouter>
     </AuthProvider>
   )
