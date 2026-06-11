@@ -1697,3 +1697,13 @@ class SchedulerSettings(Base):
     setup_complete      = Column(Boolean, default=False)
     created_at          = Column(DateTime, server_default=func.now())
     updated_at          = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class Feedback(Base):
+    __tablename__ = "feedback"
+    id         = Column(Integer, primary_key=True, index=True)
+    name       = Column(String(200), nullable=False)
+    email      = Column(String(150), nullable=True)
+    message    = Column(Text, nullable=False)
+    type       = Column(String(50), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
