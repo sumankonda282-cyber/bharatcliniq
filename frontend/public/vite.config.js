@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['logo.png', 'favicon.ico'],
       manifest: {
-        name: 'BHaratCliniq',
-        short_name: 'BHaratCliniq',
+        name: 'BHarath Health',
+        short_name: 'BHarath Health',
         description: "India's Digital Health Network",
         theme_color: '#0F2557',
         background_color: '#ffffff',

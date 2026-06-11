@@ -324,7 +324,7 @@ function Step3({ data, onBack, onSubmit, submitting, error }) {
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-sm mb-5">{error}</div>
       )}
       <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-        By submitting, you agree to BHaratCliniq's Terms of Service and Privacy Policy. Registration will be reviewed within 24 hours.
+        By submitting, you agree to BHarath Health's Terms of Service and Privacy Policy. Registration will be reviewed within 24 hours.
       </p>
       <div className="flex gap-3">
         <button onClick={onBack} disabled={submitting}
@@ -350,7 +350,7 @@ function SuccessScreen() {
       </div>
       <h2 className="text-2xl font-bold mb-3" style={{ color: '#0F2557' }}>Registration Submitted!</h2>
       <p className="text-gray-500 mb-2 max-w-sm mx-auto">
-        Thank you for registering with BHaratCliniq. Your clinic is <strong className="text-yellow-600">pending approval</strong>.
+        Thank you for registering with BHarath Health. Your health center is <strong className="text-yellow-600">pending approval</strong>.
       </p>
       <p className="text-gray-400 text-sm mb-8 max-w-sm mx-auto">
         Our team reviews registrations within 24 hours. Once approved, your login credentials will be sent directly to your registered email and phone.

@@ -23,7 +23,7 @@ export default function BrandLogo({ size = 'md', showText = true, light = false 
             className={`font-extrabold ${s.name}`}
             style={{ color: nameColor, letterSpacing: '-0.02em' }}
           >
-            <span style={{ color: '#CC1414' }}>Bharat</span>Health
+            <span style={{ color: '#CC1414' }}>BHarath</span>{' '}Health
           </span>
           <span
             className={`italic ${s.sub} text-right`}
