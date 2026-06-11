@@ -17,6 +17,7 @@ import FormBuilder from './pages/FormBuilder'
 import FormPool from './pages/FormPool'
 import FormPreview from './pages/FormPreview'
 import FormAnalytics from './pages/FormAnalytics'
+import PopulationDashboard from './pages/PopulationDashboard'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="forms/builder/:id" element={<FormBuilder />} />
           <Route path="forms/preview/:id" element={<FormPreview />} />
           <Route path="forms/preview"     element={<FormPreview />} />
+          <Route path="population"        element={<PopulationDashboard />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
