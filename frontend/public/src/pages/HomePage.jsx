@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import api from '../api/client'
 import {
   Search, Calendar, FileText, Pill, FlaskConical,
   ReceiptText, BarChart3, ChevronRight, Star,
@@ -210,6 +211,73 @@ function CitySearch({ value, onChange, cities, placeholder = 'Select city' }) {
         </ul>
       )}
     </div>
+  )
+}
+
+function FeedbackForm() {
+  const [form, setForm] = useState({ name: '', email: '', message: '', type: 'general' })
+  const [status, setStatus] = useState('') // 'sending' | 'sent' | 'error'
+
+  const submit = async (e) => {
+    e.preventDefault()
+    setStatus('sending')
+    try {
+      await api.post('/public/feedback', form)
+      setStatus('sent')
+      setForm({ name: '', email: '', message: '', type: 'general' })
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  if (status === 'sent') return (
+    <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+      <div className="text-4xl mb-3">🙏</div>
+      <h3 className="font-bold text-gray-800 mb-1">Thank you!</h3>
+      <p className="text-gray-500 text-sm">Your feedback helps us improve BharatHealth Systems.</p>
+      <button onClick={() => setStatus('')} className="mt-4 text-sm underline" style={{ color: '#0F2557' }}>Send another</button>
+    </div>
+  )
+
+  return (
+    <form onSubmit={submit} className="bg-white rounded-2xl shadow-sm p-8 space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+          <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+            placeholder="Suman Konda" required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Email (optional)</label>
+          <input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+            placeholder="you@example.com" />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+        <select value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))}
+          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none">
+          <option value="general">General Feedback</option>
+          <option value="suggestion">Suggestion</option>
+          <option value="bug">Report a Bug</option>
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+        <textarea value={form.message} onChange={e => setForm(f => ({...f, message: e.target.value}))}
+          rows={4} required
+          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
+          placeholder="Tell us what you think, what's missing, or what could be better..." />
+      </div>
+      <button type="submit" disabled={status === 'sending'}
+        className="w-full py-3 rounded-xl font-semibold text-white text-sm transition-colors"
+        style={{ background: '#0F2557', opacity: status === 'sending' ? 0.7 : 1 }}>
+        {status === 'sending' ? 'Sending...' : 'Send Feedback'}
+      </button>
+      {status === 'error' && <p className="text-red-500 text-sm text-center">Something went wrong. Please try again.</p>}
+    </form>
   )
 }
 
@@ -577,6 +645,18 @@ export default function HomePage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Feedback */}
+      <section className="py-20 px-4" style={{ background: '#F0F4F8' }}>
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-10">
+            <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#F5821E' }}>We're Listening</span>
+            <h2 className="text-2xl md:text-3xl font-extrabold mt-2" style={{ color: '#0F2557' }}>Share Your Feedback</h2>
+            <p className="text-gray-500 mt-2">Help us build India's best health platform. Your suggestions matter.</p>
+          </div>
+          <FeedbackForm />
         </div>
       </section>
 

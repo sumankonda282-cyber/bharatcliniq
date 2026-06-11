@@ -72,6 +72,8 @@ export const doctorApi = {
   getEncounter:       (id) => api.get(`/doctor/encounter/${id}`),
   completeEncounter:  (id, data) => api.post(`/doctor/encounter/${id}/complete`, data),
   joinTelehealth:     (id) => api.post(`/doctor/encounter/${id}/join-telehealth`),
+  getProfile:         () => api.get('/doctor/profile'),
+  updateProfile:      (data) => api.put('/doctor/profile', data),
 }
 
 // ── Pharmacy ──────────────────────────────────────────────────────

@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, Users, Calendar, Stethoscope, Pill,
   FlaskConical, Scan, Receipt, BarChart3, Send, Settings,
-  ShieldCheck, LogOut, ChevronRight, Building2, LayoutGrid, BedDouble, Activity, ClipboardList
+  ShieldCheck, LogOut, ChevronRight, Building2, LayoutGrid, BedDouble, Activity, ClipboardList,
+  UserCircle
 } from 'lucide-react'
 import BrandLogo from '../BrandLogo'
+import ProfileDrawer from './ProfileDrawer'
 
 const ALL_NAV = [
   { to: '/dashboard',    label: 'Dashboard',   icon: LayoutDashboard, roles: ['clinic_admin','doctor','receptionist','pharmacist','lab_tech','imaging_tech'] },
@@ -32,6 +35,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'https://bharatcliniq.onrender.
 export default function Sidebar({ onClose }) {
   const { user, branding, logout, isPlatformAdmin } = useAuth()
   const navigate = useNavigate()
+  const [profileOpen, setProfileOpen] = useState(false)
 
   const visible = ALL_NAV.filter(item => {
     if (item.userType === 'platform_admin') return isPlatformAdmin
@@ -109,18 +113,24 @@ export default function Sidebar({ onClose }) {
 
       {/* User info + logout */}
       <div className="border-t border-white/10 p-4">
-        <div className="flex items-center gap-3 mb-3">
+        <button
+          onClick={() => setProfileOpen(true)}
+          className="flex items-center gap-3 mb-3 w-full text-left group"
+        >
           <div
-            className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0 group-hover:opacity-80 transition-opacity"
             style={{ background: '#F5821E' }}
           >
             {initials}
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold text-white truncate">{user?.full_name}</div>
-            <div className="text-xs text-blue-300 capitalize">{user?.role?.replace(/_/g, ' ')}</div>
+            <div className="text-xs text-blue-300 capitalize flex items-center gap-1">
+              {user?.role?.replace(/_/g, ' ')}
+              <UserCircle size={10} className="opacity-60" />
+            </div>
           </div>
-        </div>
+        </button>
         <button
           onClick={handleLogout}
           className="flex items-center gap-2 text-xs text-blue-300 hover:text-red-400 transition-colors w-full"
@@ -129,6 +139,8 @@ export default function Sidebar({ onClose }) {
           Sign out
         </button>
       </div>
+
+      <ProfileDrawer open={profileOpen} onClose={() => setProfileOpen(false)} />
     </aside>
   )
 }

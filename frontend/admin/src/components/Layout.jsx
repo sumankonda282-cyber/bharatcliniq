@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
   LayoutDashboard, Clock, Building2, ShieldCheck,
   ClipboardList, BarChart3, LogOut, Menu, X, Search, CreditCard, Hospital,
-  FileText, Users
+  FileText, Users, Bell
 } from 'lucide-react'
+import api from '../api/client'
 
 const NAV = [
   { to: '/dashboard',         icon: LayoutDashboard, label: 'Dashboard' },
@@ -81,6 +82,104 @@ function Sidebar({ onClose }) {
   )
 }
 
+function timeAgo(dateStr) {
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
+  if (diff < 60) return `${diff}s ago`
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  return `${Math.floor(diff / 86400)}d ago`
+}
+
+const TYPE_COLORS = {
+  suggestion: { bg: '#0F255715', color: '#0F2557', label: 'Suggestion' },
+  bug:        { bg: '#CC141415', color: '#CC1414', label: 'Bug' },
+  general:    { bg: '#F5821E15', color: '#F5821E', label: 'General' },
+}
+
+function FeedbackBell() {
+  const [items, setItems] = useState([])
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  const load = () => {
+    api.get('/platform/feedback')
+      .then(data => setItems(Array.isArray(data) ? data.slice(0, 10) : []))
+      .catch(() => {})
+  }
+
+  useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const markRead = async (id) => {
+    try {
+      await api.post(`/platform/feedback/${id}/read`)
+      setItems(prev => prev.filter(i => i.id !== id))
+    } catch {}
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="relative p-1.5 rounded-lg text-gray-400 hover:bg-gray-800 flex items-center justify-center"
+        title="Feedback"
+      >
+        <Bell size={20} />
+        {items.length > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+            {items.length}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-10 w-80 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl z-50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+            <span className="text-white font-semibold text-sm">Unread Feedback</span>
+            <span className="text-gray-500 text-xs">{items.length} unread</span>
+          </div>
+          {items.length === 0 ? (
+            <div className="px-4 py-8 text-center text-gray-500 text-sm">No unread feedback</div>
+          ) : (
+            <ul className="max-h-96 overflow-y-auto divide-y divide-gray-800">
+              {items.map(item => {
+                const tc = TYPE_COLORS[item.type] || TYPE_COLORS.general
+                return (
+                  <li key={item.id} className="px-4 py-3 hover:bg-gray-800/50 transition-colors">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="font-medium text-white text-sm truncate">{item.name}</span>
+                      <span className="text-gray-500 text-xs whitespace-nowrap flex-shrink-0">{timeAgo(item.created_at)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: tc.bg, color: tc.color }}>
+                        {tc.label}
+                      </span>
+                    </div>
+                    <p className="text-gray-400 text-xs leading-relaxed mb-2 line-clamp-2">
+                      {item.message.length > 80 ? item.message.slice(0, 80) + '…' : item.message}
+                    </p>
+                    <button
+                      onClick={() => markRead(item.id)}
+                      className="text-xs text-blue-400 hover:text-blue-300 font-medium"
+                    >
+                      Mark Read
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Layout() {
   const [open, setOpen] = useState(false)
   return (
@@ -101,7 +200,11 @@ export default function Layout() {
           <button onClick={() => setOpen(true)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-800">
             <Menu size={22} />
           </button>
-          <span className="font-bold text-sm text-white">BharatCliniq Admin</span>
+          <span className="font-bold text-sm text-white flex-1">BharatCliniq Admin</span>
+          <FeedbackBell />
+        </div>
+        <div className="hidden md:flex items-center justify-end px-6 py-2 border-b border-gray-800 bg-gray-900 sticky top-0 z-30">
+          <FeedbackBell />
         </div>
         <div className="p-4 md:p-6">
           <Outlet />

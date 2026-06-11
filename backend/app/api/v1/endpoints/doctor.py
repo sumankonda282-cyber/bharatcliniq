@@ -273,21 +273,33 @@ def patient_chart(
 @router.get("/profile")
 def get_my_doctor_profile(db: Session = Depends(get_db), current: Staff = Depends(require_doctor)):
     profile = db.query(DoctorProfile).filter(DoctorProfile.staff_id == current.id).first()
+    # qualifications: prefer the new JSON list; fall back to splitting the old text field
+    qualifications = None
+    if profile:
+        if profile.qualifications_list is not None:
+            qualifications = profile.qualifications_list
+        elif profile.qualification:
+            qualifications = [q.strip() for q in profile.qualification.split(',') if q.strip()]
     return {
-        "id":                 current.id,
-        "full_name":          current.full_name,
-        "email":              current.email,
-        "mobile":             current.mobile,
-        "specialty":          profile.specialty if profile else None,
-        "qualification":      profile.qualification if profile else None,
-        "mci_number":         profile.mci_number if profile else None,
-        "experience_years":   profile.experience_years if profile else None,
-        "consultation_fee":   float(profile.consultation_fee) if profile and profile.consultation_fee else 0,
-        "bio":                profile.bio if profile else None,
-        "languages":          profile.languages if profile else None,
-        "telehealth_enabled": profile.telehealth_enabled if profile else False,
-        "doctor_profile_id":  profile.id if profile else None,
-        "input_mode":         profile.input_mode if profile else 'type',
+        "id":                  current.id,
+        "full_name":           current.full_name,
+        "email":               current.email,
+        "mobile":              current.mobile,
+        "specialty":           profile.specialty if profile else None,
+        "qualification":       profile.qualification if profile else None,
+        "qualifications":      qualifications or [],
+        "mci_number":          profile.mci_number if profile else None,
+        "experience_years":    profile.experience_years if profile else 0,
+        "consultation_fee":    float(profile.consultation_fee) if profile and profile.consultation_fee else 0,
+        "bio":                 profile.bio if profile else None,
+        "languages":           [l.strip() for l in profile.languages.split(',') if l.strip()] if profile and profile.languages else [],
+        "telehealth_enabled":  profile.telehealth_enabled if profile else False,
+        "telehealth_available": profile.telehealth_enabled if profile else False,
+        "is_online":           profile.is_online if profile else False,
+        "achievements":        profile.achievements if profile else [],
+        "working_hours":       profile.working_hours if profile else {},
+        "doctor_profile_id":   profile.id if profile else None,
+        "input_mode":          profile.input_mode if profile else 'type',
     }
 
 
@@ -299,9 +311,40 @@ def update_my_doctor_profile(body: dict, db: Session = Depends(get_db), current:
     if not profile:
         profile = DoctorProfile(staff_id=current.id, clinic_id=current.clinic_id)
         db.add(profile)
-    for field in ["specialty", "qualification", "mci_number", "experience_years", "consultation_fee", "bio", "languages", "telehealth_enabled", "input_mode"]:
+
+    # Scalar fields
+    for field in ["specialty", "qualification", "mci_number", "experience_years",
+                  "consultation_fee", "bio", "telehealth_enabled", "input_mode",
+                  "is_online"]:
         if field in body:
             setattr(profile, field, body[field])
+
+    # telehealth_available maps to telehealth_enabled
+    if "telehealth_available" in body:
+        profile.telehealth_enabled = body["telehealth_available"]
+
+    # languages: accept list or comma string
+    if "languages" in body:
+        langs = body["languages"]
+        if isinstance(langs, list):
+            profile.languages = ', '.join(langs)
+        else:
+            profile.languages = langs
+
+    # qualifications: accept list, store in both JSON list and text field
+    if "qualifications" in body:
+        quals = body["qualifications"]
+        if isinstance(quals, list):
+            profile.qualifications_list = quals
+            profile.qualification = ', '.join(quals)
+        else:
+            profile.qualification = quals
+
+    # JSON fields
+    for field in ["achievements", "working_hours"]:
+        if field in body:
+            setattr(profile, field, body[field])
+
     db.commit()
     return {"message": "Profile updated"}
 
