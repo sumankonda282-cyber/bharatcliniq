@@ -132,7 +132,15 @@ def _seed_critical(db):
             bio="Dr. Priya Sharma is an experienced general physician.",
             languages=["English", "Telugu", "Hindi"],
             accepts_online_booking=True, avg_consultation_minutes=15,
+            telehealth_enabled=True, telehealth_fee=400,
+            mci_verified=True,
         ))
+    else:
+        dp1 = db.query(DoctorProfile).filter_by(staff_id=doctor1.id).first() if doctor1 else None
+        if dp1:
+            dp1.telehealth_enabled = True
+            dp1.telehealth_fee = 400
+            dp1.mci_verified = True
 
     if doctor2 and not _exists(db, DoctorProfile, staff_id=doctor2.id):
         db.add(DoctorProfile(
@@ -142,9 +150,20 @@ def _seed_critical(db):
             bio="Dr. Rajan Mehta is a senior cardiologist.",
             languages=["English", "Telugu", "Hindi"],
             accepts_online_booking=True, avg_consultation_minutes=20,
+            telehealth_enabled=True, telehealth_fee=600,
+            mci_verified=True,
         ))
+    else:
+        dp2 = db.query(DoctorProfile).filter_by(staff_id=doctor2.id).first() if doctor2 else None
+        if dp2:
+            dp2.telehealth_enabled = True
+            dp2.telehealth_fee = 600
+            dp2.mci_verified = True
 
     db.commit()
+
+    # ── Additional sample clinics for testing ─────────────────────────
+    _seed_sample_clinics(db)
 
     # ── Demo Patients ─────────────────────────────────────────────────
     if not _exists(db, Patient, uhid="BH202400001"):
@@ -166,6 +185,147 @@ def _seed_critical(db):
     db.commit()
 
     return branch_main
+
+
+def _seed_sample_clinics(db):
+    """Seed 4 sample clinics with diverse doctors across cities for public portal testing."""
+
+    sample_clinics = [
+        {
+            "clinic": dict(
+                name="MediCare Health Center", slug="medicare-health-center",
+                specialty="General Medicine & Pediatrics",
+                description="Trusted family health center serving Mumbai since 2010.",
+                email="info@medicaremumbai.com", phone="022-98765432",
+                address="45 Bandra West", city="Mumbai", state="Maharashtra", pincode="400050",
+            ),
+            "doctors": [
+                dict(name="Dr. Ananya Desai",    email="ananya@medicaremumbai.com",  mobile="9811000001", username="anan01",
+                     specialty="Pediatrics",      qualification="MBBS, MD (Pediatrics)", experience_years=9,
+                     consultation_fee=600,        telehealth_fee=500, mci_number="MH-PED-1001"),
+                dict(name="Dr. Vikram Joshi",    email="vikram@medicaremumbai.com",  mobile="9811000002", username="vikr02",
+                     specialty="General Medicine",qualification="MBBS, DNB", experience_years=14,
+                     consultation_fee=500,        telehealth_fee=400, mci_number="MH-MED-1002"),
+            ],
+        },
+        {
+            "clinic": dict(
+                name="HeartCare Cardiac Center", slug="heartcare-cardiac-bangalore",
+                specialty="Cardiology",
+                description="Advanced cardiac care with state-of-the-art diagnostics in Bangalore.",
+                email="info@heartcare.in", phone="080-44556677",
+                address="12 Koramangala 5th Block", city="Bangalore", state="Karnataka", pincode="560095",
+            ),
+            "doctors": [
+                dict(name="Dr. Suresh Babu",     email="suresh@heartcare.in",        mobile="9811000003", username="sure03",
+                     specialty="Cardiology",      qualification="MBBS, MD, DM (Cardiology)", experience_years=18,
+                     consultation_fee=1200,       telehealth_fee=900, mci_number="KA-CAR-2001"),
+                dict(name="Dr. Kavitha Reddy",   email="kavitha@heartcare.in",       mobile="9811000004", username="kavi04",
+                     specialty="Internal Medicine",qualification="MBBS, MD (Internal Medicine)", experience_years=11,
+                     consultation_fee=800,        telehealth_fee=600, mci_number="KA-MED-2002"),
+            ],
+        },
+        {
+            "clinic": dict(
+                name="SkinGlow Dermatology Clinic", slug="skinglow-dermatology-delhi",
+                specialty="Dermatology",
+                description="Expert skin and hair care specialists in South Delhi.",
+                email="hello@skinglow.in", phone="011-40001234",
+                address="89 Hauz Khas Village", city="Delhi", state="Delhi", pincode="110016",
+            ),
+            "doctors": [
+                dict(name="Dr. Neha Kapoor",     email="neha@skinglow.in",           mobile="9811000005", username="neha05",
+                     specialty="Dermatology",     qualification="MBBS, MD (Dermatology)", experience_years=7,
+                     consultation_fee=900,        telehealth_fee=700, mci_number="DL-DER-3001"),
+                dict(name="Dr. Arjun Malhotra",  email="arjun@skinglow.in",          mobile="9811000006", username="arjun06",
+                     specialty="Cosmetology",     qualification="MBBS, DVD", experience_years=5,
+                     consultation_fee=700,        telehealth_fee=550, mci_number="DL-COS-3002"),
+            ],
+        },
+        {
+            "clinic": dict(
+                name="OrthoPlus Joint Care", slug="orthoplus-joint-care-chennai",
+                specialty="Orthopedics",
+                description="Specialized orthopedic and sports medicine center in Chennai.",
+                email="care@orthoplus.in", phone="044-33445566",
+                address="22 Anna Nagar East", city="Chennai", state="Tamil Nadu", pincode="600040",
+            ),
+            "doctors": [
+                dict(name="Dr. Rajasekar M",     email="raja@orthoplus.in",          mobile="9811000007", username="rajas07",
+                     specialty="Orthopedics",     qualification="MBBS, MS (Ortho)", experience_years=15,
+                     consultation_fee=1000,       telehealth_fee=800, mci_number="TN-ORT-4001"),
+                dict(name="Dr. Preethi Nathan",  email="preethi@orthoplus.in",       mobile="9811000008", username="preet08",
+                     specialty="Physiotherapy",   qualification="BPT, MPT", experience_years=8,
+                     consultation_fee=600,        telehealth_fee=450, mci_number="TN-PHY-4002"),
+            ],
+        },
+    ]
+
+    for item in sample_clinics:
+        cd = item["clinic"]
+        clinic = db.query(Clinic).filter_by(slug=cd["slug"]).first()
+        if not clinic:
+            clinic = Clinic(
+                **cd,
+                is_active=True, is_verified=True,
+                subscription_plan='pro', subscription_status='active',
+                subscription_expiry=datetime.now() + timedelta(days=365),
+            )
+            db.add(clinic)
+            db.flush()
+            print(f"[seed]   ✓ Sample clinic: {cd['name']}")
+        else:
+            clinic.is_active = True
+            clinic.is_verified = True
+
+        branch = db.query(Branch).filter_by(clinic_id=clinic.id).first()
+        if not branch:
+            branch = Branch(
+                clinic_id=clinic.id, name="Main Branch",
+                address=cd.get("address"), city=cd.get("city"),
+                state=cd.get("state"), pincode=cd.get("pincode"),
+                phone=cd.get("phone"), email=cd.get("email"),
+            )
+            db.add(branch)
+            db.flush()
+
+        for dd in item["doctors"]:
+            staff = db.query(Staff).filter_by(email=dd["email"]).first()
+            if not staff:
+                staff = Staff(
+                    clinic_id=clinic.id, branch_id=branch.id,
+                    full_name=dd["name"], email=dd["email"],
+                    mobile=dd["mobile"], username=dd["username"],
+                    hashed_password=hash_password("Doctor@123"),
+                    role="doctor", is_active=True, is_first_login=False,
+                )
+                db.add(staff)
+                db.flush()
+
+            if not _exists(db, DoctorProfile, staff_id=staff.id):
+                db.add(DoctorProfile(
+                    staff_id=staff.id,
+                    clinic_id=clinic.id,
+                    specialty=dd["specialty"],
+                    qualification=dd["qualification"],
+                    mci_number=dd["mci_number"],
+                    experience_years=dd["experience_years"],
+                    consultation_fee=dd["consultation_fee"],
+                    telehealth_enabled=True,
+                    telehealth_fee=dd["telehealth_fee"],
+                    accepts_online_booking=True,
+                    mci_verified=True,
+                    languages="English, Hindi",
+                    bio=f"{dd['name']} is a specialist with {dd['experience_years']} years of experience.",
+                ))
+            else:
+                dp = db.query(DoctorProfile).filter_by(staff_id=staff.id).first()
+                dp.telehealth_enabled = True
+                dp.mci_verified = True
+
+        db.commit()
+
+    print("[seed]   ✓ Sample clinics seeded (4 cities, 8 doctors)")
 
 
 def _seed_demo_data(db, branch_main):
