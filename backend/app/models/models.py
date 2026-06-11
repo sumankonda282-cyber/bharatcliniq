@@ -1306,3 +1306,149 @@ class InpatientBill(Base):
     created_at      = Column(DateTime, default=datetime.utcnow)
     updated_at      = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Assessment Forms (PowerForms) — Smart Assessment Forms system
+# ---------------------------------------------------------------------------
+
+class AssessmentForm(Base):
+    """Master form template/schema — authored in admin portal."""
+    __tablename__ = "assessment_forms"
+    id              = Column(Integer, primary_key=True)
+    title           = Column(String(300), nullable=False)
+    description     = Column(Text)
+    category        = Column(String(50), default="general")  # vitals|pain|mental|safety|admission|discharge|surgery|custom|general
+    subcategory     = Column(String(100))
+    icon            = Column(String(50))                      # emoji or lucide icon name
+    schema          = Column(JSON, nullable=False, default=dict)  # full form JSON schema
+    scoring_config  = Column(JSON)                            # scoring bands, interpretation
+    iview_config    = Column(JSON)                            # flowsheet configuration
+    alert_rules     = Column(JSON)                            # critical value alert rules
+    translations    = Column(JSON)                            # {lang: {field_id: label}}
+    status          = Column(String(20), default="draft")     # draft|review|published|retired
+    version         = Column(Integer, default=1)
+    is_template     = Column(Boolean, default=False)          # system template vs custom
+    is_iview_enabled = Column(Boolean, default=False)
+    requires_cosign = Column(Boolean, default=False)
+    time_limit_minutes = Column(Integer)                      # null = no limit
+    created_by      = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    created_by_admin = Column(Integer, ForeignKey("platform_admins.id"), nullable=True)
+    clinic_id       = Column(Integer, ForeignKey("clinics.id"), nullable=True)  # null = global
+    parent_form_id  = Column(Integer, ForeignKey("assessment_forms.id"), nullable=True)  # cloned from
+    published_at    = Column(DateTime)
+    retired_at      = Column(DateTime)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+    updated_at      = Column(DateTime, default=datetime.utcnow)
+
+
+class AssessmentFormVersion(Base):
+    """Snapshot of form schema at each publish — submissions reference version."""
+    __tablename__ = "assessment_form_versions"
+    id          = Column(Integer, primary_key=True)
+    form_id     = Column(Integer, ForeignKey("assessment_forms.id"), nullable=False)
+    version     = Column(Integer, nullable=False)
+    schema      = Column(JSON, nullable=False)
+    scoring_config = Column(JSON)
+    published_by = Column(Integer, ForeignKey("platform_admins.id"))
+    published_at = Column(DateTime, default=datetime.utcnow)
+
+
+class FormPool(Base):
+    """Published forms available for clinic assignment."""
+    __tablename__ = "form_pool"
+    id          = Column(Integer, primary_key=True)
+    form_id     = Column(Integer, ForeignKey("assessment_forms.id"), nullable=False)
+    clinic_id   = Column(Integer, ForeignKey("clinics.id"), nullable=True)  # null = all clinics
+    assigned_by = Column(Integer, ForeignKey("platform_admins.id"))
+    assigned_at = Column(DateTime, default=datetime.utcnow)
+    is_active   = Column(Boolean, default=True)
+    __table_args__ = (UniqueConstraint("form_id", "clinic_id", name="uq_pool_form_clinic"),)
+
+
+class FormAssignment(Base):
+    """A form assigned to a specific patient encounter or admission."""
+    __tablename__ = "form_assignments"
+    id              = Column(Integer, primary_key=True)
+    form_id         = Column(Integer, ForeignKey("assessment_forms.id"), nullable=False)
+    form_version    = Column(Integer, nullable=False)
+    clinic_id       = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    patient_id      = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    appointment_id  = Column(Integer, ForeignKey("appointments.id"), nullable=True)
+    admission_id    = Column(Integer, ForeignKey("admissions.id"), nullable=True)
+    assigned_by     = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    assigned_to_role = Column(String(30))                     # nurse|doctor|patient|any
+    due_at          = Column(DateTime)
+    status          = Column(String(20), default="pending")   # pending|in_progress|completed|overdue|cancelled
+    priority        = Column(String(10), default="routine")   # stat|urgent|routine
+    notes           = Column(Text)
+    assigned_at     = Column(DateTime, default=datetime.utcnow)
+    completed_at    = Column(DateTime)
+
+
+class FormSubmission(Base):
+    """Completed form data."""
+    __tablename__ = "form_submissions"
+    id              = Column(Integer, primary_key=True)
+    form_id         = Column(Integer, ForeignKey("assessment_forms.id"), nullable=False)
+    form_version    = Column(Integer, nullable=False)
+    assignment_id   = Column(Integer, ForeignKey("form_assignments.id"), nullable=True)
+    clinic_id       = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    patient_id      = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    appointment_id  = Column(Integer, ForeignKey("appointments.id"), nullable=True)
+    admission_id    = Column(Integer, ForeignKey("admissions.id"), nullable=True)
+    submitted_by    = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    cosigned_by     = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    cosigned_at     = Column(DateTime, nullable=True)
+    data            = Column(JSON, nullable=False, default=dict)   # {field_id: value}
+    scores          = Column(JSON)                                  # {score_name: value, interpretation: str}
+    alerts_fired    = Column(JSON)                                  # list of triggered alert rules
+    is_draft        = Column(Boolean, default=False)
+    submitted_at    = Column(DateTime, default=datetime.utcnow)
+    charted_at      = Column(DateTime)                              # when it was recorded (may differ from submitted_at)
+    source          = Column(String(20), default="provider")        # provider|patient|nurse
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+
+class FormAlert(Base):
+    """Fired alert from critical value in form submission."""
+    __tablename__ = "form_alerts"
+    id              = Column(Integer, primary_key=True)
+    submission_id   = Column(Integer, ForeignKey("form_submissions.id"), nullable=False)
+    clinic_id       = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    patient_id      = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    field_id        = Column(String(100), nullable=False)
+    field_label     = Column(String(300))
+    value           = Column(String(500))
+    severity        = Column(String(20))    # critical|high|warning
+    message         = Column(Text)
+    notified_staff  = Column(JSON)          # list of staff ids notified
+    acknowledged_by = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    acknowledged_at = Column(DateTime)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+
+class iViewFlowsheet(Base):
+    """Flowsheet configuration per form — defines time-banded charting."""
+    __tablename__ = "iview_flowsheets"
+    id              = Column(Integer, primary_key=True)
+    form_id         = Column(Integer, ForeignKey("assessment_forms.id"), nullable=False, unique=True)
+    title           = Column(String(300))
+    time_band       = Column(String(10), default="4h")   # 1h|2h|4h|8h|12h|24h
+    row_config      = Column(JSON)                        # ordered list of {field_id, label, unit, ref_range}
+    clinic_id       = Column(Integer, ForeignKey("clinics.id"), nullable=True)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+    updated_at      = Column(DateTime, default=datetime.utcnow)
+
+
+class FormCoSign(Base):
+    """Co-sign requests for critical findings."""
+    __tablename__ = "form_cosigns"
+    id              = Column(Integer, primary_key=True)
+    submission_id   = Column(Integer, ForeignKey("form_submissions.id"), nullable=False)
+    requested_by    = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    requested_from  = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    status          = Column(String(20), default="pending")  # pending|approved|rejected
+    note            = Column(Text)
+    responded_at    = Column(DateTime)
+    created_at      = Column(DateTime, default=datetime.utcnow)
