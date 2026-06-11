@@ -125,6 +125,22 @@ safe_cols = [
     \"CREATE TABLE IF NOT EXISTS schedule_patterns (id SERIAL PRIMARY KEY, clinic_id INTEGER REFERENCES clinics(id) NOT NULL, group_id INTEGER REFERENCES staff_groups(id), name VARCHAR(200) NOT NULL, recurrence VARCHAR(20) DEFAULT 'manual', pattern_data JSONB DEFAULT '[]', created_by INTEGER REFERENCES staff(id), created_at TIMESTAMP DEFAULT NOW())\",
     \"CREATE TABLE IF NOT EXISTS schedule_publish_logs (id SERIAL PRIMARY KEY, clinic_id INTEGER REFERENCES clinics(id) NOT NULL, group_id INTEGER REFERENCES staff_groups(id), week_start DATE NOT NULL, week_end DATE NOT NULL, published_by INTEGER REFERENCES staff(id), published_at TIMESTAMP DEFAULT NOW(), recipients JSONB DEFAULT '[]')\",
     \"CREATE TABLE IF NOT EXISTS scheduler_settings (id SERIAL PRIMARY KEY, clinic_id INTEGER REFERENCES clinics(id) UNIQUE NOT NULL, min_rest_hours INTEGER DEFAULT 8, max_shifts_per_week INTEGER DEFAULT 6, weekly_off_day VARCHAR(10), leave_quotas JSONB DEFAULT '{}', setup_complete BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS employee_id VARCHAR(30)\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS designation VARCHAR(100)\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS department VARCHAR(100)\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS ward VARCHAR(100)\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS reporting_manager_id INTEGER REFERENCES staff(id)\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS employment_type VARCHAR(20)\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS join_date DATE\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS date_of_birth DATE\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS gender VARCHAR(10)\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS emergency_contact_name VARCHAR(200)\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS emergency_contact_mobile VARCHAR(20)\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS qualification VARCHAR(200)\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS registration_number VARCHAR(100)\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS license_expiry_date DATE\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS address TEXT\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS modules JSONB\",
 ]
 try:
     with engine.begin() as conn:

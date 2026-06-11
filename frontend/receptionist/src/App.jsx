@@ -25,7 +25,7 @@ import { Loader2 } from 'lucide-react'
 
 function ManagerOnly({ children }) {
   const { user } = useAuth()
-  return user?.role === 'clinic_manager' ? children : <Navigate to="/" replace />
+  return ['clinic_manager', 'clinic_admin'].includes(user?.role) ? children : <Navigate to="/" replace />
 }
 
 function SchedulerOnly({ children }) {

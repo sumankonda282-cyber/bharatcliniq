@@ -1,16 +1,25 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import api from '../api/client'
-import { cachedFetch, cacheInvalidate, TTL } from '../utils/cache'
-import { PlusCircle, Eye, EyeOff, AlertCircle, CheckCircle, ToggleLeft, ToggleRight } from 'lucide-react'
+import { cacheInvalidate } from '../utils/cache'
+import {
+  PlusCircle, Eye, EyeOff, AlertCircle, CheckCircle,
+  ToggleLeft, ToggleRight, Pencil, X, Loader2, Users,
+  Building2, Shield, BookOpen, Phone,
+} from 'lucide-react'
 
 const ROLES = [
-  { value: 'receptionist', label: 'Receptionist' },
-  { value: 'doctor',       label: 'Doctor' },
-  { value: 'nurse',        label: 'Nurse' },
-  { value: 'pharmacist',   label: 'Pharmacist' },
+  { value: 'receptionist',   label: 'Receptionist' },
+  { value: 'doctor',         label: 'Doctor' },
+  { value: 'nurse',          label: 'Nurse' },
+  { value: 'pharmacist',     label: 'Pharmacist' },
   { value: 'lab_technician', label: 'Lab Technician' },
-  { value: 'imaging_tech', label: 'Imaging Technician' },
+  { value: 'imaging_tech',   label: 'Imaging Technician' },
+  { value: 'clinic_manager', label: 'Clinic Manager' },
+  { value: 'clinic_admin',   label: 'Admin' },
 ]
+
+const EMPLOYMENT_TYPES = ['full_time', 'part_time', 'contract', 'visiting']
+const GENDERS = ['male', 'female', 'other']
 
 const ROLE_BADGE = {
   receptionist:  'bg-blue-100 text-blue-800',
@@ -23,36 +32,118 @@ const ROLE_BADGE = {
   clinic_admin:  'bg-gray-100 text-gray-800',
 }
 
-const EMPTY_FORM = { full_name: '', email: '', mobile: '', role: 'receptionist', password: '' }
+const EMPTY_FORM = {
+  // Identity
+  full_name: '', gender: '', date_of_birth: '',
+  // Contact
+  email: '', mobile: '', emergency_contact_name: '', emergency_contact_mobile: '', address: '',
+  // Job
+  employee_id: '', designation: '', department: '', ward: '',
+  employment_type: 'full_time', join_date: '', reporting_manager_id: '',
+  // System
+  role: 'receptionist', password: '',
+  // Professional
+  qualification: '', registration_number: '', license_expiry_date: '',
+}
+
+const TABS = [
+  { id: 'identity',      label: 'Identity',    icon: Users },
+  { id: 'job',          label: 'Job Details',  icon: Building2 },
+  { id: 'professional', label: 'Professional', icon: BookOpen },
+  { id: 'contact',      label: 'Contact',      icon: Phone },
+  { id: 'access',       label: 'Access',       icon: Shield },
+]
 
 export default function StaffManagement() {
-  const [staff, setStaff]       = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm]         = useState(EMPTY_FORM)
-  const [showPw, setShowPw]     = useState(false)
-  const [saving, setSaving]     = useState(false)
-  const [error, setError]       = useState('')
-  const [success, setSuccess]   = useState('')
+  const [staff, setStaff]         = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editing, setEditing]     = useState(null)   // staff object or null
+  const [form, setForm]           = useState(EMPTY_FORM)
+  const [tab, setTab]             = useState('identity')
+  const [showPw, setShowPw]       = useState(false)
+  const [saving, setSaving]       = useState(false)
+  const [error, setError]         = useState('')
+  const [success, setSuccess]     = useState('')
   const [togglingId, setTogglingId] = useState(null)
+  const [search, setSearch]       = useState('')
 
-  const load = (invalidate = false) => {
+  const load = useCallback(async (invalidate = false) => {
     setLoading(true)
-    const run = async () => {
-      if (invalidate) await cacheInvalidate('recep_staff_list')
-      await cachedFetch('recep_staff_list', () => api.get('/clinic/staff'), r => { setStaff(Array.isArray(r) ? r : r || []); setLoading(false) }, TTL.MEDIUM)
-    }
-    run().catch(() => setLoading(false))
-  }
-  useEffect(() => { load() }, [])
-
-  const handleCreate = async e => {
-    e.preventDefault(); setError(''); setSuccess(''); setSaving(true)
+    if (invalidate) await cacheInvalidate('recep_staff_list')
     try {
-      await api.post('/clinic/staff', form)
-      setSuccess(`${form.full_name} added successfully.`)
-      setForm(EMPTY_FORM)
-      setShowForm(false)
+      const data = await api.get('/clinic/staff')
+      setStaff(Array.isArray(data) ? data : [])
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const openCreate = () => {
+    setEditing(null)
+    setForm(EMPTY_FORM)
+    setTab('identity')
+    setError('')
+    setSuccess('')
+    setModalOpen(true)
+  }
+
+  const openEdit = (s) => {
+    setEditing(s)
+    setForm({
+      full_name: s.full_name || '',
+      gender: s.gender || '',
+      date_of_birth: s.date_of_birth || '',
+      email: s.email || '',
+      mobile: s.mobile || '',
+      emergency_contact_name: s.emergency_contact_name || '',
+      emergency_contact_mobile: s.emergency_contact_mobile || '',
+      address: s.address || '',
+      employee_id: s.employee_id || '',
+      designation: s.designation || '',
+      department: s.department || '',
+      ward: s.ward || '',
+      employment_type: s.employment_type || 'full_time',
+      join_date: s.join_date || '',
+      reporting_manager_id: s.reporting_manager_id || '',
+      role: s.role || 'receptionist',
+      password: '',
+      qualification: s.qualification || '',
+      registration_number: s.registration_number || '',
+      license_expiry_date: s.license_expiry_date || '',
+    })
+    setTab('identity')
+    setError('')
+    setSuccess('')
+    setModalOpen(true)
+  }
+
+  const f = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    setSaving(true); setError('')
+    try {
+      const payload = { ...form }
+      if (!payload.password) delete payload.password
+      if (payload.reporting_manager_id === '') payload.reporting_manager_id = null
+      else if (payload.reporting_manager_id) payload.reporting_manager_id = Number(payload.reporting_manager_id)
+      if (!payload.date_of_birth) payload.date_of_birth = null
+      if (!payload.join_date) payload.join_date = null
+      if (!payload.license_expiry_date) payload.license_expiry_date = null
+
+      if (editing) {
+        await api.put(`/clinic/staff/${editing.id}`, payload)
+        setSuccess(`${form.full_name} updated.`)
+      } else {
+        await api.post('/clinic/staff', payload)
+        setSuccess(`${form.full_name} added successfully.`)
+      }
+      setModalOpen(false)
       load(true)
     } catch (err) {
       setError(err.message)
@@ -73,16 +164,26 @@ export default function StaffManagement() {
     }
   }
 
+  const managers = staff.filter(s => ['clinic_manager', 'clinic_admin'].includes(s.role))
+
+  const filtered = staff.filter(s =>
+    !search ||
+    s.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+    s.designation?.toLowerCase().includes(search.toLowerCase()) ||
+    s.department?.toLowerCase().includes(search.toLowerCase()) ||
+    s.ward?.toLowerCase().includes(search.toLowerCase()) ||
+    s.employee_id?.toLowerCase().includes(search.toLowerCase())
+  )
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Manage Staff</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Add and manage your clinic team</p>
+          <p className="text-sm text-gray-500 mt-0.5">{staff.length} staff members · click a row to edit</p>
         </div>
-        <button onClick={() => { setShowForm(v => !v); setError(''); setSuccess('') }}
-          className="btn-primary text-sm">
-          <PlusCircle size={15} />{showForm ? 'Cancel' : 'Add Staff'}
+        <button onClick={openCreate} className="btn-primary text-sm">
+          <PlusCircle size={15} />Add Staff
         </button>
       </div>
 
@@ -92,95 +193,245 @@ export default function StaffManagement() {
         </div>
       )}
 
-      {showForm && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
-          <h2 className="text-base font-semibold text-gray-800 mb-4">New Staff Member</h2>
-          <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="label">Full Name *</label>
-              <input className="input" required placeholder="Dr. / Mr. / Ms."
-                value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Role *</label>
-              <select className="input" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
-                {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label">Email</label>
-              <input className="input" type="email" placeholder="staff@clinic.com"
-                value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Mobile</label>
-              <input className="input" placeholder="10-digit mobile"
-                value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">Password *</label>
-              <div className="relative">
-                <input className="input pr-10" type={showPw ? 'text' : 'password'} required
-                  placeholder="Minimum 6 characters" value={form.password}
-                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
-                <button type="button" onClick={() => setShowPw(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-              <p className="text-xs text-gray-400 mt-1">Share this password with the staff member privately. They can change it after first login.</p>
-            </div>
+      {/* Search */}
+      <input
+        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-4 focus:outline-none"
+        placeholder="Search by name, designation, department, ward, employee ID…"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+      />
 
-            {error && (
-              <div className="sm:col-span-2 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-                <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />{error}
-              </div>
-            )}
-
-            <div className="sm:col-span-2 flex justify-end gap-3">
-              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary text-sm">Cancel</button>
-              <button type="submit" disabled={saving} className="btn-primary text-sm">
-                {saving ? 'Adding…' : 'Add Staff Member'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
+      {/* Staff table */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-700">Staff Roster</h2>
-          <button onClick={load} className="text-xs text-gray-400 hover:text-gray-600">Refresh</button>
-        </div>
         {loading ? (
-          <div className="p-10 flex justify-center"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
-        ) : staff.length === 0 ? (
-          <div className="p-10 text-center text-gray-400 text-sm">No staff added yet.</div>
+          <div className="p-10 flex justify-center"><Loader2 size={24} className="animate-spin text-gray-300" /></div>
+        ) : filtered.length === 0 ? (
+          <div className="p-10 text-center text-gray-400 text-sm">No staff found.</div>
         ) : (
-          <div className="divide-y divide-gray-100">
-            {staff.map(s => (
-              <div key={s.id} className="px-5 py-3 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-medium text-gray-900 text-sm truncate">{s.full_name}</div>
-                  <div className="text-xs text-gray-500 truncate">{s.email || s.mobile || '—'}</div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${ROLE_BADGE[s.role] || 'bg-gray-100 text-gray-600'}`}>
-                    {s.role?.replace('_', ' ')}
-                  </span>
-                  <button onClick={() => toggleActive(s)} disabled={togglingId === s.id}
-                    title={s.is_active ? 'Deactivate' : 'Activate'}
-                    className="text-gray-400 hover:text-gray-700 disabled:opacity-50">
-                    {s.is_active
-                      ? <ToggleRight size={22} className="text-green-500" />
-                      : <ToggleLeft size={22} />}
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wider text-left">
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Role / Designation</th>
+                  <th className="px-4 py-3">Department / Ward</th>
+                  <th className="px-4 py-3">Contact</th>
+                  <th className="px-4 py-3">Type</th>
+                  <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(s => (
+                  <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer" onClick={() => openEdit(s)}>
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-gray-800">{s.full_name}</div>
+                      {s.employee_id && <div className="text-xs text-gray-400">ID: {s.employee_id}</div>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${ROLE_BADGE[s.role] || 'bg-gray-100 text-gray-600'}`}>
+                        {s.role?.replace(/_/g, ' ')}
+                      </span>
+                      {s.designation && <div className="text-xs text-gray-500 mt-0.5">{s.designation}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 text-xs">
+                      {s.department && <div>{s.department}</div>}
+                      {s.ward && <div className="text-gray-400">{s.ward}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">
+                      <div>{s.email || '—'}</div>
+                      <div>{s.mobile || '—'}</div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500 capitalize">
+                      {s.employment_type?.replace('_', ' ') || '—'}
+                    </td>
+                    <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => toggleActive(s)} disabled={togglingId === s.id} className="text-gray-400 hover:text-gray-700 disabled:opacity-50">
+                        {s.is_active ? <ToggleRight size={22} className="text-green-500" /> : <ToggleLeft size={22} />}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => openEdit(s)} className="text-gray-400 hover:text-indigo-600 p-1">
+                        <Pencil size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
+
+      {/* Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setModalOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl z-10 flex flex-col max-h-[90vh]">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="font-bold text-gray-800">{editing ? `Edit: ${editing.full_name}` : 'Add New Staff Member'}</h2>
+              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-1 px-6 pt-3 border-b border-gray-100 overflow-x-auto">
+              {TABS.map(({ id, label, icon: Icon }) => (
+                <button key={id} onClick={() => setTab(id)}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-t-lg whitespace-nowrap transition-colors ${tab === id ? 'text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                  style={tab === id ? { background: '#0F2557' } : {}}>
+                  <Icon size={13} />{label}
+                </button>
+              ))}
+            </div>
+
+            {/* Form body */}
+            <form onSubmit={handleSave} className="flex-1 overflow-y-auto">
+              <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                {tab === 'identity' && (<>
+                  <div className="sm:col-span-2">
+                    <label className="label">Full Name *</label>
+                    <input className="input" required placeholder="Dr. / Mr. / Ms. Full Name"
+                      value={form.full_name} onChange={e => f('full_name', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Gender</label>
+                    <select className="input" value={form.gender} onChange={e => f('gender', e.target.value)}>
+                      <option value="">Select…</option>
+                      {GENDERS.map(g => <option key={g} value={g}>{g[0].toUpperCase() + g.slice(1)}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Date of Birth</label>
+                    <input type="date" className="input" value={form.date_of_birth} onChange={e => f('date_of_birth', e.target.value)} />
+                  </div>
+                </>)}
+
+                {tab === 'job' && (<>
+                  <div>
+                    <label className="label">Employee ID</label>
+                    <input className="input" placeholder="EMP001" value={form.employee_id} onChange={e => f('employee_id', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Designation</label>
+                    <input className="input" placeholder="e.g. Head Nurse, Resident Doctor" value={form.designation} onChange={e => f('designation', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Department</label>
+                    <input className="input" placeholder="e.g. Emergency, ICU, OPD" value={form.department} onChange={e => f('department', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Ward</label>
+                    <input className="input" placeholder="e.g. Ward 3, ICU Block A" value={form.ward} onChange={e => f('ward', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Employment Type</label>
+                    <select className="input" value={form.employment_type} onChange={e => f('employment_type', e.target.value)}>
+                      {EMPLOYMENT_TYPES.map(t => <option key={t} value={t}>{t.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Join Date</label>
+                    <input type="date" className="input" value={form.join_date} onChange={e => f('join_date', e.target.value)} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="label">Reporting Manager</label>
+                    <select className="input" value={form.reporting_manager_id} onChange={e => f('reporting_manager_id', e.target.value)}>
+                      <option value="">None</option>
+                      {managers.filter(m => !editing || m.id !== editing.id).map(m => (
+                        <option key={m.id} value={m.id}>{m.full_name} ({m.role?.replace(/_/g, ' ')})</option>
+                      ))}
+                    </select>
+                  </div>
+                </>)}
+
+                {tab === 'professional' && (<>
+                  <div className="sm:col-span-2">
+                    <label className="label">Qualification</label>
+                    <input className="input" placeholder="e.g. MBBS, MD, B.Sc Nursing, GNM" value={form.qualification} onChange={e => f('qualification', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Registration / License Number</label>
+                    <input className="input" placeholder="NMC / MCI / Council number" value={form.registration_number} onChange={e => f('registration_number', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">License Expiry Date</label>
+                    <input type="date" className="input" value={form.license_expiry_date} onChange={e => f('license_expiry_date', e.target.value)} />
+                  </div>
+                </>)}
+
+                {tab === 'contact' && (<>
+                  <div>
+                    <label className="label">Email</label>
+                    <input type="email" className="input" placeholder="staff@clinic.com" value={form.email} onChange={e => f('email', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Mobile</label>
+                    <input className="input" placeholder="10-digit mobile" value={form.mobile} onChange={e => f('mobile', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Emergency Contact Name</label>
+                    <input className="input" placeholder="Next of kin" value={form.emergency_contact_name} onChange={e => f('emergency_contact_name', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Emergency Contact Mobile</label>
+                    <input className="input" placeholder="10-digit mobile" value={form.emergency_contact_mobile} onChange={e => f('emergency_contact_mobile', e.target.value)} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="label">Address</label>
+                    <textarea className="input" rows={2} placeholder="Residential address" value={form.address} onChange={e => f('address', e.target.value)} />
+                  </div>
+                </>)}
+
+                {tab === 'access' && (<>
+                  <div>
+                    <label className="label">System Role *</label>
+                    <select className="input" value={form.role} onChange={e => f('role', e.target.value)}>
+                      {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">{editing ? 'New Password (leave blank to keep)' : 'Password *'}</label>
+                    <div className="relative">
+                      <input className="input pr-10" type={showPw ? 'text' : 'password'}
+                        required={!editing} placeholder="Minimum 6 characters"
+                        value={form.password} onChange={e => f('password', e.target.value)} />
+                      <button type="button" onClick={() => setShowPw(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                    {!editing && <p className="text-xs text-gray-400 mt-1">Share privately — staff changes it on first login.</p>}
+                  </div>
+                </>)}
+              </div>
+
+              {error && (
+                <div className="mx-6 mb-4 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                  <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />{error}
+                </div>
+              )}
+
+              <div className="px-6 pb-5 flex justify-between items-center border-t border-gray-100 pt-4">
+                <div className="flex gap-1">
+                  {TABS.map((t, i) => (
+                    <button key={t.id} type="button" onClick={() => setTab(t.id)}
+                      className={`w-2 h-2 rounded-full transition-colors ${tab === t.id ? 'bg-indigo-900' : 'bg-gray-200'}`} />
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary text-sm">Cancel</button>
+                  <button type="submit" disabled={saving} className="btn-primary text-sm">
+                    {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                    {editing ? 'Save Changes' : 'Add Staff Member'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -138,7 +138,7 @@ def create_branch(
 
 # ── Staff Management ──────────────────────────────────────────────────────────
 
-@router.get("/staff", response_model=List[StaffOut])
+@router.get("/staff")
 def list_staff(
     role: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -147,7 +147,26 @@ def list_staff(
     q = db.query(Staff).filter(Staff.clinic_id == current.clinic_id)
     if role:
         q = q.filter(Staff.role == role)
-    return q.order_by(Staff.full_name).all()
+    rows = q.order_by(Staff.full_name).all()
+    return [{
+        "id": s.id, "full_name": s.full_name, "email": s.email,
+        "mobile": s.mobile, "role": s.role, "is_active": s.is_active,
+        "branch_id": s.branch_id, "created_at": s.created_at,
+        "employee_id": s.employee_id, "designation": s.designation,
+        "department": s.department, "ward": s.ward,
+        "reporting_manager_id": s.reporting_manager_id,
+        "employment_type": s.employment_type,
+        "join_date": str(s.join_date) if s.join_date else None,
+        "date_of_birth": str(s.date_of_birth) if s.date_of_birth else None,
+        "gender": s.gender,
+        "emergency_contact_name": s.emergency_contact_name,
+        "emergency_contact_mobile": s.emergency_contact_mobile,
+        "qualification": s.qualification,
+        "registration_number": s.registration_number,
+        "license_expiry_date": str(s.license_expiry_date) if s.license_expiry_date else None,
+        "address": s.address, "modules": s.modules,
+        "avatar_url": s.avatar_url,
+    } for s in rows]
 
 
 @router.post("/staff")
@@ -181,8 +200,23 @@ def create_staff(
         mobile          = mobile,
         hashed_password = hash_password(body.get("password") or _generate_temp_password()),
         role            = body.get("role", "receptionist"),
-        # Pharmacy/lab/imaging staff need SaaS provider license verification before login
         is_active       = body.get("role") not in ['pharmacist', 'lab_technician', 'imaging_tech'],
+        employee_id              = body.get("employee_id"),
+        designation              = body.get("designation"),
+        department               = body.get("department"),
+        ward                     = body.get("ward"),
+        reporting_manager_id     = body.get("reporting_manager_id"),
+        employment_type          = body.get("employment_type"),
+        join_date                = body.get("join_date"),
+        date_of_birth            = body.get("date_of_birth"),
+        gender                   = body.get("gender"),
+        emergency_contact_name   = body.get("emergency_contact_name"),
+        emergency_contact_mobile = body.get("emergency_contact_mobile"),
+        qualification            = body.get("qualification"),
+        registration_number      = body.get("registration_number"),
+        license_expiry_date      = body.get("license_expiry_date"),
+        address                  = body.get("address"),
+        modules                  = body.get("modules"),
     )
     db.add(new_staff)
     db.flush()
@@ -220,7 +254,15 @@ def update_staff(
     s = db.query(Staff).filter(Staff.id == staff_id, Staff.clinic_id == current.clinic_id).first()
     if not s:
         raise HTTPException(404, "Staff not found")
-    for field in ["full_name", "mobile", "is_active", "branch_id", "role"]:
+    updatable = [
+        "full_name", "mobile", "is_active", "branch_id", "role",
+        "employee_id", "designation", "department", "ward",
+        "reporting_manager_id", "employment_type", "join_date",
+        "date_of_birth", "gender", "emergency_contact_name",
+        "emergency_contact_mobile", "qualification", "registration_number",
+        "license_expiry_date", "address", "modules",
+    ]
+    for field in updatable:
         if field in body:
             setattr(s, field, body[field])
     db.commit()
