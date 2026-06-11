@@ -150,6 +150,9 @@ class Staff(Base):
     license_expiry_date      = Column(Date, nullable=True)
     address                  = Column(Text, nullable=True)
     modules                  = Column(JSON, nullable=True)
+    secondary_roles          = Column(JSON, nullable=True)
+    scheduled_removal_date   = Column(Date, nullable=True)
+    removal_reason           = Column(String(200), nullable=True)
     created_at           = Column(DateTime, server_default=func.now())
     updated_at           = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

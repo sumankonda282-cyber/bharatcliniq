@@ -4,7 +4,7 @@ import { cacheInvalidate } from '../utils/cache'
 import {
   PlusCircle, Eye, EyeOff, AlertCircle, CheckCircle,
   ToggleLeft, ToggleRight, Pencil, X, Loader2, Users,
-  Building2, Shield, BookOpen, Phone,
+  Building2, Shield, BookOpen, Phone, Info,
 } from 'lucide-react'
 
 const ROLES = [
@@ -17,6 +17,17 @@ const ROLES = [
   { value: 'clinic_manager', label: 'Clinic Manager' },
   { value: 'clinic_admin',   label: 'Admin' },
 ]
+
+const PORTAL_MAP = {
+  doctor:          ['Provider Portal', 'CareChart App'],
+  receptionist:    ['Staff Portal (Reception)'],
+  pharmacist:      ['Pharmacy Portal', 'CareChart App'],
+  lab_technician:  ['Lab Portal', 'CareChart App'],
+  imaging_tech:    ['Imaging Portal', 'CareChart App'],
+  nurse:           ['CareChart App'],
+  clinic_manager:  ['Staff Portal (Manager View)'],
+  clinic_admin:    ['All Portals'],
+}
 
 const EMPLOYMENT_TYPES = ['full_time', 'part_time', 'contract', 'visiting']
 const GENDERS = ['male', 'female', 'other']
@@ -33,17 +44,13 @@ const ROLE_BADGE = {
 }
 
 const EMPTY_FORM = {
-  // Identity
   full_name: '', gender: '', date_of_birth: '',
-  // Contact
   email: '', mobile: '', emergency_contact_name: '', emergency_contact_mobile: '', address: '',
-  // Job
   employee_id: '', designation: '', department: '', ward: '',
   employment_type: 'full_time', join_date: '', reporting_manager_id: '',
-  // System
-  role: 'receptionist', password: '',
-  // Professional
+  role: 'receptionist', secondary_roles: [], password: '',
   qualification: '', registration_number: '', license_expiry_date: '',
+  scheduled_removal_date: '', removal_reason: '',
 }
 
 const TABS = [
@@ -54,11 +61,19 @@ const TABS = [
   { id: 'access',       label: 'Access',       icon: Shield },
 ]
 
+function getPortals(primaryRole, secondaryRoles) {
+  const all = [
+    ...(PORTAL_MAP[primaryRole] || []),
+    ...(secondaryRoles || []).flatMap(r => PORTAL_MAP[r] || []),
+  ]
+  return [...new Set(all)]
+}
+
 export default function StaffManagement() {
   const [staff, setStaff]         = useState([])
   const [loading, setLoading]     = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing]     = useState(null)   // staff object or null
+  const [editing, setEditing]     = useState(null)
   const [form, setForm]           = useState(EMPTY_FORM)
   const [tab, setTab]             = useState('identity')
   const [showPw, setShowPw]       = useState(false)
@@ -66,7 +81,10 @@ export default function StaffManagement() {
   const [error, setError]         = useState('')
   const [success, setSuccess]     = useState('')
   const [togglingId, setTogglingId] = useState(null)
-  const [search, setSearch]       = useState('')
+  const [filterName, setFilterName]   = useState('')
+  const [filterRole, setFilterRole]   = useState('')
+  const [filterDept, setFilterDept]   = useState('')
+  const [filterType, setFilterType]   = useState('')
 
   const load = useCallback(async (invalidate = false) => {
     setLoading(true)
@@ -111,10 +129,13 @@ export default function StaffManagement() {
       join_date: s.join_date || '',
       reporting_manager_id: s.reporting_manager_id || '',
       role: s.role || 'receptionist',
+      secondary_roles: Array.isArray(s.secondary_roles) ? s.secondary_roles : [],
       password: '',
       qualification: s.qualification || '',
       registration_number: s.registration_number || '',
       license_expiry_date: s.license_expiry_date || '',
+      scheduled_removal_date: s.scheduled_removal_date || '',
+      removal_reason: s.removal_reason || '',
     })
     setTab('identity')
     setError('')
@@ -123,6 +144,11 @@ export default function StaffManagement() {
   }
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  const toggleSecondaryRole = (role) => {
+    const current = form.secondary_roles || []
+    f('secondary_roles', current.includes(role) ? current.filter(r => r !== role) : [...current, role])
+  }
 
   const handleSave = async (e) => {
     e.preventDefault()
@@ -135,6 +161,9 @@ export default function StaffManagement() {
       if (!payload.date_of_birth) payload.date_of_birth = null
       if (!payload.join_date) payload.join_date = null
       if (!payload.license_expiry_date) payload.license_expiry_date = null
+      if (!payload.scheduled_removal_date) payload.scheduled_removal_date = null
+      if (!payload.removal_reason) payload.removal_reason = null
+      if (!Array.isArray(payload.secondary_roles)) payload.secondary_roles = []
 
       if (editing) {
         await api.put(`/clinic/staff/${editing.id}`, payload)
@@ -166,14 +195,17 @@ export default function StaffManagement() {
 
   const managers = staff.filter(s => ['clinic_manager', 'clinic_admin'].includes(s.role))
 
-  const filtered = staff.filter(s =>
-    !search ||
-    s.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-    s.designation?.toLowerCase().includes(search.toLowerCase()) ||
-    s.department?.toLowerCase().includes(search.toLowerCase()) ||
-    s.ward?.toLowerCase().includes(search.toLowerCase()) ||
-    s.employee_id?.toLowerCase().includes(search.toLowerCase())
-  )
+  const hasFilters = filterName || filterRole || filterDept || filterType
+  const filtered = staff.filter(s => {
+    if (filterName && !s.full_name?.toLowerCase().includes(filterName.toLowerCase()) &&
+        !s.employee_id?.toLowerCase().includes(filterName.toLowerCase())) return false
+    if (filterRole && s.role !== filterRole) return false
+    if (filterDept && !s.department?.toLowerCase().includes(filterDept.toLowerCase())) return false
+    if (filterType && s.employment_type !== filterType) return false
+    return true
+  })
+
+  const derivedPortals = getPortals(form.role, form.secondary_roles)
 
   return (
     <div>
@@ -193,13 +225,48 @@ export default function StaffManagement() {
         </div>
       )}
 
-      {/* Search */}
-      <input
-        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-4 focus:outline-none"
-        placeholder="Search by name, designation, department, ward, employee ID…"
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-      />
+      {/* Smart filters */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <input
+          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200 w-48"
+          placeholder="Name or employee ID…"
+          value={filterName}
+          onChange={e => setFilterName(e.target.value)}
+        />
+        <select
+          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200"
+          value={filterRole}
+          onChange={e => setFilterRole(e.target.value)}
+        >
+          <option value="">All Roles</option>
+          {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+        </select>
+        <input
+          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200 w-36"
+          placeholder="Department…"
+          value={filterDept}
+          onChange={e => setFilterDept(e.target.value)}
+        />
+        <select
+          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200"
+          value={filterType}
+          onChange={e => setFilterType(e.target.value)}
+        >
+          <option value="">All Types</option>
+          {EMPLOYMENT_TYPES.map(t => <option key={t} value={t}>{t.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>)}
+        </select>
+        {hasFilters && (
+          <button
+            onClick={() => { setFilterName(''); setFilterRole(''); setFilterDept(''); setFilterType('') }}
+            className="btn-secondary text-xs py-1 px-3 flex items-center gap-1"
+          >
+            <X size={12} />Clear
+          </button>
+        )}
+        {hasFilters && (
+          <span className="text-xs text-gray-400 self-center">{filtered.length} of {staff.length}</span>
+        )}
+      </div>
 
       {/* Staff table */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -232,6 +299,15 @@ export default function StaffManagement() {
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${ROLE_BADGE[s.role] || 'bg-gray-100 text-gray-600'}`}>
                         {s.role?.replace(/_/g, ' ')}
                       </span>
+                      {Array.isArray(s.secondary_roles) && s.secondary_roles.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {s.secondary_roles.map(r => (
+                            <span key={r} className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                              +{r.replace(/_/g, ' ')}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {s.designation && <div className="text-xs text-gray-500 mt-0.5">{s.designation}</div>}
                     </td>
                     <td className="px-4 py-3 text-gray-600 text-xs">
@@ -268,13 +344,11 @@ export default function StaffManagement() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setModalOpen(false)} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl z-10 flex flex-col max-h-[90vh]">
-            {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="font-bold text-gray-800">{editing ? `Edit: ${editing.full_name}` : 'Add New Staff Member'}</h2>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
             </div>
 
-            {/* Tabs */}
             <div className="flex gap-1 px-6 pt-3 border-b border-gray-100 overflow-x-auto">
               {TABS.map(({ id, label, icon: Icon }) => (
                 <button key={id} onClick={() => setTab(id)}
@@ -285,7 +359,6 @@ export default function StaffManagement() {
               ))}
             </div>
 
-            {/* Form body */}
             <form onSubmit={handleSave} className="flex-1 overflow-y-auto">
               <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
 
@@ -386,11 +459,16 @@ export default function StaffManagement() {
 
                 {tab === 'access' && (<>
                   <div>
-                    <label className="label">System Role *</label>
-                    <select className="input" value={form.role} onChange={e => f('role', e.target.value)}>
+                    <label className="label">Primary Role *</label>
+                    <select className="input" value={form.role} onChange={e => {
+                      const newRole = e.target.value
+                      f('role', newRole)
+                      f('secondary_roles', (form.secondary_roles || []).filter(r => r !== newRole))
+                    }}>
                       {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                     </select>
                   </div>
+
                   <div>
                     <label className="label">{editing ? 'New Password (leave blank to keep)' : 'Password *'}</label>
                     <div className="relative">
@@ -404,6 +482,61 @@ export default function StaffManagement() {
                     </div>
                     {!editing && <p className="text-xs text-gray-400 mt-1">Share privately — staff changes it on first login.</p>}
                   </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="label">Additional Roles <span className="text-gray-400 font-normal">(optional — for staff with multiple responsibilities)</span></label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1.5">
+                      {ROLES.filter(r => r.value !== form.role).map(r => (
+                        <label key={r.value} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            checked={(form.secondary_roles || []).includes(r.value)}
+                            onChange={() => toggleSecondaryRole(r.value)}
+                          />
+                          {r.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="label flex items-center gap-1">
+                      <Info size={12} className="text-gray-400" />
+                      Portal Access (auto-derived from roles)
+                    </label>
+                    <div className="flex flex-wrap gap-2 mt-1.5 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                      {derivedPortals.length > 0 ? derivedPortals.map(portal => (
+                        <span key={portal} className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-lg border border-blue-100">
+                          {portal}
+                        </span>
+                      )) : (
+                        <span className="text-xs text-gray-400">No portals assigned</span>
+                      )}
+                      {form.role === 'nurse' && (form.secondary_roles || []).length === 0 && (
+                        <p className="w-full text-xs text-amber-600 mt-1">
+                          Nurses access CareChart (mobile app) only. Assign an additional role for portal access.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {editing && (
+                    <div className="sm:col-span-2 border-t border-gray-100 pt-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Scheduled Removal</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="label">Removal Date</label>
+                          <input type="date" className="input" value={form.scheduled_removal_date} onChange={e => f('scheduled_removal_date', e.target.value)} />
+                          <p className="text-xs text-gray-400 mt-1">Staff will be auto-deactivated on this date.</p>
+                        </div>
+                        <div>
+                          <label className="label">Reason</label>
+                          <input className="input" placeholder="Resignation, contract end, etc." value={form.removal_reason} onChange={e => f('removal_reason', e.target.value)} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </>)}
               </div>
 
@@ -415,7 +548,7 @@ export default function StaffManagement() {
 
               <div className="px-6 pb-5 flex justify-between items-center border-t border-gray-100 pt-4">
                 <div className="flex gap-1">
-                  {TABS.map((t, i) => (
+                  {TABS.map((t) => (
                     <button key={t.id} type="button" onClick={() => setTab(t.id)}
                       className={`w-2 h-2 rounded-full transition-colors ${tab === t.id ? 'bg-indigo-900' : 'bg-gray-200'}`} />
                   ))}

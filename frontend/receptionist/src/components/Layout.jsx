@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import {
   CalendarDays, Users, CreditCard, LayoutDashboard, LogOut,
-  ClipboardList, Menu, X, Settings, BedDouble, LayoutGrid, Banknote, RefreshCw, Wrench, HelpCircle, Video,
-  CalendarRange, UserCircle2, Plane, LayoutTemplate, Send,
+  ClipboardList, Menu, X, Settings, BedDouble, LayoutGrid, Banknote, Wrench, HelpCircle, Video,
+  CalendarRange, UserCircle2, Plane, LayoutTemplate, Send, Lock, Loader2,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import BrandLogo from './BrandLogo'
@@ -50,9 +50,13 @@ function formatRole(role) {
 export default function Layout() {
   const { user, logout } = useAuth()
   const [open, setOpen] = useState(false)
-  const [refreshKey, setRefreshKey] = useState(0)
   const [helpOpen, setHelpOpen]   = useState(false)
   const [maintBadge, setMaintBadge] = useState(0)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [pwStep, setPwStep]       = useState(false)
+  const [pwForm, setPwForm]       = useState({ current: '', next: '' })
+  const [pwSaving, setPwSaving]   = useState(false)
+  const [pwErr, setPwErr]         = useState('')
   const isManager = user?.role === 'clinic_manager'
   const isAdmin = user?.role === 'clinic_admin'
   const isScheduler = isManager || isAdmin
@@ -70,6 +74,20 @@ export default function Layout() {
     const id = setInterval(fetch, 60000)
     return () => clearInterval(id)
   }, [isManager])
+
+  const closeProfile = () => { setProfileOpen(false); setPwStep(false); setPwErr(''); setPwForm({ current: '', next: '' }) }
+
+  const handleChangePw = async () => {
+    setPwSaving(true); setPwErr('')
+    try {
+      await api.post('/staff/change-password', { current_password: pwForm.current, new_password: pwForm.next })
+      closeProfile()
+    } catch (e) {
+      setPwErr(e.message || 'Failed to update password')
+    } finally {
+      setPwSaving(false)
+    }
+  }
 
   const sidebar = (
     <aside className="w-60 flex flex-col h-full flex-shrink-0" style={{ background: '#0F2557' }}>
@@ -121,7 +139,11 @@ export default function Layout() {
 
       {/* User footer */}
       <div className="px-2 py-3 border-t border-white/10">
-        <div className="flex items-center gap-3 px-3 mb-2 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.06)' }}>
+        <button
+          onClick={() => setProfileOpen(true)}
+          className="w-full flex items-center gap-3 px-3 mb-2 py-2 rounded-xl text-left transition-colors hover:bg-white/10"
+          style={{ background: 'rgba(255,255,255,0.06)' }}
+        >
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
             style={{ background: 'rgba(245,130,30,0.3)', color: '#F5821E' }}
@@ -132,10 +154,7 @@ export default function Layout() {
             <div className="text-white text-xs font-semibold truncate">{user?.full_name || user?.email}</div>
             <div className="text-blue-300 text-xs">{formatRole(user?.role)}</div>
           </div>
-        </div>
-        <NavLink to="/account" className={({ isActive }) => isActive ? 'sidebar-link-active' : 'sidebar-link'}>
-          <Settings size={15} />Account
-        </NavLink>
+        </button>
         <button onClick={logout} className="sidebar-link w-full">
           <LogOut size={15} />Sign Out
         </button>
@@ -168,16 +187,81 @@ export default function Layout() {
           <button onClick={() => setHelpOpen(true)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700" title="Help & Support">
             <HelpCircle size={16} />
           </button>
-          <button onClick={() => setRefreshKey(k => k + 1)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700" title="Refresh data">
-            <RefreshCw size={16} />
-          </button>
         </div>
-        <div key={refreshKey} className="p-4 md:p-6">
+        <div className="p-4 md:p-6">
           <Outlet />
         </div>
       </main>
       <ChatWidget />
       <HelpWidget open={helpOpen} onClose={() => setHelpOpen(false)} />
+
+      {/* Profile modal */}
+      {profileOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={closeProfile} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm z-10 overflow-hidden">
+            {!pwStep ? (
+              <>
+                <div className="px-6 py-5" style={{ background: '#0F2557' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-wider">My Profile</span>
+                    <button onClick={closeProfile} className="text-white/60 hover:text-white"><X size={16} /></button>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold flex-shrink-0"
+                      style={{ background: 'rgba(245,130,30,0.3)', color: '#F5821E' }}>
+                      {getInitials(user?.full_name || user?.email)}
+                    </div>
+                    <div>
+                      <div className="text-white font-bold text-base leading-tight">{user?.full_name || user?.email}</div>
+                      <div className="text-blue-300 text-sm mt-0.5">{formatRole(user?.role)}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="px-6 py-4 space-y-1">
+                  {user?.email && <p className="text-sm text-gray-500 mb-3">{user.email}</p>}
+                  <button onClick={() => setPwStep(true)} className="sidebar-link w-full" style={{ color: '#374151', background: 'none' }}>
+                    <Lock size={15} />Change Password
+                  </button>
+                  <button onClick={() => { logout(); closeProfile() }} className="sidebar-link w-full" style={{ color: '#dc2626', background: 'none' }}>
+                    <LogOut size={15} />Sign Out
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                  <h3 className="font-bold text-gray-800">Change Password</h3>
+                  <button onClick={() => { setPwStep(false); setPwErr(''); setPwForm({ current: '', next: '' }) }} className="text-gray-400 hover:text-gray-700">
+                    <X size={16} />
+                  </button>
+                </div>
+                <div className="px-6 py-4 space-y-3">
+                  <div>
+                    <label className="label">Current Password</label>
+                    <input type="password" className="input" placeholder="Enter current password"
+                      value={pwForm.current} onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="label">New Password</label>
+                    <input type="password" className="input" placeholder="Minimum 6 characters"
+                      value={pwForm.next} onChange={e => setPwForm(p => ({ ...p, next: e.target.value }))} />
+                  </div>
+                  {pwErr && <p className="text-red-600 text-sm">{pwErr}</p>}
+                  <button
+                    onClick={handleChangePw}
+                    disabled={pwSaving || !pwForm.current || pwForm.next.length < 6}
+                    className="btn-primary w-full justify-center"
+                  >
+                    {pwSaving ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}
+                    {pwSaving ? 'Updating…' : 'Update Password'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

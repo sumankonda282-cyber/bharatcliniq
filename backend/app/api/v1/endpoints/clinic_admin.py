@@ -166,6 +166,9 @@ def list_staff(
         "license_expiry_date": str(s.license_expiry_date) if s.license_expiry_date else None,
         "address": s.address, "modules": s.modules,
         "avatar_url": s.avatar_url,
+        "secondary_roles": s.secondary_roles,
+        "scheduled_removal_date": str(s.scheduled_removal_date) if s.scheduled_removal_date else None,
+        "removal_reason": s.removal_reason,
     } for s in rows]
 
 
@@ -217,6 +220,9 @@ def create_staff(
         license_expiry_date      = body.get("license_expiry_date"),
         address                  = body.get("address"),
         modules                  = body.get("modules"),
+        secondary_roles          = body.get("secondary_roles") or [],
+        scheduled_removal_date   = body.get("scheduled_removal_date") or None,
+        removal_reason           = body.get("removal_reason"),
     )
     db.add(new_staff)
     db.flush()
@@ -261,6 +267,7 @@ def update_staff(
         "date_of_birth", "gender", "emergency_contact_name",
         "emergency_contact_mobile", "qualification", "registration_number",
         "license_expiry_date", "address", "modules",
+        "secondary_roles", "scheduled_removal_date", "removal_reason",
     ]
     for field in updatable:
         if field in body:

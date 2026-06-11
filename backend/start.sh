@@ -2,7 +2,7 @@
 set -e
 
 echo "[startup] Applying safe column additions (idempotent)..."
-timeout 120 python -c "
+python -c "
 from sqlalchemy import text
 from app.db.session import engine
 
@@ -146,6 +146,9 @@ safe_cols = [
     \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS address TEXT\",
     \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS modules JSONB\",
     \"CREATE TABLE IF NOT EXISTS feedback (id SERIAL PRIMARY KEY, name VARCHAR(200) NOT NULL, email VARCHAR(150), message TEXT NOT NULL, type VARCHAR(50), created_at TIMESTAMP DEFAULT NOW())\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS secondary_roles JSONB DEFAULT '[]'\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS scheduled_removal_date DATE\",
+    \"ALTER TABLE staff ADD COLUMN IF NOT EXISTS removal_reason VARCHAR(200)\",
 ]
 try:
     with engine.begin() as conn:
@@ -179,7 +182,7 @@ try:
     print('[startup] Indexes created/verified.')
 except Exception as e:
     print(f'[startup] Index creation failed: {e}')
-"
+" || echo "[startup] Safe column migrations failed — continuing"
 
 echo "[startup] Syncing database schema..."
 timeout 30 alembic upgrade head || echo "[startup] Migration failed — continuing with existing schema"
