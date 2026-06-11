@@ -27,6 +27,8 @@ const InpatientAdmin = lazy(() => import('./pages/admin/InpatientAdmin'))
 const InpatientDesk  = lazy(() => import('./pages/inpatient/InpatientDesk'))
 const AdmissionChart = lazy(() => import('./pages/inpatient/AdmissionChart'))
 const PlatformAdmin  = lazy(() => import('./pages/platform/PlatformAdmin'))
+const IViewSelector  = lazy(() => import('./pages/forms/iViewSelector'))
+const IViewFlowsheet = lazy(() => import('./pages/forms/iViewFlowsheet'))
 
 function AppRoutes() {
   const { user, loading } = useAuth()
@@ -67,6 +69,8 @@ function AppRoutes() {
         <Route path="/inpatient" element={<Suspense fallback={<PageLoader />}><InpatientDesk /></Suspense>} />
         <Route path="/inpatient/admission/:admissionId" element={<Suspense fallback={<PageLoader />}><AdmissionChart /></Suspense>} />
         <Route path="/platform"        element={<Suspense fallback={<PageLoader />}><PlatformAdmin /></Suspense>} />
+        <Route path="/forms/iview"           element={<Suspense fallback={<PageLoader />}><IViewSelector /></Suspense>} />
+        <Route path="/forms/iview/:formId"   element={<Suspense fallback={<PageLoader />}><IViewFlowsheet /></Suspense>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
