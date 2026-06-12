@@ -257,7 +257,7 @@ export default function RegisterPatientModal({ open, onClose, doctors = [], onRe
 
                   <div>
                     <label className={labelCls}>Allergies</label>
-                    <TermSearch category="allergy" placeholder="e.g. peni → Penicillin…" allowFreeText
+                    <TermSearch category="allergen" placeholder="e.g. peni → Penicillin…" allowFreeText
                       onSelect={t => setAllergies(prev => prev.some(x => x.display === t.display) ? prev : [...prev, t])} />
                     {allergies.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-2">

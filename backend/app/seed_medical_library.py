@@ -55,8 +55,8 @@ def seed_icd10_reference():
         ]
         _batched_insert(
             conn,
-            "INSERT INTO medical_terms (system, code, display, category, tier) "
-            "VALUES (:system, :code, :display, 'condition', 'reference')",
+            "INSERT INTO medical_terms (system, code, display, category, tier, is_active) "
+            "VALUES (:system, :code, :display, 'condition', 'reference', TRUE)",
             rows,
         )
         print(f"[medlib] ICD-10 reference loaded: {len(rows)} codes")
@@ -111,8 +111,8 @@ def seed_curated_terms():
                 })
             _batched_insert(
                 conn,
-                "INSERT INTO medical_terms (system, code, display, category, specialty, synonyms, tier) "
-                "VALUES (:system, :code, :display, :category, :specialty, :synonyms, 'curated')",
+                "INSERT INTO medical_terms (system, code, display, category, specialty, synonyms, tier, is_active) "
+                "VALUES (:system, :code, :display, :category, :specialty, :synonyms, 'curated', TRUE)",
                 rows,
             )
             print(f"[medlib] curated {category}s loaded: {len(rows)} (invalid ICD-10 dropped/kept-uncoded: {skipped})")
@@ -135,8 +135,8 @@ def seed_curated_terms():
         } for a in ALLERGENS]
         _batched_insert(
             conn,
-            "INSERT INTO medical_terms (system, code, display, category, group_label, tier) "
-            "VALUES (:system, :code, :display, 'allergy', :group_label, 'curated')",
+            "INSERT INTO medical_terms (system, code, display, category, group_label, tier, is_active) "
+            "VALUES (:system, :code, :display, 'allergen', :group_label, 'curated', TRUE)",
             rows,
         )
         print(f"[medlib] allergens loaded: {len(rows)}")
