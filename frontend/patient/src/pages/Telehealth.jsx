@@ -54,7 +54,7 @@ export default function Telehealth() {
   const canJoin = (a) => ['pending', 'confirmed', 'in_progress'].includes(a.status)
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div>
       {/* How it works */}
       <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 mb-6">
         <p className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-2">How it works</p>

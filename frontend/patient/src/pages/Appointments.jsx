@@ -15,8 +15,23 @@ const STATUS_BADGE = {
 const TABS = ['All', 'Upcoming', 'Completed', 'Cancelled']
 
 function ApptCard({ a }) {
+  const navigate = useNavigate()
+  const [joining, setJoining] = useState(false)
   const isTelehealth = a.mode === 'telehealth'
   const isOnlineBooking = a.source === 'online_booking'
+
+  // Same secured join flow as the Telehealth page — never link the raw room URL
+  const join = async () => {
+    setJoining(true)
+    try {
+      const data = await api.post(`/portal/appointments/${a.id}/join`)
+      navigate(`/telehealth/call/${a.id}`, { state: { joinData: data, appt: a } })
+    } catch (e) {
+      alert(e.message || 'Cannot join yet. Please wait for your appointment time.')
+    } finally {
+      setJoining(false)
+    }
+  }
 
   return (
     <div className="card p-4 flex items-start gap-4">
@@ -81,11 +96,11 @@ function ApptCard({ a }) {
         )}
         {isTelehealth && ['confirmed', 'in_progress', 'pending'].includes(a.status) && (
           <div className="mt-2">
-            <a href={`https://meet.jit.si/bharatcliniq-appt-${a.id}`} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+            <button onClick={join} disabled={joining}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
               style={{ background: '#CC1414' }}>
-              <Video size={12} /> Join Consultation
-            </a>
+              <Video size={12} /> {joining ? 'Joining…' : 'Join Consultation'}
+            </button>
           </div>
         )}
         {a.status === 'completed' && (

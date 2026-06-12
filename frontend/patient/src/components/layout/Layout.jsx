@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import BrandLogo from '../BrandLogo'
 import InstallPrompt, { useInstallState, InstallModal } from '../InstallPrompt'
+import { cacheClear } from '../../utils/cache'
 
 const NAV = [
   { to: '/',              label: 'Dashboard',        icon: LayoutDashboard, end: true },
@@ -39,7 +40,9 @@ function BHIDChip({ bhId }) {
 
 function AvatarMenu({ user, onLogout }) {
   const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
   const ref = useRef(null)
+  const navigate = useNavigate()
   const initials = user?.full_name
     ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
     : 'P'
@@ -50,28 +53,53 @@ function AvatarMenu({ user, onLogout }) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
+  const copyBhId = () => {
+    navigator.clipboard.writeText(user?.bh_id?.toUpperCase() || '')
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  const go = (path) => { setOpen(false); navigate(path) }
+
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-gray-100 transition-colors">
+      <button onClick={() => setOpen(!open)} title={user?.full_name}
+        className="flex items-center gap-1 pl-1 pr-1.5 py-1 rounded-full hover:bg-gray-100 transition-colors">
         <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white flex-shrink-0"
           style={{ background: '#CC1414' }}>{initials}</div>
-        <div className="hidden sm:block text-left">
-          <div className="text-xs font-semibold text-gray-800 leading-tight max-w-[100px] truncate">{user?.full_name}</div>
-          <div className="text-[10px] text-gray-400">{user?.mobile}</div>
-        </div>
-        <ChevronDown size={13} className={`text-gray-400 transition-transform hidden sm:block ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={13} className={`text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-50">
-          <div className="px-4 py-2.5 border-b border-gray-100">
+        <div className="absolute right-0 top-full mt-2 w-60 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-50">
+          {/* Identity */}
+          <div className="px-4 py-3 border-b border-gray-100">
             <div className="font-semibold text-gray-900 text-sm truncate">{user?.full_name}</div>
             <div className="text-xs text-gray-500 mt-0.5">{user?.mobile || user?.email}</div>
+            {user?.bh_id && (
+              <button onClick={copyBhId} title="Copy BH ID"
+                className="mt-2 sm:hidden inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold"
+                style={{ background: '#FFF4E8', color: '#F5821E' }}>
+                {user.bh_id.toUpperCase()}
+                {copied ? <Check size={11} /> : <Copy size={11} />}
+              </button>
+            )}
           </div>
-          <button onClick={onLogout}
-            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors rounded-b-2xl">
-            <LogOut size={14} />Sign out
+          {/* Actions */}
+          <button onClick={() => go('/settings')}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+            <Settings2 size={15} className="text-gray-400" />Settings
           </button>
+          <a href="mailto:support@bharathhealthsystems.com?subject=Patient Portal Help"
+            onClick={() => setOpen(false)}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+            <HelpCircle size={15} className="text-gray-400" />Help & Support
+          </a>
+          <div className="border-t border-gray-100 mt-1 pt-1">
+            <button onClick={onLogout}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors rounded-b-2xl">
+              <LogOut size={15} />Sign out
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -100,6 +128,14 @@ export default function Layout() {
   }
 
   const handleLogout = () => { logout(); navigate('/login') }
+
+  // Refresh = drop the IndexedDB cache first, otherwise stale data is re-served on reload
+  const [refreshing, setRefreshing] = useState(false)
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await cacheClear()
+    window.location.reload()
+  }
 
   const SidebarContent = ({ mobile = false }) => (
     <div className="flex flex-col h-full" style={{ background: '#0F2557' }}>
@@ -164,31 +200,13 @@ export default function Layout() {
             {currentLabel}
           </span>
 
-          {/* Actions */}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button onClick={() => window.location.reload()} title="Refresh page"
-              className="p-2 rounded-xl text-gray-500 hover:bg-gray-100 transition-colors">
-              <RefreshCw size={15} />
-            </button>
-
+          {/* Actions: BHID · Refresh · Avatar (Settings/Help/Sign out live in the avatar menu) */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             <BHIDChip bhId={user?.bh_id} />
-
-            <a href="mailto:support@bharathhealthsystems.com?subject=Patient Portal Help"
-              title="Help & Support"
+            <button onClick={handleRefresh} title="Refresh data"
               className="p-2 rounded-xl text-gray-500 hover:bg-gray-100 transition-colors">
-              <HelpCircle size={15} />
-            </a>
-
-            <button onClick={() => navigate('/settings')} title="Settings"
-              className="p-2 rounded-xl transition-colors"
-              style={location.pathname === '/settings'
-                ? { background: '#0F2557', color: 'white' }
-                : { color: '#6b7280' }}
-              onMouseEnter={e => { if (location.pathname !== '/settings') e.currentTarget.style.background = '#f3f4f6' }}
-              onMouseLeave={e => { if (location.pathname !== '/settings') e.currentTarget.style.background = 'transparent' }}>
-              <Settings2 size={15} />
+              <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
             </button>
-
             <AvatarMenu user={user} onLogout={handleLogout} />
           </div>
         </header>

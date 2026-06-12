@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../api/client'
 import { cachedFetch } from '../utils/cache'
-import { Calendar, Pill, FlaskConical, Receipt, Heart, User, ArrowRight, MapPin, Users } from 'lucide-react'
+import { Calendar, Pill, Heart, CheckCircle, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import logoImg from '../assets/logo.png'
 
@@ -10,13 +10,6 @@ const STATUS_COLORS = {
   pending: 'badge-yellow', confirmed: 'badge-blue', completed: 'badge-green',
   cancelled: 'badge-gray', in_progress: 'badge-blue',
 }
-
-const QUICK_LINKS = [
-  { label: 'Appointments', to: '/appointments', icon: Calendar, bg: '#0F2557' },
-  { label: 'Prescriptions', to: '/prescriptions', icon: Pill, bg: '#CC1414' },
-  { label: 'Lab Results', to: '/lab-results', icon: FlaskConical, bg: '#F5821E' },
-  { label: 'My Bills', to: '/bills', icon: Receipt, bg: '#16a34a' },
-]
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -34,7 +27,7 @@ export default function Dashboard() {
         api.get('/portal/me'),
       ]),
       ([a, p, me]) => {
-        setAppointments((a?.data?.appointments || a?.appointments || a?.data || []).slice(0, 5))
+        setAppointments(a?.data?.appointments || a?.appointments || a?.data || [])
         setPrescriptions((p?.data?.prescriptions || p?.prescriptions || p?.data || []).slice(0, 3))
         const meData = me?.data || me
         setGuardianOf(Array.isArray(meData?.guardian_of) ? meData.guardian_of : [])
@@ -44,9 +37,11 @@ export default function Dashboard() {
   }, [])
 
   const pendingRx = prescriptions.filter(p => p.status === 'pending').length
+  const upcoming = appointments.filter(a => ['pending', 'confirmed'].includes(a.status)).length
+  const completedVisits = appointments.filter(a => a.status === 'completed').length
 
   return (
-    <div className="max-w-4xl space-y-5">
+    <div className="space-y-5">
       {/* BHID Health Card */}
       <div className="rounded-2xl p-6 text-white relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #0F2557 0%, #1a3a7a 60%, #0a1a3e 100%)' }}>
@@ -87,13 +82,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Stats row — linked clinics already shown on the health card above */}
+      <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Total Appointments', value: appointments.length, icon: Calendar, accent: '#0F2557', lightBg: '#EEF2FF' },
+          { label: 'Upcoming Appointments', value: upcoming, icon: Calendar, accent: '#0F2557', lightBg: '#EEF2FF' },
           { label: 'Pending Prescriptions', value: pendingRx, icon: Pill, accent: '#CC1414', lightBg: '#FEF2F2' },
-          { label: 'Linked Clinics', value: user?.linked_clinics || 0, icon: MapPin, accent: '#F5821E', lightBg: '#FFF7ED' },
-          { label: 'Profile', value: 'Active', icon: User, accent: '#16a34a', lightBg: '#F0FDF4' },
+          { label: 'Completed Visits', value: completedVisits, icon: CheckCircle, accent: '#16a34a', lightBg: '#F0FDF4' },
         ].map(stat => (
           <div key={stat.label} className="card p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -105,21 +99,6 @@ export default function Dashboard() {
               <div className="text-xs text-gray-500 leading-tight">{stat.label}</div>
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Quick nav */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {QUICK_LINKS.map(q => (
-          <Link key={q.to} to={q.to}
-            className="rounded-2xl p-4 flex items-center justify-between text-white transition-opacity hover:opacity-90 group"
-            style={{ background: q.bg }}>
-            <div className="flex items-center gap-2">
-              <q.icon size={18} />
-              <span className="font-semibold text-sm">{q.label}</span>
-            </div>
-            <ArrowRight size={14} className="opacity-60 group-hover:opacity-100 transition-opacity" />
-          </Link>
         ))}
       </div>
 
@@ -178,7 +157,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {appointments.map(a => (
+            {appointments.slice(0, 5).map(a => (
               <div key={a.id} className="flex items-center justify-between px-5 py-3 hover:bg-blue-50/30 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -187,7 +166,9 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <div className="font-medium text-sm text-gray-900">{a.clinic_name}</div>
-                    <div className="text-xs text-gray-400">Dr. {a.doctor_name} · {a.date} {a.time && `at ${a.time}`}</div>
+                    <div className="text-xs text-gray-400">
+                      {/^dr\.?\s/i.test(a.doctor_name || '') ? a.doctor_name : `Dr. ${a.doctor_name || ''}`} · {a.date} {a.time && `at ${a.time}`}
+                    </div>
                   </div>
                 </div>
                 <span className={STATUS_COLORS[a.status] || 'badge-gray'}>{a.status}</span>
