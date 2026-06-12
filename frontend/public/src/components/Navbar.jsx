@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Menu, X, Video } from 'lucide-react'
 import BrandLogo from './BrandLogo'
-import { STAFF_URL, PATIENT_URL } from '../constants/urls'
+import { PROVIDER_URL, PATIENT_URL } from '../constants/urls'
 
 export default function Navbar() {
   const [open, setOpen] = useState(false)
@@ -22,7 +22,7 @@ export default function Navbar() {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
-            <a href={STAFF_URL} target="_blank" rel="noopener noreferrer"
+            <a href={PROVIDER_URL} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center px-4 py-2 rounded-xl border-2 font-semibold text-sm transition-all"
               style={{ borderColor: '#0F2557', color: '#0F2557' }}
               onMouseEnter={e => { e.currentTarget.style.background='#0F2557'; e.currentTarget.style.color='white' }}
@@ -52,7 +52,7 @@ export default function Navbar() {
             <Link to="/booking/check" className="text-gray-600 font-medium px-2 py-2 text-sm" onClick={() => setOpen(false)}>My Booking</Link>
             <Link to="/register" className="text-gray-600 font-medium px-2 py-2 text-sm" onClick={() => setOpen(false)}>Register Health Center</Link>
             <div className="flex gap-2 mt-1">
-              <a href={STAFF_URL} target="_blank" rel="noopener noreferrer" className="flex-1 text-center py-2 rounded-xl border-2 font-semibold text-sm" style={{ borderColor:'#0F2557', color:'#0F2557' }}>Provider</a>
+              <a href={PROVIDER_URL} target="_blank" rel="noopener noreferrer" className="flex-1 text-center py-2 rounded-xl border-2 font-semibold text-sm" style={{ borderColor:'#0F2557', color:'#0F2557' }}>Provider</a>
               <a href={PATIENT_URL} target="_blank" rel="noopener noreferrer" className="flex-1 text-center py-2 rounded-xl font-semibold text-sm text-white" style={{ background:'#CC1414' }}>My Health Portal</a>
             </div>
           </div>
