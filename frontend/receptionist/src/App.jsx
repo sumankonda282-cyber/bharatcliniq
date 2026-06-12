@@ -14,6 +14,9 @@ import Queue from './pages/Queue'
 import Operations from './pages/Operations'
 import PatientBilling from './pages/PatientBilling'
 import StaffManagement from './pages/StaffManagement'
+import RegisterPatient from './pages/RegisterPatient'
+import BookAppointment from './pages/BookAppointment'
+import PatientLookup from './pages/PatientLookup'
 import SetPassword from './pages/SetPassword'
 import AccountSettings from './pages/AccountSettings'
 import Admissions from './pages/Admissions'
@@ -68,6 +71,9 @@ function AppRoutes() {
         <Route path="operations" element={<Operations />} />
         <Route path="operations/:appointmentId" element={<PatientBilling />} />
         <Route path="front-desk" element={<FrontDesk />} />
+        <Route path="front-desk/register" element={<RegisterPatient />} />
+        <Route path="front-desk/book" element={<BookAppointment />} />
+        <Route path="front-desk/lookup" element={<PatientLookup />} />
         <Route path="front-desk/chart/:appointmentId" element={<PatientChart />} />
         <Route path="appointments" element={<Appointments />} />
         <Route path="telehealth"   element={<Telehealth />} />

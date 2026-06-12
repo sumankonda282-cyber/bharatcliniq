@@ -6,11 +6,8 @@ import {
   Footprints, Phone, Globe, Video,
 } from 'lucide-react'
 import api from '../api/client'
-import RegisterPatientModal from '../components/frontdesk/RegisterPatientModal'
-import BookAppointmentModal from '../components/frontdesk/BookAppointmentModal'
 import EditAppointmentModal from '../components/frontdesk/EditAppointmentModal'
 import CancelAppointmentModal from '../components/frontdesk/CancelAppointmentModal'
-import PatientLookupPopup from '../components/frontdesk/PatientLookupPopup'
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -101,10 +98,6 @@ export default function FrontDesk() {
   const [filterDoctor, setFilterDoctor] = useState('')
 
   // ── modals ─────────────────────────────────────────────────────────────────
-  const [showLookup, setShowLookup] = useState(false)
-  const [showRegister, setShowRegister] = useState(false)
-  const [showBook, setShowBook] = useState(false)
-  const [bookPatient, setBookPatient] = useState(null)   // preselected patient for booking modal
   const [editAppt, setEditAppt] = useState(null)
   const [cancelAppt, setCancelAppt] = useState(null)
 
@@ -226,19 +219,19 @@ export default function FrontDesk() {
 
         <div className="flex items-center gap-2 flex-wrap">
           {/* Patient Lookup */}
-          <button onClick={() => setShowLookup(true)}
+          <button onClick={() => navigate('/front-desk/lookup')}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600">
             <Search size={14} /> Patient Lookup
           </button>
 
           {/* Register Patient */}
-          <button onClick={() => setShowRegister(true)}
+          <button onClick={() => navigate('/front-desk/register')}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600">
             <UserPlus size={14} /> Register Patient
           </button>
 
           {/* Book Appointment */}
-          <button onClick={() => { setBookPatient(null); setShowBook(true) }}
+          <button onClick={() => navigate('/front-desk/book')}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
             <CalendarPlus size={14} /> Book Appointment
           </button>
@@ -508,40 +501,6 @@ export default function FrontDesk() {
       </section>
 
       {/* ── Modals ── */}
-
-      <PatientLookupPopup
-        open={showLookup}
-        onClose={() => setShowLookup(false)}
-        onBookFor={(patient) => { setBookPatient(patient); setShowBook(true); setShowLookup(false) }}
-      />
-
-      <RegisterPatientModal
-        open={showRegister}
-        onClose={() => setShowRegister(false)}
-        doctors={doctors}
-        onRegistered={(p) => {
-          showToast(`${p.full_name} registered`)
-          loadQueue(true)
-        }}
-        onBookFor={(patient) => {
-          setShowRegister(false)
-          setBookPatient(patient)
-          setShowBook(true)
-        }}
-      />
-
-      <BookAppointmentModal
-        open={showBook}
-        onClose={() => { setShowBook(false); setBookPatient(null) }}
-        doctors={doctors}
-        preselectedPatient={bookPatient}
-        onBooked={() => {
-          showToast('Appointment booked')
-          setShowBook(false)
-          setBookPatient(null)
-          loadQueue(true)
-        }}
-      />
 
       <EditAppointmentModal
         open={!!editAppt}
