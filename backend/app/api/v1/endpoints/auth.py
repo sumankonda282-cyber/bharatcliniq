@@ -188,11 +188,13 @@ def platform_admin_login(request: Request, payload: StaffLoginRequest, db: Sessi
 @router.get("/staff/me")
 def staff_me(current=Depends(get_current_staff), db: Session = Depends(get_db)):
     clinic = db.query(Clinic).filter(Clinic.id == current.clinic_id).first()
+    manager = db.query(Staff).filter(Staff.id == current.reporting_manager_id).first() if current.reporting_manager_id else None
     return {
         "id":           current.id,
         "full_name":    current.full_name,
         "email":        current.email,
         "mobile":       current.mobile,
+        "phone":        current.phone,
         "username":     current.username,
         "role":         current.role if isinstance(current.role, str) else str(current.role),
         "clinic_id":    current.clinic_id,
@@ -203,7 +205,34 @@ def staff_me(current=Depends(get_current_staff), db: Session = Depends(get_db)):
         "force_reset":  current.is_first_login is True,
         "org_type":     clinic.org_type if clinic else "clinic",
         "modules":      (clinic.modules or []) if clinic else [],
+        "designation":             current.designation,
+        "department":              current.department,
+        "employee_id":             current.employee_id,
+        "employment_type":         current.employment_type,
+        "join_date":               str(current.join_date) if current.join_date else None,
+        "date_of_birth":           str(current.date_of_birth) if current.date_of_birth else None,
+        "gender":                  current.gender,
+        "reporting_manager_id":    current.reporting_manager_id,
+        "reporting_manager_name":  manager.full_name if manager else None,
+        "qualification":           current.qualification,
+        "address":                 current.address,
+        "emergency_contact_name":  current.emergency_contact_name,
+        "emergency_contact_mobile": current.emergency_contact_mobile,
+        "avatar_url":              current.avatar_url,
     }
+
+
+@router.patch("/staff/me")
+def update_staff_me(body: dict, current=Depends(get_current_staff), db: Session = Depends(get_db)):
+    allowed = [
+        "full_name", "mobile", "phone", "gender", "date_of_birth",
+        "address", "emergency_contact_name", "emergency_contact_mobile",
+    ]
+    for field in allowed:
+        if field in body:
+            setattr(current, field, body[field] or None)
+    db.commit()
+    return {"message": "Profile updated"}
 
 
 class PatientRegisterRequest(BaseModel):

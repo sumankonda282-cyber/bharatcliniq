@@ -1,17 +1,17 @@
 import ChatWidget from './ChatWidget'
 import HelpWidget from './HelpWidget'
-import { useState, useEffect } from 'react'
+import StaffProfilePanel from './StaffProfilePanel'
+import { useState, useEffect, useRef } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import {
   CreditCard, LayoutDashboard, LogOut, Users,
   Menu, X, Settings, BedDouble, LayoutGrid, Banknote, Wrench, HelpCircle,
-  CalendarRange, UserCircle2, Plane, LayoutTemplate, Send, Lock, Loader2, Monitor,
+  CalendarRange, UserCircle2, Plane, LayoutTemplate, Send, Monitor,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import BrandLogo from './BrandLogo'
 import api from '../api/client'
 
-// Manager/Admin nav (unchanged from original)
 const MANAGER_BASE_NAV = [
   { to: '/',            icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/operations',  icon: LayoutGrid,      label: 'Operations' },
@@ -21,15 +21,11 @@ const MANAGER_NAV = [
   { to: '/staff',       icon: Settings, label: 'Manage Staff' },
   { to: '/maintenance', icon: Wrench,   label: 'Maintenance' },
 ]
-
-// Receptionist nav
 const RECEP_NAV = [
   { to: '/',            icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/front-desk',  icon: Monitor,         label: 'Front Desk' },
   { to: '/billing',     icon: CreditCard,      label: 'Billing' },
 ]
-
-// Hospital-only items (shown for both roles when org_type === 'hospital')
 const HOSPITAL_NAV = [
   { to: '/admissions',        icon: BedDouble,   label: 'Admissions' },
   { to: '/bed-board',         icon: LayoutGrid,  label: 'Bed Board' },
@@ -54,16 +50,51 @@ function formatRole(role) {
   return role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
+function ProfileDropdown({ user, onSettings, onLogout, onClose }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose() }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [onClose])
+
+  return (
+    <div ref={ref} className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
+      <div className="px-4 py-3" style={{ background: '#0F2557' }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+            style={{ background: 'rgba(245,130,30,0.3)', color: '#F5821E' }}>
+            {getInitials(user?.full_name || user?.email)}
+          </div>
+          <div className="min-w-0">
+            <div className="text-white font-semibold text-sm truncate">{user?.full_name || user?.email}</div>
+            <div className="text-blue-300 text-xs">{formatRole(user?.role)}</div>
+          </div>
+        </div>
+      </div>
+      <div className="py-1">
+        <button onClick={() => { onSettings(); onClose() }}
+          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+          <Settings size={15} className="text-gray-400" /> Settings &amp; Profile
+        </button>
+        <div className="border-t border-gray-100 my-1" />
+        <button onClick={() => { onLogout(); onClose() }}
+          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 transition-colors">
+          <LogOut size={15} /> Sign Out
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Layout() {
   const { user, logout } = useAuth()
   const [open, setOpen] = useState(false)
-  const [helpOpen, setHelpOpen]   = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const [maintBadge, setMaintBadge] = useState(0)
-  const [profileOpen, setProfileOpen] = useState(false)
-  const [pwStep, setPwStep]       = useState(false)
-  const [pwForm, setPwForm]       = useState({ current: '', next: '' })
-  const [pwSaving, setPwSaving]   = useState(false)
-  const [pwErr, setPwErr]         = useState('')
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [profilePanelOpen, setProfilePanelOpen] = useState(false)
+
   const isManager = ['clinic_manager', 'clinic_admin'].includes(user?.role)
   const isScheduler = isManager
   const isHospital = user?.org_type === 'hospital'
@@ -79,23 +110,8 @@ export default function Layout() {
     return () => clearInterval(id)
   }, [isManager])
 
-  const closeProfile = () => { setProfileOpen(false); setPwStep(false); setPwErr(''); setPwForm({ current: '', next: '' }) }
-
-  const handleChangePw = async () => {
-    setPwSaving(true); setPwErr('')
-    try {
-      await api.post('/staff/change-password', { current_password: pwForm.current, new_password: pwForm.next })
-      closeProfile()
-    } catch (e) {
-      setPwErr(e.message || 'Failed to update password')
-    } finally {
-      setPwSaving(false)
-    }
-  }
-
   const sidebar = (
     <aside className="w-60 flex flex-col h-full flex-shrink-0" style={{ background: '#0F2557' }}>
-      {/* Brand header */}
       <div className="px-4 py-4 border-b border-white/10 flex items-center justify-between">
         <div className="flex flex-col gap-1">
           <BrandLogo size="sm" light />
@@ -108,7 +124,6 @@ export default function Layout() {
         </button>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 px-2 py-3 overflow-y-auto">
         {NAV.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} end={to === '/'}
@@ -140,29 +155,6 @@ export default function Layout() {
           </>
         )}
       </nav>
-
-      {/* User footer */}
-      <div className="px-2 py-3 border-t border-white/10">
-        <button
-          onClick={() => setProfileOpen(true)}
-          className="w-full flex items-center gap-3 px-3 mb-2 py-2 rounded-xl text-left transition-colors hover:bg-white/10"
-          style={{ background: 'rgba(255,255,255,0.06)' }}
-        >
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-            style={{ background: 'rgba(245,130,30,0.3)', color: '#F5821E' }}
-          >
-            {getInitials(user?.full_name || user?.email)}
-          </div>
-          <div className="min-w-0">
-            <div className="text-white text-xs font-semibold truncate">{user?.full_name || user?.email}</div>
-            <div className="text-blue-300 text-xs">{formatRole(user?.role)}</div>
-          </div>
-        </button>
-        <button onClick={logout} className="sidebar-link w-full">
-          <LogOut size={15} />Sign Out
-        </button>
-      </div>
     </aside>
   )
 
@@ -179,93 +171,61 @@ export default function Layout() {
       <div className="hidden md:flex flex-shrink-0">
         {sidebar}
       </div>
-      <main className="flex-1 overflow-y-auto">
-        {/* Mobile topbar */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 bg-white sticky top-0 z-30 shadow-sm">
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Persistent top bar */}
+        <header className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-200 bg-white sticky top-0 z-30 shadow-sm flex-shrink-0">
           <button onClick={() => setOpen(true)} className="md:hidden p-1.5 rounded-lg text-gray-600 hover:bg-gray-100">
             <Menu size={22} />
           </button>
           <div className="md:hidden"><BrandLogo size="sm" /></div>
           <span className="md:hidden text-xs font-semibold ml-1" style={{ color: '#F5821E' }}>{isManager ? 'Manager' : 'Reception'}</span>
+
           <div className="flex-1" />
-          <button onClick={() => setHelpOpen(true)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700" title="Help & Support">
+
+          <button onClick={() => setHelpOpen(true)}
+            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700" title="Help & Support">
             <HelpCircle size={16} />
           </button>
-        </div>
-        <div className="p-4 md:p-6">
-          <Outlet />
-        </div>
-      </main>
-      <ChatWidget />
-      <HelpWidget open={helpOpen} onClose={() => setHelpOpen(false)} />
 
-      {/* Profile modal */}
-      {profileOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={closeProfile} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm z-10 overflow-hidden">
-            {!pwStep ? (
-              <>
-                <div className="px-6 py-5" style={{ background: '#0F2557' }}>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-white/60 text-xs font-semibold uppercase tracking-wider">My Profile</span>
-                    <button onClick={closeProfile} className="text-white/60 hover:text-white"><X size={16} /></button>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold flex-shrink-0"
-                      style={{ background: 'rgba(245,130,30,0.3)', color: '#F5821E' }}>
-                      {getInitials(user?.full_name || user?.email)}
-                    </div>
-                    <div>
-                      <div className="text-white font-bold text-base leading-tight">{user?.full_name || user?.email}</div>
-                      <div className="text-blue-300 text-sm mt-0.5">{formatRole(user?.role)}</div>
-                    </div>
-                  </div>
+          {/* Profile avatar */}
+          <div className="relative">
+            <button
+              onClick={() => setDropdownOpen(v => !v)}
+              className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-xl hover:bg-gray-100 transition-colors"
+            >
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                style={{ background: 'rgba(15,37,87,0.12)', color: '#0F2557' }}>
+                {getInitials(user?.full_name || user?.email)}
+              </div>
+              <div className="hidden md:block text-left">
+                <div className="text-xs font-semibold text-gray-800 leading-tight max-w-[120px] truncate">
+                  {user?.full_name || user?.email}
                 </div>
-                <div className="px-6 py-4 space-y-1">
-                  {user?.email && <p className="text-sm text-gray-500 mb-3">{user.email}</p>}
-                  <button onClick={() => setPwStep(true)} className="sidebar-link w-full" style={{ color: '#374151', background: 'none' }}>
-                    <Lock size={15} />Change Password
-                  </button>
-                  <button onClick={() => { logout(); closeProfile() }} className="sidebar-link w-full" style={{ color: '#dc2626', background: 'none' }}>
-                    <LogOut size={15} />Sign Out
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                  <h3 className="font-bold text-gray-800">Change Password</h3>
-                  <button onClick={() => { setPwStep(false); setPwErr(''); setPwForm({ current: '', next: '' }) }} className="text-gray-400 hover:text-gray-700">
-                    <X size={16} />
-                  </button>
-                </div>
-                <div className="px-6 py-4 space-y-3">
-                  <div>
-                    <label className="label">Current Password</label>
-                    <input type="password" className="input" placeholder="Enter current password"
-                      value={pwForm.current} onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="label">New Password</label>
-                    <input type="password" className="input" placeholder="Minimum 6 characters"
-                      value={pwForm.next} onChange={e => setPwForm(p => ({ ...p, next: e.target.value }))} />
-                  </div>
-                  {pwErr && <p className="text-red-600 text-sm">{pwErr}</p>}
-                  <button
-                    onClick={handleChangePw}
-                    disabled={pwSaving || !pwForm.current || pwForm.next.length < 6}
-                    className="btn-primary w-full justify-center"
-                  >
-                    {pwSaving ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}
-                    {pwSaving ? 'Updating…' : 'Update Password'}
-                  </button>
-                </div>
-              </>
+                <div className="text-xs text-gray-400 leading-tight">{formatRole(user?.role)}</div>
+              </div>
+            </button>
+            {dropdownOpen && (
+              <ProfileDropdown
+                user={user}
+                onSettings={() => setProfilePanelOpen(true)}
+                onLogout={logout}
+                onClose={() => setDropdownOpen(false)}
+              />
             )}
           </div>
-        </div>
-      )}
+        </header>
+
+        <main className="flex-1 overflow-y-auto">
+          <div className="p-4 md:p-6">
+            <Outlet />
+          </div>
+        </main>
+      </div>
+
+      <ChatWidget />
+      <HelpWidget open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <StaffProfilePanel open={profilePanelOpen} onClose={() => setProfilePanelOpen(false)} />
     </div>
   )
 }

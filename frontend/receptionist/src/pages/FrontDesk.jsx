@@ -213,7 +213,7 @@ export default function FrontDesk() {
   return (
     <div className="space-y-4">
 
-      {/* ── Top Bar ── */}
+      {/* ── Top Bar: Title + Action Buttons ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="page-title">Front Desk</h1>
@@ -225,20 +225,6 @@ export default function FrontDesk() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Date mode toggle */}
-          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
-            <button
-              onClick={() => setDateMode('today')}
-              className={`px-3 py-1.5 flex items-center gap-1 transition ${dateMode === 'today' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-              <Clock size={12} /> Today
-            </button>
-            <button
-              onClick={() => setDateMode('range')}
-              className={`px-3 py-1.5 flex items-center gap-1 transition ${dateMode === 'range' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-              <CalendarRange size={12} /> Date Range
-            </button>
-          </div>
-
           {/* Patient Lookup */}
           <button onClick={() => setShowLookup(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600">
@@ -256,44 +242,61 @@ export default function FrontDesk() {
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
             <CalendarPlus size={14} /> Book Appointment
           </button>
-
-          {/* Refresh */}
-          <button onClick={() => loadQueue()} className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500" title="Refresh">
-            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-          </button>
         </div>
       </div>
 
-      {/* ── Date Range Pickers ── */}
-      {dateMode === 'range' && (
-        <div className="flex items-center gap-3 flex-wrap">
-          <label className="text-xs text-gray-500 font-medium">From</label>
-          <input type="date" value={rangeFrom} onChange={e => setRangeFrom(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-100" />
-          <label className="text-xs text-gray-500 font-medium">To</label>
-          <input type="date" value={rangeTo} onChange={e => setRangeTo(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-100" />
+      {/* ── Filter Row: date-mode toggle + range pickers + stat pills + refresh ── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Date mode toggle */}
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium flex-shrink-0">
+          <button
+            onClick={() => setDateMode('today')}
+            className={`px-3 py-1.5 flex items-center gap-1 transition ${dateMode === 'today' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+            <Clock size={12} /> Today
+          </button>
+          <button
+            onClick={() => setDateMode('range')}
+            className={`px-3 py-1.5 flex items-center gap-1 transition ${dateMode === 'range' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+            <CalendarRange size={12} /> Range
+          </button>
         </div>
-      )}
 
-      {/* ── Stat Pills (also act as filter) ── */}
-      <div className="flex gap-2 flex-wrap">
+        {/* Date range pickers (inline, only when range mode) */}
+        {dateMode === 'range' && (
+          <>
+            <input type="date" value={rangeFrom} onChange={e => setRangeFrom(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-100 flex-shrink-0" />
+            <span className="text-xs text-gray-400">—</span>
+            <input type="date" value={rangeTo} onChange={e => setRangeTo(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-100 flex-shrink-0" />
+          </>
+        )}
+
+        {/* Divider */}
+        <div className="w-px h-6 bg-gray-200 hidden sm:block flex-shrink-0" />
+
+        {/* Stat pills (status filter) */}
         {statPills.map(p => {
           const active = filterStatus === p.key
           return (
             <button
               key={p.key}
               onClick={() => setFilterStatus(p.key)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition border ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition border flex-shrink-0 ${
                 active ? 'border-transparent shadow-sm' : 'border-gray-100 bg-white hover:shadow-sm'
               }`}
               style={active ? { background: p.bg, color: p.color, borderColor: p.color + '33' } : {}}
             >
-              <span style={{ color: active ? p.color : '#9CA3AF' }} className="text-xl font-extrabold leading-none">{p.count}</span>
+              <span style={{ color: active ? p.color : '#9CA3AF' }} className="text-base font-extrabold leading-none">{p.count}</span>
               <span style={{ color: active ? p.color : '#6B7280' }}>{p.label}</span>
             </button>
           )
         })}
+
+        {/* Refresh */}
+        <button onClick={() => loadQueue()} className="ml-auto p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 flex-shrink-0" title="Refresh queue">
+          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+        </button>
       </div>
 
       {/* ── Pinned Doctor Quick-filters ── */}
