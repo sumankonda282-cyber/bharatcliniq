@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = (
         "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5175,"
         "https://bharatcliniq.com,https://www.bharatcliniq.com,"
-        "https://provider.bharatcliniq.com,https://my.bharatcliniq.com,"
+        "https://provider.bharathhealthsystems.com,https://my.bharatcliniq.com,"
         "https://lab.bharatcliniq.com,https://pharmacy.bharatcliniq.com,"
         "https://receptionist.bharatcliniq.com,https://staff.bharatcliniq.com,"
         "https://admin.bharatcliniq.com,https://doctor.bharatcliniq.com,"
@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     FREE_PLAN_MAX_DOCTORS: int = 2
     FREE_PLAN_MAX_BRANCHES: int = 1
     UPLOAD_DIR: str = "uploads"
-    APP_NAME: str = "BharatCliniq"
+    APP_NAME: str = "BHarath Health"
     APP_VERSION: str = "2.0.0"
 
     CLOUDINARY_CLOUD_NAME: str = ""

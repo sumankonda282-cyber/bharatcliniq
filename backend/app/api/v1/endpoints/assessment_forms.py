@@ -1,5 +1,5 @@
 """
-BharatCliniq — Smart Assessment Forms (PowerForms) API
+BHarath Health — Smart Assessment Forms (PowerForms) API
 Provides admin/platform form management and provider-facing submission endpoints.
 """
 import json

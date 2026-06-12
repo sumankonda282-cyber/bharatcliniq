@@ -1,5 +1,5 @@
 """
-BharatCliniq Seed Script — idempotent, safe to run on every deploy.
+BHarath Health Seed Script — idempotent, safe to run on every deploy.
 Commits in stages so a failure in demo data never rolls back critical auth records.
 Run: python seed.py
 """
@@ -22,12 +22,12 @@ def _exists(db, model, **filters):
 
 def _seed_critical(db):
     """Platform admin + clinic staff. Committed independently."""
-    print("[seed] Starting BharatCliniq seed...")
+    print("[seed] Starting BHarath Health seed...")
 
     # ── Platform Superadmin ───────────────────────────────────────────
     if not _exists(db, PlatformAdmin, email="superadmin@bharathealth.com"):
         db.add(PlatformAdmin(
-            full_name="BharatCliniq Admin",
+            full_name="BHarath Health Admin",
             email="superadmin@bharathealth.com",
             hashed_password=hash_password("SuperAdmin@123"),
             is_active=True,
@@ -48,7 +48,7 @@ def _seed_critical(db):
             name="Apollo Demo Clinic",
             slug="apollo-demo-clinic",
             specialty="Multi-Specialty",
-            description="A demo multi-specialty clinic on BharatCliniq platform.",
+            description="A demo multi-specialty clinic on BHarath Health platform.",
             email="info@apollodemo.com",
             phone="040-12345678",
             address="123 Jubilee Hills",
@@ -91,7 +91,7 @@ def _seed_critical(db):
         dict(email="arjun@apollodemo.com",    mobile="9000000005", full_name="Arjun Singh",       role="lab_tech",           password="Lab@123",       username="arju74"),
         dict(email="kiran@apollodemo.com",    mobile="9000000008", full_name="Kiran Rao",         role="imaging_technician", password="Imaging@123",   username="kira38"),
         dict(email="drsuresh@apollodemo.com", mobile="9000000009", full_name="Dr. Suresh Nair",   role="radiologist",        password="Radio@123",     username="sure91"),
-        dict(email="demo@bharatcliniq.com",   mobile="9000000099", full_name="Dr. Rajesh Kumar",  role="clinic_admin",       password="Demo@1234",     username="raje61"),
+        dict(email="demo@bharathhealthsystems.com",   mobile="9000000099", full_name="Dr. Rajesh Kumar",  role="clinic_admin",       password="Demo@1234",     username="raje61"),
     ]
 
     doctor1 = None
@@ -414,7 +414,7 @@ def seed():
         print("  Receptionist    : ravi@apollodemo.com / Reception@123")
         print("  Pharmacist      : meera@apollodemo.com / Pharmacy@123")
         print("  Lab Technician  : arjun@apollodemo.com / Lab@123")
-        print("  Demo Provider   : demo@bharatcliniq.com / Demo@1234")
+        print("  Demo Provider   : demo@bharathhealthsystems.com / Demo@1234")
         print("=" * 55)
     except Exception as e:
         db.rollback()

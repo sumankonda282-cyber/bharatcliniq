@@ -85,7 +85,7 @@ def send_schedule_email(to: str, staff_name: str, clinic_name: str,
         </table>
         <p style="font-size:12px;color:#6b7280;margin-top:16px">
           Questions about your schedule? Contact your manager.<br/>
-          — BharatCliniq Scheduler
+          — BHarath Health Scheduler
         </p>
       </div>
     </div>

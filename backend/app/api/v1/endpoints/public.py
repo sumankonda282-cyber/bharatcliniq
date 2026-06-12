@@ -621,7 +621,7 @@ def register_clinic(body: dict, db: Session = Depends(get_db)):
         "clinic_slug": clinic.slug,
         "public_url": f"/clinics/{clinic.slug}",
         "login_email": admin_email,
-        "message": "Registration successful! Your clinic is pending approval. Login at provider.bharatcliniq.com once approved."
+        "message": "Registration successful! Your clinic is pending approval. Login at provider.bharathhealthsystems.com once approved."
     }
 
 

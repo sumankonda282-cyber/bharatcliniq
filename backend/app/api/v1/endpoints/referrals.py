@@ -55,7 +55,7 @@ def create_referral(body: dict, db: Session = Depends(get_db), staff: Staff = De
     if to_clinic_id:
         to_clinic = db.query(Clinic).filter(Clinic.id == to_clinic_id, Clinic.is_active == True).first()
         if not to_clinic:
-            raise HTTPException(404, "Target clinic not found on BharatCliniq network")
+            raise HTTPException(404, "Target clinic not found on BHarath Health network")
 
     referral = PatientReferral(
         from_clinic_id = staff.clinic_id,
@@ -293,7 +293,7 @@ def list_network_clinics(
     db: Session = Depends(get_db),
     staff: Staff = Depends(get_current_staff)
 ):
-    """Search verified BharatCliniq clinics to refer to."""
+    """Search verified BHarath Health clinics to refer to."""
     query = db.query(Clinic).filter(
         Clinic.is_active == True,
         Clinic.id != staff.clinic_id

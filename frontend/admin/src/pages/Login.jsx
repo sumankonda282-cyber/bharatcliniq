@@ -36,7 +36,7 @@ export default function Login() {
         style={{ background: 'linear-gradient(145deg, #0F2557 0%, #1a3a7a 100%)' }}
       >
         <div>
-          <div className="text-2xl font-extrabold tracking-tight">BharatCliniq</div>
+          <div className="text-2xl font-extrabold tracking-tight">BHarath Health</div>
           <div className="text-xs font-semibold mt-1 tracking-widest uppercase" style={{ color: '#F5821E' }}>
             Super Admin Portal
           </div>
@@ -47,7 +47,7 @@ export default function Login() {
             <span style={{ color: '#F5821E' }}>At Your Fingertips.</span>
           </h2>
           <p className="text-blue-200 text-lg mb-8">
-            Oversee every clinic, subscription, and staff member across the BharatCliniq network.
+            Oversee every clinic, subscription, and staff member across the BHarath Health network.
           </p>
           {features.map(({ icon: Icon, text }) => (
             <div key={text} className="flex items-center gap-3 mb-3">
@@ -62,7 +62,7 @@ export default function Login() {
           ))}
         </div>
         <div className="text-xs" style={{ color: '#93c5fd' }}>
-          BharatCliniq · Super Admin Portal · Restricted Access
+          BHarath Health · Super Admin Portal · Restricted Access
         </div>
       </div>
 
@@ -75,7 +75,7 @@ export default function Login() {
               style={{ background: 'rgba(15,37,87,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}>
               <ShieldCheck size={28} style={{ color: '#F5821E' }} />
             </div>
-            <div className="text-xl font-extrabold text-white">BharatCliniq</div>
+            <div className="text-xl font-extrabold text-white">BHarath Health</div>
             <div className="text-xs font-semibold tracking-widest uppercase mt-1" style={{ color: '#F5821E' }}>
               Super Admin Portal
             </div>
@@ -104,7 +104,7 @@ export default function Login() {
                   onChange={e => setIdentifier(e.target.value)}
                   required
                   autoFocus
-                  placeholder="admin@bharatcliniq.com"
+                  placeholder="admin@bharathhealthsystems.com"
                 />
               </div>
               <div>
@@ -151,7 +151,7 @@ export default function Login() {
             </form>
           </div>
           <p className="text-center text-gray-600 text-xs mt-4">
-            Access restricted to authorised BharatCliniq administrators only
+            Access restricted to authorised BHarath Health administrators only
           </p>
         </div>
       </div>

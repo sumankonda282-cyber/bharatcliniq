@@ -57,12 +57,12 @@ function HeroPanel() {
           ))}
         </div>
         <div className="mt-8 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.08)' }}>
-          <p className="text-blue-100 text-sm font-medium">New to BharatCliniq?</p>
+          <p className="text-blue-100 text-sm font-medium">New to BHarath Health?</p>
           <p className="text-blue-200 text-xs mt-1">Enter your mobile number → verify OTP → create your free health profile and get a permanent BH ID in under a minute.</p>
         </div>
       </div>
       <div className="relative text-xs" style={{ color: '#93c5fd' }}>
-        BharatCliniq · India's Digital Health Network
+        BHarath Health · India's Digital Health Network
       </div>
     </div>
   )
@@ -537,7 +537,7 @@ export default function Login() {
           </div>
 
           <p className="text-center text-xs text-gray-400 mt-4">
-            BharatCliniq · My Health Portal · Your data is private & secure
+            BHarath Health · My Health Portal · Your data is private & secure
           </p>
         </div>
       </div>

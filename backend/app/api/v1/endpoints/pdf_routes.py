@@ -31,7 +31,7 @@ def _clinic_data(patient: Patient, db: Session, doctor_staff_id: int = None) -> 
         branch.state if branch else None,
     ]))
     return {
-        "clinic_name":  clinic.name if clinic else "BharatCliniq",
+        "clinic_name":  clinic.name if clinic else "BHarath Health",
         "branch_name":  branch.name if branch else "",
         "address":      address,
         "doctor_name":  doctor_name,

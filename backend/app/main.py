@@ -39,7 +39,7 @@ from app.api.v1.endpoints.form_templates import router as forms_router
 from app.api.v1.endpoints.scheduler import router as scheduler_router
 
 app = FastAPI(
-    title="BharatCliniq API v2",
+    title="BHarath Health API v2",
     description="India's clinic management and patient booking platform",
     version=settings.APP_VERSION,
     docs_url="/api/docs",
@@ -141,7 +141,7 @@ app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 # -----------------------------
 @app.get("/")
 def root():
-    return {"status": "ok", "app": "BharatCliniq API", "version": settings.APP_VERSION}
+    return {"status": "ok", "app": "BHarath Health API", "version": settings.APP_VERSION}
 
 @app.get("/health")
 def health():

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-BharatCliniq — Test Data Seed Script
+BHarath Health — Test Data Seed Script
 Creates a fully set-up test clinic with admin, doctor, and receptionist accounts.
 Run once against the live backend. Safe to re-run (skips if email already exists).
 
@@ -74,14 +74,14 @@ def ok(label, res, status):
 
 
 def main(api_base):
-    print(f"\n🏥  BharatCliniq Seed Script")
+    print(f"\n🏥  BHarath Health Seed Script")
     print(f"    API: {api_base}\n")
 
     # ── Step 1: Register test clinic ────────────────────────────────
     print("1. Registering test clinic...")
     res, status = post(f"{api_base}/api/v1/public/register-clinic", {
         "clinic": {
-            "name":      "BharatCliniq Test Clinic",
+            "name":      "BHarath Health Test Clinic",
             "specialty": "General Medicine",
             "phone":     "9876543210",
             "email":     "clinic@test.bharatcliniq.com",
@@ -109,7 +109,7 @@ def main(api_base):
     # ── Step 2: Login as platform admin to verify clinic ────────────
     print("\n2. Logging in as platform admin...")
     res, status = post(f"{api_base}/api/v1/auth/platform/login", {
-        "identifier": "admin@bharatcliniq.com",
+        "identifier": "admin@bharathhealthsystems.com",
         "password":   "Admin@1234",
     })
 

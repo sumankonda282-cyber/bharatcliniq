@@ -84,7 +84,7 @@ export default function HelpWidget({ open, onClose }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-gray-800 text-sm">Contact IT Support</div>
-                  <div className="text-xs text-gray-500 mt-0.5">Software bugs, login issues, BharatCliniq help</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Software bugs, login issues, BHarath Health help</div>
                 </div>
                 <ChevronRight size={16} className="text-gray-400 group-hover:text-blue-600 flex-shrink-0" />
               </button>
@@ -96,7 +96,7 @@ export default function HelpWidget({ open, onClose }) {
               <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: '#dbeafe' }}>
                 <Phone size={24} className="text-blue-600" />
               </div>
-              <div className="text-sm font-semibold text-gray-800 mb-1">BharatCliniq IT Support</div>
+              <div className="text-sm font-semibold text-gray-800 mb-1">BHarath Health IT Support</div>
               <div className="text-xs text-gray-500 mb-4">Available Mon–Sat, 9 AM – 7 PM</div>
               <a href={`tel:${IT_PHONE.replace(/\s/g, '')}`}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-semibold"

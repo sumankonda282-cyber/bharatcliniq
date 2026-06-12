@@ -13,7 +13,7 @@ import PreVisitForm from './pages/PreVisitForm'
 export default function App() {
   return (
     <>
-      <InstallPrompt appName="BharatCliniq" />
+      <InstallPrompt appName="BHarath Health" />
       <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomePage />} />

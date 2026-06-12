@@ -215,7 +215,7 @@ export default function AuditLog() {
 
         {/* Print-only header */}
         <div className="print-header mb-4">
-          <h2 style={{ fontSize: 18, fontWeight: 'bold' }}>BharatCliniq — Audit Trail Report</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 'bold' }}>BHarath Health — Audit Trail Report</h2>
           <p style={{ fontSize: 12 }}>Period: {startDate} to {endDate}{action ? ` | Action: ${action}` : ''}{userType ? ` | User: ${userType}` : ''}</p>
           <p style={{ fontSize: 11, color: '#666' }}>Generated: {new Date().toLocaleString('en-IN')}</p>
         </div>

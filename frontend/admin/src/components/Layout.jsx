@@ -34,7 +34,7 @@ function Sidebar({ onClose }) {
       {/* Brand */}
       <div className="px-5 py-5 border-b border-gray-800 flex items-center justify-between">
         <div>
-          <div className="text-white font-extrabold text-base tracking-tight">BharatCliniq</div>
+          <div className="text-white font-extrabold text-base tracking-tight">BHarath Health</div>
           <div className="text-xs font-bold mt-0.5 tracking-widest uppercase" style={{ color: '#F5821E' }}>
             Super Admin
           </div>
@@ -200,7 +200,7 @@ export default function Layout() {
           <button onClick={() => setOpen(true)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-800">
             <Menu size={22} />
           </button>
-          <span className="font-bold text-sm text-white flex-1">BharatCliniq Admin</span>
+          <span className="font-bold text-sm text-white flex-1">BHarath Health Admin</span>
           <FeedbackBell />
         </div>
         <div className="hidden md:flex items-center justify-end px-6 py-2 border-b border-gray-800 bg-gray-900 sticky top-0 z-30">

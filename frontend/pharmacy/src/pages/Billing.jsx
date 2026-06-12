@@ -59,7 +59,7 @@ function PrintModal({ invoice, onClose }) {
         </div>
         <div ref={printRef}>
           <div className="mb-4">
-            <h2 className="text-xl font-bold text-[#0F2557]">BharatCliniq Pharmacy</h2>
+            <h2 className="text-xl font-bold text-[#0F2557]">BHarath Health Pharmacy</h2>
             <p className="text-sm text-gray-500">Invoice #: {invoice.invoice_number || `INV-${invoice.id}`}</p>
             <p className="text-sm text-gray-500">Date: {invoice.created_at ? new Date(invoice.created_at).toLocaleDateString('en-IN') : '—'}</p>
           </div>

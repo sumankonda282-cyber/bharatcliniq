@@ -6,7 +6,7 @@
  * @param {string|number} params.tokenNumber  - Queue token number (displayed very large)
  * @param {string} params.patientName         - Patient's full name
  * @param {string} [params.uhid]              - Universal Health ID
- * @param {string} [params.bhId]              - BharatCliniq BH-ID
+ * @param {string} [params.bhId]              - BHarath Health BH-ID
  * @param {string} params.doctorName          - Consulting doctor's name
  * @param {string} params.clinicName          - Clinic / hospital name
  * @param {string} [params.branchName]        - Branch / location name
@@ -50,7 +50,7 @@ export function printTokenSlip({
       max-width: 200mm;
     }
 
-    /* ── BharatCliniq header ── */
+    /* ── BHarath Health header ── */
     .bc-header {
       background: linear-gradient(135deg, #1a56db 0%, #0e9f6e 100%);
       color: #fff;
@@ -164,7 +164,7 @@ export function printTokenSlip({
 <body>
 
   <div class="bc-header">
-    <div class="bc-brand">BharatCliniq</div>
+    <div class="bc-brand">BHarath Health</div>
     <div class="bc-tagline">Your Health, Our Priority</div>
   </div>
 

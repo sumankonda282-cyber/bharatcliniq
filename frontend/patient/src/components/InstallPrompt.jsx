@@ -126,7 +126,7 @@ export function InstallModal({ appName, isIos, onInstall, onClose, installing })
   )
 }
 
-export default function InstallPrompt({ appName = 'BharatCliniq' }) {
+export default function InstallPrompt({ appName = 'BHarath Health' }) {
   const { canInstall, isIos, installed, dismissed, dismiss, install } = useInstallState(appName)
   const [showModal, setShowModal] = useState(false)
   const [installing, setInstalling] = useState(false)

@@ -1,5 +1,5 @@
 """
-BharatCliniq v2 — SQLAlchemy models (22 tables)
+BHarath Health v2 — SQLAlchemy models (22 tables)
 """
 from sqlalchemy import (
     Column, Integer, String, Text, Boolean, DateTime,

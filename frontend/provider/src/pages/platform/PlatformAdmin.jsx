@@ -81,7 +81,7 @@ export default function PlatformAdmin() {
     <div>
       <div className="page-header">
         <h1 className="page-title">Platform Administration</h1>
-        <div className="badge badge-purple">BharatCliniq Super Admin</div>
+        <div className="badge badge-purple">BHarath Health Super Admin</div>
       </div>
 
       {/* Stats */}
