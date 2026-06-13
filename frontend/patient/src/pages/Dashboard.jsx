@@ -159,40 +159,40 @@ export default function Dashboard() {
   return (
     <div className="space-y-5">
       {/* BHID Health Card */}
-      <div className="rounded-2xl p-6 text-white relative overflow-hidden"
+      <div className="rounded-2xl p-4 text-white relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #0F2557 0%, #1a3a7a 60%, #0a1a3e 100%)' }}>
         {/* Decorative */}
-        <div className="absolute -top-10 -right-10 w-56 h-56 rounded-full pointer-events-none" style={{ background:'rgba(245,130,30,0.12)' }} />
-        <div className="absolute -bottom-8 left-1/3 w-40 h-40 rounded-full pointer-events-none" style={{ background:'rgba(204,20,20,0.10)' }} />
+        <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full pointer-events-none" style={{ background:'rgba(245,130,30,0.12)' }} />
+        <div className="absolute -bottom-6 left-1/3 w-28 h-28 rounded-full pointer-events-none" style={{ background:'rgba(204,20,20,0.10)' }} />
 
         <div className="relative">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <img src={logoImg} alt="BHarath Health" style={{ height: 32, width: 'auto' }} />
-              <span className="font-extrabold text-sm tracking-wider text-white" style={{ letterSpacing: '-0.01em' }}>BHarath Health Systems</span>
+              <img src={logoImg} alt="BHarath Health" style={{ height: 24, width: 'auto' }} />
+              <span className="font-extrabold text-xs tracking-wider text-white/80">BHarath Health Systems</span>
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
               style={{ background: 'rgba(245,130,30,0.2)', color: '#fbbf24' }}>
-              <Heart size={11} />
+              <Heart size={10} />
               Digital Health Card
             </div>
           </div>
 
-          <div className="mb-5">
-            <div className="text-xs mb-1 font-medium" style={{ color: '#93c5fd' }}>Patient Name</div>
-            <div className="text-2xl font-bold tracking-wide">{user?.full_name || 'Patient'}</div>
-          </div>
-
-          <div className="flex items-end justify-between">
+          <div className="flex items-end justify-between mb-1">
             <div>
-              <div className="text-xs mb-1 font-medium" style={{ color: '#93c5fd' }}>BHID / Health ID</div>
-              <div className="font-mono text-lg font-bold tracking-widest" style={{ color: '#F5821E' }}>
-                {user?.bh_id ? user.bh_id.toUpperCase() : 'BH-XXXXXXXX'}
-              </div>
+              <div className="text-[10px] mb-0.5 font-medium" style={{ color: '#93c5fd' }}>Patient Name</div>
+              <div className="text-lg font-bold tracking-wide">{user?.full_name || 'Patient'}</div>
             </div>
             <div className="text-right">
-              <div className="text-xs mb-1 font-medium" style={{ color: '#93c5fd' }}>Health Centers</div>
-              <div className="text-xl font-bold">{user?.linked_clinics || 0}</div>
+              <div className="text-[10px] mb-0.5 font-medium" style={{ color: '#93c5fd' }}>Health Centers</div>
+              <div className="text-base font-bold">{user?.linked_clinics || 0}</div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[10px] mb-0.5 font-medium" style={{ color: '#93c5fd' }}>BHID / Health ID</div>
+            <div className="font-mono text-sm font-bold tracking-widest" style={{ color: '#F5821E' }}>
+              {user?.bh_id ? user.bh_id.toUpperCase() : 'BH-XXXXXXXX'}
             </div>
           </div>
 
