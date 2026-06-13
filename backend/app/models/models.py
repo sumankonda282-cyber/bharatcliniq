@@ -175,6 +175,7 @@ class DoctorProfile(Base):
     bio                = Column(Text, nullable=True)
     languages          = Column(String(500), nullable=True)
     is_active          = Column(Boolean, default=True)
+    accepting_appointments = Column(Boolean, default=True)   # receptionist can block new bookings
     telehealth_enabled = Column(Boolean, default=False)
     telehealth_fee     = Column(Numeric(10, 2), nullable=True)
     telehealth_slots   = Column(JSON, nullable=True)
@@ -199,6 +200,20 @@ class DoctorSchedule(Base):
     is_active    = Column(Boolean, default=True)
 
     doctor = relationship("DoctorProfile", back_populates="schedules")
+
+
+class DoctorDeskAssignment(Base):
+    """Pin/lock state per receptionist so multiple receptionists can split doctors."""
+    __tablename__ = "doctor_desk_assignments"
+    id         = Column(Integer, primary_key=True, index=True)
+    clinic_id  = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    doctor_id  = Column(Integer, ForeignKey("doctor_profiles.id"), nullable=False)
+    staff_id   = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    pinned     = Column(Boolean, default=False)
+    locked     = Column(Boolean, default=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (UniqueConstraint("doctor_id", "staff_id", name="uq_desk_doctor_staff"),)
 
 
 class Patient(Base):
@@ -1105,6 +1120,18 @@ class Admission(Base):
     insurance_company     = Column(String(200), nullable=True)
     policy_number         = Column(String(100), nullable=True)
     pre_auth_number       = Column(String(100), nullable=True)
+    # Emergency pre-registration fields
+    triage_level          = Column(String(10), nullable=True)   # red|orange|yellow|green
+    brought_by            = Column(String(50), nullable=True)   # ambulance|relative|police|walk_in|other
+    eta_minutes           = Column(Integer, nullable=True)
+    caller_name           = Column(String(200), nullable=True)
+    caller_mobile         = Column(String(20), nullable=True)
+    arrived_at            = Column(DateTime, nullable=True)
+    initial_vitals        = Column(JSON, nullable=True)         # {bp, pulse, spo2, temp, rr, gcs}
+    alert_sent_at         = Column(DateTime, nullable=True)
+    alert_sent_by         = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    alert_ack_at          = Column(DateTime, nullable=True)
+    alert_ack_by          = Column(Integer, ForeignKey("staff.id"), nullable=True)
     created_by            = Column(Integer, ForeignKey("staff.id"), nullable=True)
     created_at            = Column(DateTime, server_default=func.now())
 
@@ -1866,3 +1893,52 @@ class DrugContraindication(Base):
     severity     = Column(String(20), default="serious")  # contraindicated|serious
     reason       = Column(Text, nullable=True)
     created_at   = Column(DateTime, server_default=func.now())
+
+
+# ── Visitor Desk ───────────────────────────────────────────────────────────────
+
+class VisitorPolicy(Base):
+    __tablename__ = "visitor_policies"
+    id               = Column(Integer, primary_key=True, index=True)
+    clinic_id        = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    ward_id          = Column(Integer, ForeignKey("wards.id"), nullable=True)   # NULL = hospital-wide default
+    visit_start      = Column(String(5), default="10:00")    # "HH:MM"
+    visit_end        = Column(String(5), default="20:00")
+    max_active       = Column(Integer, default=5)            # active passes per patient at a time
+    max_persons      = Column(Integer, default=2)            # persons allowed per pass
+    attender_allowed = Column(Boolean, default=True)
+    lockdown         = Column(Boolean, default=False)        # full lockdown: no new passes
+    updated_at       = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class VisitorPass(Base):
+    __tablename__ = "visitor_passes"
+    id              = Column(Integer, primary_key=True, index=True)
+    clinic_id       = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    pass_code       = Column(String(12), unique=True, nullable=False, index=True)
+    pass_type       = Column(String(10), default="visit")    # visit | attender
+    admission_id    = Column(Integer, ForeignKey("admissions.id"), nullable=False)
+    patient_id      = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    visitor_name    = Column(String(200), nullable=False)
+    relation        = Column(String(50), nullable=True)
+    visitor_mobile  = Column(String(20), nullable=True)
+    id_proof_type   = Column(String(50), nullable=True)
+    id_proof_number = Column(String(100), nullable=True)
+    persons         = Column(Integer, default=1)
+    valid_from      = Column(DateTime, nullable=False)
+    valid_until     = Column(DateTime, nullable=False)
+    status          = Column(String(20), default="active")   # active|checked_in|checked_out|revoked
+    checked_in_at   = Column(DateTime, nullable=True)
+    checked_out_at  = Column(DateTime, nullable=True)
+    note            = Column(Text, nullable=True)
+    issued_by       = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    revoked_by      = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    revoke_reason   = Column(String(300), nullable=True)
+    override_note   = Column(String(300), nullable=True)
+    print_count     = Column(Integer, default=0)
+    edit_log        = Column(JSON, default=list)
+    created_at      = Column(DateTime, server_default=func.now())
+
+    admission = relationship("Admission", foreign_keys=[admission_id])
+    patient   = relationship("Patient", foreign_keys=[patient_id])
+    issuer    = relationship("Staff", foreign_keys=[issued_by])

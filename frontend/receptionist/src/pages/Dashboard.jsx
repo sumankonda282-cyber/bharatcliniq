@@ -2,10 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../api/client'
+import DoctorSlotBoard from '../components/dashboard/DoctorSlotBoard'
 import {
   CalendarDays, Clock, CheckCircle, Video, CreditCard, ChevronRight,
-  Check, X, BedDouble, Loader2, UserCircle2, AlertCircle, Bell,
-  Stethoscope, Phone, Globe, Footprints,
+  BedDouble, Loader2, Bell, ShieldAlert,
 } from 'lucide-react'
 
 function todayIST() {
@@ -29,232 +29,6 @@ function StatCard({ icon: Icon, label, value, color, onClick, loading }) {
       </div>
       <ChevronRight size={16} className="text-gray-300 flex-shrink-0" />
     </button>
-  )
-}
-
-// ── Appointment Requests ──────────────────────────────────────────────────────
-
-function BookingCard({ booking, onApprove, onReject, busy }) {
-  const [showReject, setShowReject] = useState(false)
-  const [reason, setReason] = useState('')
-
-  const modeIcon = booking.mode === 'phone' ? Phone : booking.mode === 'online' ? Globe : Footprints
-  const ModeIcon = modeIcon
-
-  return (
-    <div className="bg-white border border-amber-200 rounded-xl p-4">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="font-semibold text-gray-900 text-sm">{booking.patient_name}</span>
-            <span className="text-xs text-gray-400 font-mono">{booking.patient_mobile}</span>
-          </div>
-          <div className="text-xs text-gray-500 flex items-center gap-3 flex-wrap">
-            <span className="flex items-center gap-1"><CalendarDays size={11} /> {booking.booking_date} at {booking.booking_time?.slice(0, 5)}</span>
-            {booking.doctor && <span className="flex items-center gap-1"><Stethoscope size={11} /> {booking.doctor.full_name || booking.doctor.name}</span>}
-            {booking.reason && <span className="text-gray-400 truncate max-w-[180px]">"{booking.reason}"</span>}
-          </div>
-        </div>
-        <span className="text-xs bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full flex-shrink-0">Pending</span>
-      </div>
-
-      {showReject ? (
-        <div className="space-y-2">
-          <input value={reason} onChange={e => setReason(e.target.value)}
-            placeholder="Reason for rejection (optional)"
-            className="w-full text-xs px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-100" />
-          <div className="flex gap-2">
-            <button onClick={() => setShowReject(false)}
-              className="flex-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
-            <button onClick={() => onReject(booking.id, reason)} disabled={busy}
-              className="flex-1 px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-1">
-              {busy ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />} Confirm Reject
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <button onClick={() => setShowReject(true)}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
-            <X size={12} /> Reject
-          </button>
-          <button onClick={() => onApprove(booking.id)} disabled={busy}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
-            {busy ? <Loader2 size={11} className="animate-spin" /> : <Check size={12} />} Approve & Book
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function AppointmentRequests({ onCountChange }) {
-  const [bookings, setBookings] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(null)
-  const [toast, setToast] = useState(null)
-
-  const load = useCallback(async () => {
-    try {
-      const r = await api.get('/appointments/online-bookings', { params: { status: 'pending' } })
-      const list = Array.isArray(r) ? r : []
-      setBookings(list)
-      onCountChange(list.length)
-    } catch { setBookings([]); onCountChange(0) }
-    finally { setLoading(false) }
-  }, [onCountChange])
-
-  useEffect(() => { load() }, [load])
-
-  const approve = async (id) => {
-    setBusy(id)
-    try {
-      await api.post(`/appointments/online-bookings/${id}/confirm`)
-      setToast({ msg: 'Booking confirmed — appointment created', type: 'success' })
-      load()
-    } catch (e) {
-      setToast({ msg: e?.response?.data?.detail || 'Confirmation failed', type: 'error' })
-    } finally { setBusy(null) }
-  }
-
-  const reject = async (id, reason) => {
-    setBusy(id)
-    try {
-      await api.post(`/appointments/online-bookings/${id}/cancel`, { reason })
-      setToast({ msg: 'Booking rejected', type: 'success' })
-      load()
-    } catch (e) {
-      setToast({ msg: e?.response?.data?.detail || 'Rejection failed', type: 'error' })
-    } finally { setBusy(null) }
-  }
-
-  useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 3000)
-    return () => clearTimeout(t)
-  }, [toast])
-
-  if (loading) return (
-    <div className="card p-5 flex items-center gap-3 text-gray-400">
-      <Loader2 size={16} className="animate-spin" />
-      <span className="text-sm">Loading appointment requests…</span>
-    </div>
-  )
-
-  if (bookings.length === 0) return null
-
-  return (
-    <div className="card overflow-hidden mb-6">
-      <div className="px-5 py-4 border-b border-amber-100 flex items-center gap-3" style={{ background: '#FFFBEB' }}>
-        <Bell size={16} className="text-amber-600" />
-        <span className="font-bold text-amber-800">Appointment Requests</span>
-        <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-bold text-white bg-amber-500">{bookings.length}</span>
-        <span className="text-xs text-amber-600 ml-1">Online bookings awaiting confirmation</span>
-      </div>
-      <div className="p-4 grid gap-3 sm:grid-cols-2">
-        {bookings.map(b => (
-          <BookingCard key={b.id} booking={b}
-            onApprove={approve} onReject={reject} busy={busy === b.id} />
-        ))}
-      </div>
-      {toast && (
-        <div className={`mx-4 mb-4 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium
-          ${toast.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
-          {toast.type === 'success' ? <Check size={14} /> : <AlertCircle size={14} />}
-          {toast.msg}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Doctor Availability ───────────────────────────────────────────────────────
-
-function DoctorAvailability({ appts, loading }) {
-  const [doctors, setDoctors] = useState([])
-
-  useEffect(() => {
-    api.get('/clinic/doctors').then(r => setDoctors(Array.isArray(r) ? r : [])).catch(() => {})
-  }, [])
-
-  if (!loading && doctors.length === 0) return null
-
-  const today = todayIST()
-  const dayName = new Date(today).toLocaleDateString('en-IN', { weekday: 'long' }).toLowerCase()
-
-  const doctorStats = doctors.map(doc => {
-    const docAppts = appts.filter(a =>
-      a.doctor_name === doc.full_name || a.doctor_id === doc.id
-    )
-    const waiting    = docAppts.filter(a => ['scheduled', 'waiting'].includes(a.status)).length
-    const inProgress = docAppts.filter(a => a.status === 'in_progress').length
-    const completed  = docAppts.filter(a => a.status === 'completed').length
-
-    let status = 'available'
-    if (inProgress > 0) status = 'busy'
-    else if (waiting > 0) status = 'waiting'
-    else if (completed > 0 && waiting === 0) status = 'done'
-
-    return { ...doc, waiting, inProgress, completed, total: docAppts.length, status }
-  })
-
-  const statusConfig = {
-    busy:      { dot: 'bg-violet-500', label: 'In Consultation', text: 'text-violet-700' },
-    waiting:   { dot: 'bg-amber-400',  label: 'Patients Waiting', text: 'text-amber-700' },
-    available: { dot: 'bg-green-400',  label: 'Available',        text: 'text-green-700' },
-    done:      { dot: 'bg-gray-300',   label: 'Done for Today',   text: 'text-gray-500'  },
-  }
-
-  return (
-    <div className="card overflow-hidden mb-6">
-      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-        <span className="font-semibold text-gray-700 flex items-center gap-2">
-          <Stethoscope size={15} className="text-gray-400" />
-          Doctor Availability — Today
-        </span>
-        <span className="text-xs text-gray-400 capitalize">{dayName}</span>
-      </div>
-      {loading ? (
-        <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-gray-300" /></div>
-      ) : (
-        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {doctorStats.map(doc => {
-            const cfg = statusConfig[doc.status] || statusConfig.available
-            return (
-              <div key={doc.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
-                  style={{ background: '#0F255718', color: '#0F2557' }}>
-                  {(doc.full_name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-gray-800 truncate">{doc.full_name}</div>
-                  <div className="text-xs text-gray-400 truncate">{doc.specialty || 'General'}</div>
-                  <div className={`flex items-center gap-1.5 mt-1 text-xs font-medium ${cfg.text}`}>
-                    <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-                    {cfg.label}
-                  </div>
-                </div>
-                {doc.total > 0 && (
-                  <div className="text-right flex-shrink-0">
-                    <div className="text-lg font-bold" style={{ color: '#0F2557' }}>{doc.total}</div>
-                    <div className="text-xs text-gray-400">appts</div>
-                    {doc.waiting > 0 && (
-                      <div className="text-xs text-amber-600 font-medium">{doc.waiting} waiting</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-          {doctorStats.length === 0 && (
-            <div className="col-span-full text-center py-6 text-gray-400 text-sm">
-              <UserCircle2 size={28} className="mx-auto mb-2 opacity-30" />
-              No doctors configured
-            </div>
-          )}
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -304,6 +78,92 @@ function IPDSnapshot() {
   )
 }
 
+// ── Emergency Board (hospital only) ──────────────────────────────────────────
+
+const TRIAGE_ROW = {
+  red:    'bg-red-50 border-red-300 text-red-800',
+  orange: 'bg-orange-50 border-orange-300 text-orange-800',
+  yellow: 'bg-yellow-50 border-yellow-300 text-yellow-800',
+  green:  'bg-green-50 border-green-300 text-green-800',
+}
+const TRIAGE_PILL = {
+  red:    'bg-red-600 text-white',
+  orange: 'bg-orange-500 text-white',
+  yellow: 'bg-yellow-400 text-yellow-900',
+  green:  'bg-green-600 text-white',
+}
+
+function EmergencyBoard({ onNavigate }) {
+  const [items, setItems] = useState([])
+  const [loaded, setLoaded] = useState(false)
+
+  const load = useCallback(() => {
+    api.get('/inpatient/emergency', { params: { status: 'en_route' } })
+      .then(r => setItems(Array.isArray(r) ? r : []))
+      .catch(() => {})
+      .finally(() => setLoaded(true))
+  }, [])
+
+  useEffect(() => {
+    load()
+    const id = setInterval(load, 30000)
+    const h = () => load()
+    window.addEventListener('bharatcliniq:refresh', h)
+    return () => { clearInterval(id); window.removeEventListener('bharatcliniq:refresh', h) }
+  }, [load])
+
+  return (
+    <div className="card p-4 mb-6" style={{ borderLeft: '4px solid #dc2626' }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <ShieldAlert size={15} className="text-red-500" />
+          <span className="font-bold text-gray-800 text-sm">Emergency Board</span>
+          {items.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">
+              {items.length} EN ROUTE
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => onNavigate('/emergency-admission')}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700 transition shadow-sm shadow-red-200">
+          <ShieldAlert size={12} /> New Emergency
+        </button>
+      </div>
+
+      {!loaded ? null : items.length === 0 ? (
+        <p className="text-xs text-gray-400 text-center py-2">No emergencies en route</p>
+      ) : (
+        <div className="space-y-2">
+          {items.map(e => (
+            <div key={e.id}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm ${TRIAGE_ROW[e.triage_level] || TRIAGE_ROW.red}`}>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-md uppercase flex-shrink-0 ${TRIAGE_PILL[e.triage_level] || TRIAGE_PILL.red}`}>
+                {e.triage_level}
+              </span>
+              <span className="font-semibold flex-1 truncate">{e.patient_name}</span>
+              {e.eta_minutes && (
+                <span className="text-xs opacity-75 flex items-center gap-0.5 flex-shrink-0">
+                  <Clock size={10} /> {e.eta_minutes} min
+                </span>
+              )}
+              {e.doctor_name && (
+                <span className="text-xs opacity-75 flex-shrink-0 hidden sm:inline">Dr. {e.doctor_name}</span>
+              )}
+              {e.alert_sent_at && !e.alert_ack_at && (
+                <span className="text-xs font-bold text-red-600 animate-pulse flex-shrink-0">● Alert</span>
+              )}
+              {e.alert_ack_at && (
+                <span className="text-xs font-bold text-green-600 flex-shrink-0">✓ Accepted</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -339,7 +199,9 @@ export default function Dashboard() {
   useEffect(() => {
     load()
     timerRef.current = setInterval(load, 30000)
-    return () => clearInterval(timerRef.current)
+    const h = () => load()
+    window.addEventListener('bharatcliniq:refresh', h)
+    return () => { clearInterval(timerRef.current); window.removeEventListener('bharatcliniq:refresh', h) }
   }, [load])
 
   const waiting    = appts.filter(a => ['scheduled', 'waiting'].includes(a.status)).length
@@ -350,26 +212,14 @@ export default function Dashboard() {
   const goFrontDesk  = (filter) => navigate(`/front-desk${filter ? `?status=${filter}` : ''}`)
   const goBilling    = () => navigate('/billing')
   const goOperations = () => navigate('/operations')
+  const goEmergency  = (path = '/emergency-admission') => navigate(path)
 
   return (
     <div>
-      <div className="page-header flex items-center justify-between mb-6">
-        <div>
-          <h1 className="page-title">{isManager ? 'Manager Dashboard' : 'Staff Dashboard'}</h1>
-          {pendingCount > 0 && (
-            <p className="text-xs text-amber-600 font-medium mt-0.5 flex items-center gap-1">
-              <Bell size={11} /> {pendingCount} appointment request{pendingCount !== 1 ? 's' : ''} need attention
-            </p>
-          )}
+      {pendingCount > 0 && (
+        <div className="flex items-center gap-1.5 mb-5 text-xs text-amber-700 font-medium bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+          <Bell size={12} /> {pendingCount} appointment request{pendingCount !== 1 ? 's' : ''} need attention
         </div>
-        <span className="text-sm text-gray-500">
-          {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </span>
-      </div>
-
-      {/* Appointment Requests (online bookings needing approval) */}
-      {!isManager && (
-        <AppointmentRequests onCountChange={setPendingCount} />
       )}
 
       {/* Stat cards */}
@@ -386,9 +236,14 @@ export default function Dashboard() {
           onClick={() => isManager ? goOperations() : goFrontDesk('telehealth')} />
       </div>
 
-      {/* Doctor Availability (receptionist view) */}
+      {/* Emergency Board (hospital only, non-manager) */}
+      {isHospital && !isManager && (
+        <EmergencyBoard onNavigate={goEmergency} />
+      )}
+
+      {/* Doctor Slot Board — availability, requests, slot control (receptionist) */}
       {!isManager && (
-        <DoctorAvailability appts={appts} loading={loading} />
+        <DoctorSlotBoard onPendingCount={setPendingCount} />
       )}
 
       {/* IPD Bed Snapshot (hospital only) */}

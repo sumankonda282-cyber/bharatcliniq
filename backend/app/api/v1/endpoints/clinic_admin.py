@@ -17,7 +17,7 @@ from app.core.security import get_current_staff, hash_password
 from app.core.config import settings
 from app.models.models import (
     Clinic, Branch, Staff, DoctorProfile, DoctorSchedule,
-    Appointment, Invoice, Patient, OnlineBooking
+    Appointment, Invoice, Patient, OnlineBooking, DoctorDeskAssignment
 )
 from app.schemas.schemas import (
     ClinicUpdate, BranchCreate, BranchOut,
@@ -309,7 +309,245 @@ def list_doctors(db: Session = Depends(get_db), current=Depends(get_current_staf
         "consultation_fee":   float(d.doctor_profile.consultation_fee) if d.doctor_profile and d.doctor_profile.consultation_fee else 0,
         "telehealth_enabled": d.doctor_profile.telehealth_enabled if d.doctor_profile else False,
         "telehealth_fee":     float(d.doctor_profile.telehealth_fee) if d.doctor_profile and d.doctor_profile.telehealth_fee else None,
+        "accepting_appointments": d.doctor_profile.accepting_appointments if d.doctor_profile and d.doctor_profile.accepting_appointments is not None else True,
     } for d in doctors]
+
+
+@router.put("/doctors/{doctor_profile_id}/accepting")
+def toggle_doctor_accepting(
+    doctor_profile_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current=Depends(require_admin_or_receptionist),
+):
+    """Enable/block new bookings for a doctor (receptionist control)."""
+    profile = db.query(DoctorProfile).filter(
+        DoctorProfile.id == doctor_profile_id,
+        DoctorProfile.clinic_id == current.clinic_id,
+    ).first()
+    if not profile:
+        raise HTTPException(404, "Doctor profile not found")
+    profile.accepting_appointments = bool(body.get("accepting", True))
+    db.commit()
+    return {"doctor_id": profile.id, "accepting_appointments": profile.accepting_appointments}
+
+
+# ── Doctor Slot Board ─────────────────────────────────────────────────────────
+
+ACTIVE_APPT_STATUSES = ('cancelled', 'no_show')  # excluded = slot consumed
+
+
+def _slot_count(schedule) -> int:
+    from datetime import datetime as _dt
+    try:
+        start = _dt.strptime(schedule.start_time, "%H:%M")
+        end = _dt.strptime(schedule.end_time, "%H:%M")
+        mins = max(int((end - start).total_seconds() // 60), 0)
+        return mins // (schedule.slot_minutes or 15)
+    except Exception:
+        return 0
+
+
+@router.get("/slot-board")
+def slot_board(
+    date_from: date = None,
+    date_to: date = None,
+    db: Session = Depends(get_db),
+    current=Depends(require_admin_or_receptionist),
+):
+    """
+    Per-doctor, per-day slot summary over a date range.
+    Powers the receptionist Doctor Slot Board: totals, booked, requested, open,
+    live status (today), accepting flag, pin/lock assignments, advance requests.
+    """
+    from datetime import timedelta as _td
+    today = date.today()
+    if not date_from:
+        date_from = today
+    if not date_to:
+        date_to = date_from
+    if date_to < date_from:
+        date_from, date_to = date_to, date_from
+    if (date_to - date_from).days > 31:
+        date_to = date_from + _td(days=31)
+
+    days = []
+    d = date_from
+    while d <= date_to:
+        days.append(d)
+        d += _td(days=1)
+
+    doctors = db.query(Staff).filter(
+        Staff.clinic_id == current.clinic_id,
+        Staff.role == "doctor",
+        Staff.is_active == True,
+    ).all()
+    profile_ids = [s.doctor_profile.id for s in doctors if s.doctor_profile]
+
+    # Bulk fetch everything once
+    schedules = db.query(DoctorSchedule).filter(
+        DoctorSchedule.doctor_id.in_(profile_ids or [0]),
+        DoctorSchedule.is_active == True,
+    ).all()
+    sched_map = {}
+    for s in schedules:
+        sched_map.setdefault((s.doctor_id, s.day_of_week), s)
+
+    appts = db.query(
+        Appointment.doctor_id, Appointment.appointment_date,
+        Appointment.status,
+    ).filter(
+        Appointment.clinic_id == current.clinic_id,
+        Appointment.doctor_id.in_(profile_ids or [0]),
+        Appointment.appointment_date >= date_from,
+        Appointment.appointment_date <= date_to,
+    ).all()
+
+    pending_bookings = db.query(OnlineBooking).filter(
+        OnlineBooking.clinic_id == current.clinic_id,
+        OnlineBooking.status == "pending",
+    ).all()
+
+    assignments = db.query(DoctorDeskAssignment).filter(
+        DoctorDeskAssignment.clinic_id == current.clinic_id,
+    ).all()
+    staff_names = {s.id: s.full_name for s in db.query(Staff).filter(Staff.clinic_id == current.clinic_id).all()}
+
+    out = []
+    for s in doctors:
+        dp = s.doctor_profile
+        if not dp:
+            continue
+        day_rows, tot_total, tot_booked, tot_requested = [], 0, 0, 0
+        waiting_today = in_progress_today = completed_today = 0
+        for d in days:
+            day_name = d.strftime("%A").lower()
+            sched = sched_map.get((dp.id, day_name))
+            total = _slot_count(sched) if sched else 0
+            booked = sum(1 for a in appts if a.doctor_id == dp.id and a.appointment_date == d
+                         and a.status not in ACTIVE_APPT_STATUSES)
+            requested = sum(1 for b in pending_bookings if b.doctor_id == dp.id and b.booking_date == d)
+            if d == today:
+                waiting_today = sum(1 for a in appts if a.doctor_id == dp.id and a.appointment_date == d
+                                    and a.status in ('scheduled', 'waiting', 'confirmed', 'pending'))
+                in_progress_today = sum(1 for a in appts if a.doctor_id == dp.id and a.appointment_date == d
+                                        and a.status == 'in_progress')
+                completed_today = sum(1 for a in appts if a.doctor_id == dp.id and a.appointment_date == d
+                                      and a.status == 'completed')
+            open_slots = max(total - booked - requested, 0)
+            day_rows.append({
+                "date": str(d), "total": total, "booked": booked,
+                "requested": requested, "open": open_slots,
+                "no_schedule": sched is None,
+            })
+            tot_total += total; tot_booked += booked; tot_requested += requested
+
+        # Live status (today)
+        if in_progress_today > 0:
+            live = "busy"
+        elif waiting_today > 0:
+            live = "waiting"
+        elif completed_today > 0:
+            live = "done"
+        else:
+            live = "available"
+
+        advance = sum(1 for b in pending_bookings if b.doctor_id == dp.id and b.booking_date > today)
+        my_assign = next((a for a in assignments if a.doctor_id == dp.id and a.staff_id == current.id), None)
+        lock_row = next((a for a in assignments if a.doctor_id == dp.id and a.locked), None)
+
+        out.append({
+            "staff_id": s.id,
+            "profile_id": dp.id,
+            "full_name": s.full_name,
+            "specialty": dp.specialty or "General",
+            "accepting": dp.accepting_appointments if dp.accepting_appointments is not None else True,
+            "live_status": live,
+            "waiting_today": waiting_today,
+            "in_progress_today": in_progress_today,
+            "days": day_rows,
+            "totals": {
+                "total": tot_total, "booked": tot_booked,
+                "requested": tot_requested,
+                "open": max(tot_total - tot_booked - tot_requested, 0),
+            },
+            "advance_requests": advance,
+            "pinned": bool(my_assign and my_assign.pinned),
+            "locked_by": {
+                "staff_id": lock_row.staff_id,
+                "name": staff_names.get(lock_row.staff_id, "Staff"),
+                "me": lock_row.staff_id == current.id,
+            } if lock_row else None,
+        })
+
+    return {
+        "date_from": str(date_from),
+        "date_to": str(date_to),
+        "doctors": out,
+        "pending_requests": [{
+            "id": b.id,
+            "doctor_id": b.doctor_id,
+            "patient_name": b.patient_name,
+            "patient_mobile": b.patient_mobile,
+            "booking_date": str(b.booking_date),
+            "booking_time": b.booking_time,
+            "reason": b.reason,
+        } for b in sorted(pending_bookings, key=lambda b: (b.booking_date, b.booking_time or ""))],
+    }
+
+
+@router.post("/desk-assignments")
+def set_desk_assignment(
+    body: dict,
+    db: Session = Depends(get_db),
+    current=Depends(require_admin_or_receptionist),
+):
+    """Pin a doctor to my list, or lock/unlock a doctor (shared across receptionists)."""
+    doctor_id = body.get("doctor_id")
+    profile = db.query(DoctorProfile).filter(
+        DoctorProfile.id == doctor_id,
+        DoctorProfile.clinic_id == current.clinic_id,
+    ).first()
+    if not profile:
+        raise HTTPException(404, "Doctor profile not found")
+
+    row = db.query(DoctorDeskAssignment).filter(
+        DoctorDeskAssignment.doctor_id == doctor_id,
+        DoctorDeskAssignment.staff_id == current.id,
+    ).first()
+    if not row:
+        row = DoctorDeskAssignment(
+            clinic_id=current.clinic_id, doctor_id=doctor_id,
+            staff_id=current.id, pinned=False, locked=False,
+        )
+        db.add(row)
+
+    if "pinned" in body:
+        row.pinned = bool(body["pinned"])
+
+    if "locked" in body:
+        want = bool(body["locked"])
+        other_lock = db.query(DoctorDeskAssignment).filter(
+            DoctorDeskAssignment.doctor_id == doctor_id,
+            DoctorDeskAssignment.locked == True,
+            DoctorDeskAssignment.staff_id != current.id,
+        ).first()
+        if want and other_lock:
+            if current.role in CLINIC_ADMIN_ROLES:
+                other_lock.locked = False  # manager override steals the lock
+            else:
+                raise HTTPException(409, f"Already locked by {staff_name_of(db, other_lock.staff_id)}")
+        if not want and other_lock and current.role in CLINIC_ADMIN_ROLES:
+            other_lock.locked = False  # manager unlock for someone else
+        row.locked = want
+
+    db.commit()
+    return {"doctor_id": doctor_id, "pinned": row.pinned, "locked": row.locked}
+
+
+def staff_name_of(db, staff_id: int) -> str:
+    s = db.query(Staff).filter(Staff.id == staff_id).first()
+    return s.full_name if s else "another receptionist"
 
 
 @router.put("/doctors/{doctor_profile_id}/telehealth")

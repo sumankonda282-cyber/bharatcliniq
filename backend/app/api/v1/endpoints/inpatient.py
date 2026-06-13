@@ -22,6 +22,7 @@ from app.models.models import (
     VitalSign, NursingNote, MedicationAdministration, WardRound,
     DischargeSummary, ProgressNote,
     InpatientCharge, InpatientBill, Invoice,
+    VisitorPass, VisitorPolicy,
 )
 
 router = APIRouter(prefix="/inpatient", tags=["inpatient"])
@@ -577,6 +578,10 @@ def _admission_dict(a: Admission) -> dict:
         "insurance_company": a.insurance_company,
         "policy_number": a.policy_number,
         "pre_auth_number": a.pre_auth_number,
+        "triage_level": getattr(a, "triage_level", None),
+        "brought_by": getattr(a, "brought_by", None),
+        "eta_minutes": getattr(a, "eta_minutes", None),
+        "arrived_at": getattr(a, "arrived_at", None),
     }
 
 
@@ -1893,3 +1898,821 @@ def record_bill_payment(
     db.commit()
     db.refresh(bill)
     return _bill_dict(bill)
+
+
+# ── Visitor Desk ────────────────────────────────────────────────────────────────
+
+def _gen_pass_code(db: Session, pass_type: str) -> str:
+    prefix = "AT" if pass_type == "attender" else "VP"
+    while True:
+        code = prefix + "-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        if not db.query(VisitorPass).filter(VisitorPass.pass_code == code).first():
+            return code
+
+
+def _pass_dict(p: VisitorPass, db: Session) -> dict:
+    patient = db.query(Patient).filter(Patient.id == p.patient_id).first()
+    adm = db.query(Admission).filter(Admission.id == p.admission_id).first()
+    ward_name = bed_number = None
+    if adm:
+        if adm.ward_id:
+            w = db.query(Ward).filter(Ward.id == adm.ward_id).first()
+            if w: ward_name = w.name
+        if adm.bed_id:
+            b = db.query(Bed).filter(Bed.id == adm.bed_id).first()
+            if b: bed_number = b.bed_number
+    issuer = db.query(Staff).filter(Staff.id == p.issued_by).first() if p.issued_by else None
+    return {
+        "id": p.id,
+        "pass_code": p.pass_code,
+        "pass_type": p.pass_type,
+        "admission_id": p.admission_id,
+        "admission_number": adm.admission_number if adm else None,
+        "patient_id": p.patient_id,
+        "patient_name": patient.full_name if patient else None,
+        "ward_name": ward_name,
+        "bed_number": bed_number,
+        "visitor_name": p.visitor_name,
+        "relation": p.relation,
+        "visitor_mobile": p.visitor_mobile,
+        "id_proof_type": p.id_proof_type,
+        "id_proof_number": p.id_proof_number,
+        "persons": p.persons,
+        "valid_from": p.valid_from.isoformat() if p.valid_from else None,
+        "valid_until": p.valid_until.isoformat() if p.valid_until else None,
+        "status": p.status,
+        "checked_in_at": p.checked_in_at.isoformat() if p.checked_in_at else None,
+        "checked_out_at": p.checked_out_at.isoformat() if p.checked_out_at else None,
+        "note": p.note,
+        "issued_by": p.issued_by,
+        "issued_by_name": issuer.full_name if issuer else None,
+        "revoke_reason": p.revoke_reason,
+        "override_note": p.override_note,
+        "print_count": p.print_count,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+    }
+
+
+@router.get("/admissions/search")
+def search_admitted_patients(
+    q: str = Query("", min_length=1),
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    """Search currently-admitted patients for visitor pass issuance."""
+    base = db.query(Admission, Patient).join(
+        Patient, Patient.id == Admission.patient_id
+    ).filter(
+        Admission.clinic_id == current.clinic_id,
+        Admission.status.in_(["active", "discharge_pending"]),
+    )
+    q_clean = q.strip()
+    if q_clean:
+        ilike = f"%{q_clean}%"
+        base = base.filter(
+            (Patient.full_name.ilike(ilike)) |
+            (Patient.mobile.ilike(ilike)) |
+            (Patient.bh_id.ilike(ilike)) |
+            (Admission.admission_number.ilike(ilike))
+        )
+    rows = base.order_by(Admission.admitted_at.desc()).limit(20).all()
+    result = []
+    for adm, pat in rows:
+        ward_name = bed_number = dept_name = None
+        if adm.ward_id:
+            w = db.query(Ward).filter(Ward.id == adm.ward_id).first()
+            if w: ward_name = w.name
+        if adm.bed_id:
+            b = db.query(Bed).filter(Bed.id == adm.bed_id).first()
+            if b: bed_number = b.bed_number
+        if adm.department_id:
+            d = db.query(Department).filter(Department.id == adm.department_id).first()
+            if d: dept_name = d.name
+        result.append({
+            "admission_id": adm.id,
+            "admission_number": adm.admission_number,
+            "patient_id": pat.id,
+            "patient_name": pat.full_name,
+            "mobile": pat.mobile,
+            "bh_id": pat.bh_id,
+            "ward_name": ward_name,
+            "bed_number": bed_number,
+            "dept_name": dept_name,
+            "primary_diagnosis": adm.primary_diagnosis,
+            "admitted_at": adm.admitted_at.isoformat() if adm.admitted_at else None,
+            "status": adm.status,
+        })
+    return result
+
+
+# ── Visitor Policies ────────────────────────────────────────────────────────────
+
+def _policy_dict(p: VisitorPolicy) -> dict:
+    return {
+        "id": p.id,
+        "clinic_id": p.clinic_id,
+        "ward_id": p.ward_id,
+        "visit_start": p.visit_start,
+        "visit_end": p.visit_end,
+        "max_active": p.max_active,
+        "max_persons": p.max_persons,
+        "attender_allowed": p.attender_allowed,
+        "lockdown": p.lockdown,
+    }
+
+
+def _get_policy(db: Session, clinic_id: int, ward_id) -> VisitorPolicy:
+    pol = None
+    if ward_id:
+        pol = db.query(VisitorPolicy).filter(
+            VisitorPolicy.clinic_id == clinic_id,
+            VisitorPolicy.ward_id == ward_id,
+        ).first()
+    if not pol:
+        pol = db.query(VisitorPolicy).filter(
+            VisitorPolicy.clinic_id == clinic_id,
+            VisitorPolicy.ward_id.is_(None),
+        ).first()
+    if not pol:
+        pol = VisitorPolicy(visit_start="10:00", visit_end="20:00", max_active=5, max_persons=2, attender_allowed=True, lockdown=False)
+    return pol
+
+
+@router.get("/visitor-policies")
+def get_visitor_policies(
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    policies = db.query(VisitorPolicy).filter(
+        VisitorPolicy.clinic_id == current.clinic_id,
+    ).all()
+    return [_policy_dict(p) for p in policies]
+
+
+@router.put("/visitor-policies")
+def upsert_visitor_policy(
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    ward_id = body.get("ward_id")
+    pol = db.query(VisitorPolicy).filter(
+        VisitorPolicy.clinic_id == current.clinic_id,
+        VisitorPolicy.ward_id == ward_id,
+    ).first()
+    if not pol:
+        pol = VisitorPolicy(clinic_id=current.clinic_id, ward_id=ward_id)
+        db.add(pol)
+    for field in ("visit_start", "visit_end", "max_active", "max_persons", "attender_allowed", "lockdown"):
+        if field in body:
+            setattr(pol, field, body[field])
+    db.commit()
+    db.refresh(pol)
+    return _policy_dict(pol)
+
+
+# ── Visitor Pass CRUD ───────────────────────────────────────────────────────────
+
+@router.get("/visitor-passes/verify/{pass_code}")
+def verify_pass(
+    pass_code: str,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    p = db.query(VisitorPass).filter(
+        VisitorPass.pass_code == pass_code.upper(),
+        VisitorPass.clinic_id == current.clinic_id,
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Pass not found")
+    now = datetime.utcnow()
+    expired = p.valid_until < now if p.valid_until else False
+    return {**_pass_dict(p, db), "expired": expired}
+
+
+@router.post("/visitor-passes/bulk-revoke")
+def bulk_revoke_passes(
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    scope = body.get("scope", "admission")
+    reason = body.get("reason", "Bulk revoke")
+    q2 = db.query(VisitorPass).filter(
+        VisitorPass.clinic_id == current.clinic_id,
+        VisitorPass.status.in_(["active", "checked_in"]),
+    )
+    if scope == "admission":
+        admission_id = body.get("admission_id")
+        if not admission_id:
+            raise HTTPException(status_code=400, detail="admission_id required for scope=admission")
+        q2 = q2.filter(VisitorPass.admission_id == admission_id)
+    elif scope == "ward":
+        ward_id = body.get("ward_id")
+        if not ward_id:
+            raise HTTPException(status_code=400, detail="ward_id required for scope=ward")
+        adm_ids = [a.id for a in db.query(Admission).filter(
+            Admission.clinic_id == current.clinic_id,
+            Admission.ward_id == ward_id,
+            Admission.status.in_(["active", "discharge_pending"]),
+        ).all()]
+        q2 = q2.filter(VisitorPass.admission_id.in_(adm_ids))
+    passes = q2.all()
+    count = 0
+    for p in passes:
+        p.status = "revoked"
+        p.revoked_by = current.id
+        p.revoke_reason = reason
+        count += 1
+    db.commit()
+    return {"revoked": count}
+
+
+@router.get("/visitor-passes")
+def list_visitor_passes(
+    date: Optional[str] = Query(None),
+    patient_id: Optional[int] = Query(None),
+    admission_id: Optional[int] = Query(None),
+    ward_id: Optional[int] = Query(None),
+    status: Optional[str] = Query(None),
+    pass_type: Optional[str] = Query(None),
+    q: Optional[str] = Query(None),
+    limit: int = Query(100, le=500),
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    query = db.query(VisitorPass).filter(VisitorPass.clinic_id == current.clinic_id)
+    if date:
+        query = query.filter(
+            VisitorPass.created_at >= f"{date} 00:00:00",
+            VisitorPass.created_at <= f"{date} 23:59:59",
+        )
+    if patient_id:
+        query = query.filter(VisitorPass.patient_id == patient_id)
+    if admission_id:
+        query = query.filter(VisitorPass.admission_id == admission_id)
+    if status:
+        query = query.filter(VisitorPass.status == status)
+    if pass_type:
+        query = query.filter(VisitorPass.pass_type == pass_type)
+    if ward_id:
+        adm_ids = [a.id for a in db.query(Admission).filter(
+            Admission.clinic_id == current.clinic_id,
+            Admission.ward_id == ward_id,
+        ).all()]
+        query = query.filter(VisitorPass.admission_id.in_(adm_ids))
+    if q:
+        ilike = f"%{q.strip()}%"
+        pats = [p.id for p in db.query(Patient).filter(
+            Patient.clinic_id == current.clinic_id,
+            Patient.full_name.ilike(ilike),
+        ).all()]
+        query = query.filter(
+            (VisitorPass.pass_code.ilike(ilike)) |
+            (VisitorPass.visitor_name.ilike(ilike)) |
+            (VisitorPass.patient_id.in_(pats))
+        )
+    passes = query.order_by(VisitorPass.created_at.desc()).limit(limit).all()
+    return [_pass_dict(p, db) for p in passes]
+
+
+@router.post("/visitor-passes")
+def issue_visitor_pass(
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    admission_id = body.get("admission_id")
+    if not admission_id:
+        raise HTTPException(status_code=400, detail="admission_id required")
+    visitor_name = (body.get("visitor_name") or "").strip()
+    if not visitor_name:
+        raise HTTPException(status_code=400, detail="visitor_name required")
+
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == current.clinic_id,
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Admission not found")
+
+    pass_type = body.get("pass_type", "visit")
+    is_manager = current.role in ("clinic_admin", "clinic_manager", "admin")
+    override_note = (body.get("override_note") or "").strip() if is_manager else ""
+
+    pol = _get_policy(db, current.clinic_id, adm.ward_id)
+
+    if pol.lockdown and not override_note:
+        raise HTTPException(status_code=403, detail="Lockdown active — no new visitor passes. Manager override required.")
+    if pass_type == "attender" and not pol.attender_allowed and not override_note:
+        raise HTTPException(status_code=403, detail="Attender passes not allowed. Manager override required.")
+
+    active_count = db.query(VisitorPass).filter(
+        VisitorPass.admission_id == admission_id,
+        VisitorPass.status.in_(["active", "checked_in"]),
+    ).count()
+    if active_count >= pol.max_active and not override_note:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Max active passes ({pol.max_active}) reached for this patient. Manager override required.",
+        )
+
+    persons = int(body.get("persons", 1))
+    if not override_note:
+        persons = min(persons, pol.max_persons)
+
+    valid_from_str = body.get("valid_from")
+    valid_until_str = body.get("valid_until")
+    try:
+        valid_from = datetime.fromisoformat(valid_from_str) if valid_from_str else datetime.utcnow()
+        valid_until = datetime.fromisoformat(valid_until_str) if valid_until_str else datetime.utcnow().replace(hour=20, minute=0, second=0, microsecond=0)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid valid_from or valid_until format")
+
+    pass_code = _gen_pass_code(db, pass_type)
+    vp = VisitorPass(
+        clinic_id=current.clinic_id,
+        pass_code=pass_code,
+        pass_type=pass_type,
+        admission_id=admission_id,
+        patient_id=adm.patient_id,
+        visitor_name=visitor_name,
+        relation=body.get("relation"),
+        visitor_mobile=body.get("visitor_mobile"),
+        id_proof_type=body.get("id_proof_type"),
+        id_proof_number=body.get("id_proof_number"),
+        persons=persons,
+        valid_from=valid_from,
+        valid_until=valid_until,
+        note=body.get("note"),
+        override_note=override_note or None,
+        issued_by=current.id,
+        print_count=1,
+        edit_log=[],
+    )
+    db.add(vp)
+    db.commit()
+    db.refresh(vp)
+    return _pass_dict(vp, db)
+
+
+@router.get("/visitor-passes/{pass_id}")
+def get_visitor_pass(
+    pass_id: int,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    p = db.query(VisitorPass).filter(
+        VisitorPass.id == pass_id,
+        VisitorPass.clinic_id == current.clinic_id,
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Pass not found")
+    return _pass_dict(p, db)
+
+
+@router.put("/visitor-passes/{pass_id}")
+def edit_visitor_pass(
+    pass_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    p = db.query(VisitorPass).filter(
+        VisitorPass.id == pass_id,
+        VisitorPass.clinic_id == current.clinic_id,
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Pass not found")
+    if p.status == "revoked":
+        raise HTTPException(status_code=400, detail="Cannot edit a revoked pass")
+
+    log = list(p.edit_log or [])
+    ts = datetime.utcnow().isoformat()
+    for field in ("visitor_name", "relation", "visitor_mobile", "id_proof_type", "id_proof_number", "persons", "note"):
+        if field in body:
+            old = getattr(p, field)
+            new = body[field]
+            if old != new:
+                log.append({"by": current.id, "by_name": current.full_name, "at": ts, "field": field, "old": old, "new": new})
+                setattr(p, field, new)
+    if "valid_until" in body:
+        try:
+            new_until = datetime.fromisoformat(body["valid_until"])
+            log.append({"by": current.id, "by_name": current.full_name, "at": ts, "field": "valid_until", "old": p.valid_until.isoformat() if p.valid_until else None, "new": body["valid_until"]})
+            p.valid_until = new_until
+        except (ValueError, TypeError):
+            pass
+    p.edit_log = log
+    db.commit()
+    db.refresh(p)
+    return _pass_dict(p, db)
+
+
+@router.post("/visitor-passes/{pass_id}/extend")
+def extend_visitor_pass(
+    pass_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    p = db.query(VisitorPass).filter(
+        VisitorPass.id == pass_id,
+        VisitorPass.clinic_id == current.clinic_id,
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Pass not found")
+    if p.status == "revoked":
+        raise HTTPException(status_code=400, detail="Cannot extend a revoked pass")
+
+    new_until_str = body.get("valid_until")
+    if not new_until_str:
+        raise HTTPException(status_code=400, detail="valid_until required")
+    try:
+        new_until = datetime.fromisoformat(new_until_str)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid valid_until format")
+
+    log = list(p.edit_log or [])
+    log.append({"by": current.id, "by_name": current.full_name, "at": datetime.utcnow().isoformat(), "field": "valid_until", "old": p.valid_until.isoformat() if p.valid_until else None, "new": new_until_str, "action": "extend"})
+    p.valid_until = new_until
+    p.edit_log = log
+    if p.status == "checked_out":
+        p.status = "active"
+    db.commit()
+    db.refresh(p)
+    return _pass_dict(p, db)
+
+
+@router.post("/visitor-passes/{pass_id}/revoke")
+def revoke_visitor_pass(
+    pass_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    p = db.query(VisitorPass).filter(
+        VisitorPass.id == pass_id,
+        VisitorPass.clinic_id == current.clinic_id,
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Pass not found")
+    if p.status == "revoked":
+        raise HTTPException(status_code=400, detail="Already revoked")
+    p.status = "revoked"
+    p.revoked_by = current.id
+    p.revoke_reason = body.get("reason", "")
+    db.commit()
+    db.refresh(p)
+    return _pass_dict(p, db)
+
+
+@router.post("/visitor-passes/{pass_id}/checkin")
+def checkin_visitor_pass(
+    pass_id: int,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    p = db.query(VisitorPass).filter(
+        VisitorPass.id == pass_id,
+        VisitorPass.clinic_id == current.clinic_id,
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Pass not found")
+    if p.status != "active":
+        raise HTTPException(status_code=400, detail=f"Cannot check in — pass status is '{p.status}'")
+    now = datetime.utcnow()
+    if p.valid_until and now > p.valid_until:
+        raise HTTPException(status_code=400, detail="Pass has expired")
+    p.status = "checked_in"
+    p.checked_in_at = now
+    db.commit()
+    db.refresh(p)
+    return _pass_dict(p, db)
+
+
+@router.post("/visitor-passes/{pass_id}/checkout")
+def checkout_visitor_pass(
+    pass_id: int,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    p = db.query(VisitorPass).filter(
+        VisitorPass.id == pass_id,
+        VisitorPass.clinic_id == current.clinic_id,
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Pass not found")
+    if p.status != "checked_in":
+        raise HTTPException(status_code=400, detail=f"Cannot check out — pass status is '{p.status}'")
+    p.status = "checked_out"
+    p.checked_out_at = datetime.utcnow()
+    db.commit()
+    db.refresh(p)
+    return _pass_dict(p, db)
+
+
+@router.post("/visitor-passes/{pass_id}/reprint")
+def reprint_visitor_pass(
+    pass_id: int,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    p = db.query(VisitorPass).filter(
+        VisitorPass.id == pass_id,
+        VisitorPass.clinic_id == current.clinic_id,
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Pass not found")
+    p.print_count = (p.print_count or 0) + 1
+    db.commit()
+    db.refresh(p)
+    return _pass_dict(p, db)
+
+
+# ── Emergency Pre-Registration ─────────────────────────────────────────────────
+
+def _emergency_dict(adm: Admission, db: Session) -> dict:
+    patient = db.query(Patient).filter(Patient.id == adm.patient_id).first()
+    doctor = db.query(Staff).filter(Staff.id == adm.admitting_doctor_id).first() if adm.admitting_doctor_id else None
+    ward_name = bed_number = dept_name = None
+    if adm.ward_id:
+        w = db.query(Ward).filter(Ward.id == adm.ward_id).first()
+        if w: ward_name = w.name
+    if adm.bed_id:
+        b = db.query(Bed).filter(Bed.id == adm.bed_id).first()
+        if b: bed_number = b.bed_number
+    if adm.department_id:
+        d = db.query(Department).filter(Department.id == adm.department_id).first()
+        if d: dept_name = d.name
+    ack_by_name = None
+    if getattr(adm, "alert_ack_by", None):
+        acker = db.query(Staff).filter(Staff.id == adm.alert_ack_by).first()
+        if acker: ack_by_name = acker.full_name
+    sent_by_name = None
+    if getattr(adm, "alert_sent_by", None):
+        sender = db.query(Staff).filter(Staff.id == adm.alert_sent_by).first()
+        if sender: sent_by_name = sender.full_name
+    return {
+        "id": adm.id,
+        "admission_number": adm.admission_number,
+        "patient_id": adm.patient_id,
+        "patient_name": patient.full_name if patient else "Unknown",
+        "patient_gender": patient.gender if patient else None,
+        "patient_mobile": patient.mobile if patient else None,
+        "patient_age": patient.age if patient else None,
+        "triage_level": getattr(adm, "triage_level", None),
+        "brought_by": getattr(adm, "brought_by", None),
+        "eta_minutes": getattr(adm, "eta_minutes", None),
+        "caller_name": getattr(adm, "caller_name", None),
+        "caller_mobile": getattr(adm, "caller_mobile", None),
+        "chief_complaint": adm.primary_diagnosis,
+        "initial_vitals": getattr(adm, "initial_vitals", None),
+        "department_id": adm.department_id,
+        "dept_name": dept_name,
+        "ward_id": adm.ward_id,
+        "ward_name": ward_name,
+        "bed_id": adm.bed_id,
+        "bed_number": bed_number,
+        "admitting_doctor_id": adm.admitting_doctor_id,
+        "doctor_name": doctor.full_name if doctor else None,
+        "status": adm.status,
+        "arrived_at": adm.arrived_at.isoformat() if getattr(adm, "arrived_at", None) else None,
+        "alert_sent_at": adm.alert_sent_at.isoformat() if getattr(adm, "alert_sent_at", None) else None,
+        "alert_sent_by": getattr(adm, "alert_sent_by", None),
+        "alert_sent_by_name": sent_by_name,
+        "alert_ack_at": adm.alert_ack_at.isoformat() if getattr(adm, "alert_ack_at", None) else None,
+        "alert_ack_by": getattr(adm, "alert_ack_by", None),
+        "alert_ack_by_name": ack_by_name,
+        "admitted_at": adm.admitted_at.isoformat() if adm.admitted_at else None,
+    }
+
+
+@router.get("/emergency")
+def list_emergencies(
+    status: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    q = db.query(Admission).filter(
+        Admission.clinic_id == current.clinic_id,
+        Admission.admission_type == "emergency",
+    )
+    if status:
+        q = q.filter(Admission.status == status)
+    else:
+        q = q.filter(Admission.status.in_(["en_route", "active", "pending_bed"]))
+    return [_emergency_dict(a, db) for a in q.order_by(Admission.admitted_at.desc()).limit(100).all()]
+
+
+@router.post("/emergency")
+def create_emergency(
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    """Create emergency pre-registration — patient en route."""
+    clinic = _get_clinic(db, current.clinic_id)
+
+    patient_name = (body.get("patient_name") or "").strip()
+    if not patient_name:
+        patient_name = "Unidentified Patient"
+
+    patient = Patient(
+        clinic_id=current.clinic_id,
+        full_name=patient_name,
+        gender=body.get("gender"),
+        mobile=body.get("mobile"),
+    )
+    # age handling — store as approximate
+    if body.get("age"):
+        import json
+        # Store age in a way the model supports; Patient has no plain age column, skip if absent
+        pass
+    db.add(patient)
+    db.flush()
+
+    clinic.admission_sequence = (clinic.admission_sequence or 0) + 1
+    db.flush()
+    prefix = clinic.clinic_prefix or "BC"
+    admission_number = f"{prefix}-EMRG-{datetime.now().year}-{str(clinic.admission_sequence).zfill(6)}"
+
+    adm = Admission(
+        clinic_id=current.clinic_id,
+        patient_id=patient.id,
+        admission_number=admission_number,
+        admission_sequence=clinic.admission_sequence,
+        admission_type="emergency",
+        status="en_route",
+        department_id=body.get("department_id"),
+        ward_id=body.get("ward_id"),
+        bed_id=body.get("bed_id"),
+        admitting_doctor_id=body.get("doctor_id") or current.id,
+        primary_diagnosis=body.get("chief_complaint"),
+        triage_level=body.get("triage_level", "orange"),
+        brought_by=body.get("brought_by"),
+        eta_minutes=body.get("eta_minutes"),
+        caller_name=body.get("caller_name"),
+        caller_mobile=body.get("caller_mobile"),
+        initial_vitals=body.get("initial_vitals") or None,
+        created_by=current.id,
+    )
+    db.add(adm)
+
+    if body.get("bed_id"):
+        bed = db.query(Bed).filter(Bed.id == body["bed_id"]).first()
+        if bed:
+            bed.status = "occupied"
+            bed.current_admission_id = adm.id
+
+    db.commit()
+    db.refresh(adm)
+    return _emergency_dict(adm, db)
+
+
+@router.put("/emergency/{admission_id}")
+def update_emergency(
+    admission_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    """Fully editable — name, mobile, all details can be corrected."""
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == current.clinic_id,
+        Admission.admission_type == "emergency",
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Emergency not found")
+
+    # Update patient fields (name/mobile may be corrected)
+    patient = db.query(Patient).filter(Patient.id == adm.patient_id).first()
+    if patient:
+        if "patient_name" in body and body["patient_name"]:
+            patient.full_name = body["patient_name"].strip()
+        if "mobile" in body:
+            patient.mobile = body["mobile"]
+        if "gender" in body:
+            patient.gender = body["gender"]
+
+    for field in ("triage_level", "brought_by", "eta_minutes", "caller_name", "caller_mobile",
+                  "chief_complaint", "initial_vitals", "department_id"):
+        if field in body:
+            col = "primary_diagnosis" if field == "chief_complaint" else field
+            setattr(adm, col, body[field])
+
+    # Doctor reassignment
+    if "doctor_id" in body:
+        adm.admitting_doctor_id = body["doctor_id"] or adm.admitting_doctor_id
+
+    # Ward/Bed reassignment
+    new_bed_id = body.get("bed_id")
+    if new_bed_id is not None and new_bed_id != adm.bed_id:
+        if adm.bed_id:
+            old_bed = db.query(Bed).filter(Bed.id == adm.bed_id).first()
+            if old_bed and old_bed.current_admission_id == adm.id:
+                old_bed.status = "vacant"
+                old_bed.current_admission_id = None
+        if new_bed_id:
+            new_bed = db.query(Bed).filter(Bed.id == new_bed_id).first()
+            if new_bed:
+                new_bed.status = "occupied"
+                new_bed.current_admission_id = adm.id
+        adm.bed_id = new_bed_id
+    if "ward_id" in body:
+        adm.ward_id = body["ward_id"]
+
+    db.commit()
+    db.refresh(adm)
+    return _emergency_dict(adm, db)
+
+
+@router.post("/emergency/{admission_id}/alert")
+def send_emergency_alert(
+    admission_id: int,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    """Receptionist manually fires alarm to department care team."""
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == current.clinic_id,
+        Admission.admission_type == "emergency",
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Emergency not found")
+    adm.alert_sent_at = datetime.utcnow()
+    adm.alert_sent_by = current.id
+    adm.alert_ack_at = None
+    adm.alert_ack_by = None
+    db.commit()
+    db.refresh(adm)
+    return _emergency_dict(adm, db)
+
+
+@router.post("/emergency/{admission_id}/acknowledge")
+def acknowledge_emergency_alert(
+    admission_id: int,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    """Care team accepts the emergency alarm — stops the alarm."""
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == current.clinic_id,
+        Admission.admission_type == "emergency",
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Emergency not found")
+    adm.alert_ack_at = datetime.utcnow()
+    adm.alert_ack_by = current.id
+    db.commit()
+    db.refresh(adm)
+    return _emergency_dict(adm, db)
+
+
+@router.post("/emergency/{admission_id}/arrived")
+def mark_emergency_arrived(
+    admission_id: int,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    """Patient physically arrives — promote to active admission."""
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == current.clinic_id,
+        Admission.admission_type == "emergency",
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Emergency not found")
+    adm.status = "active"
+    adm.arrived_at = datetime.utcnow()
+    db.commit()
+    db.refresh(adm)
+    return _emergency_dict(adm, db)
+
+
+@router.post("/emergency/{admission_id}/cancel")
+def cancel_emergency(
+    admission_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == current.clinic_id,
+        Admission.admission_type == "emergency",
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Emergency not found")
+    adm.status = "cancelled"
+    if adm.bed_id:
+        bed = db.query(Bed).filter(Bed.id == adm.bed_id).first()
+        if bed and bed.current_admission_id == adm.id:
+            bed.status = "vacant"
+            bed.current_admission_id = None
+    db.commit()
+    db.refresh(adm)
+    return _emergency_dict(adm, db)

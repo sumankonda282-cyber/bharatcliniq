@@ -179,6 +179,7 @@ def get_clinic_public(slug: str, db: Session = Depends(get_db)):
                 "mci_verified":     dp.mci_verified if dp else False,
                 "telehealth_enabled": dp.telehealth_enabled if dp else False,
                 "telehealth_fee":   float(dp.telehealth_fee) if dp and dp.telehealth_fee else None,
+                "accepting":        (dp.accepting_appointments if dp.accepting_appointments is not None else True) if dp else True,
             }
             for s, dp in doctors
         ],
@@ -251,6 +252,8 @@ def get_available_slots(
         Appointment.status.in_([
             'confirmed',
             'pending',
+            'scheduled',
+            'waiting',
             'in_progress',
         ])
     ).all()
@@ -265,6 +268,7 @@ def get_available_slots(
 
     return {
         "available": True,
+        "accepting": doctor.accepting_appointments if doctor.accepting_appointments is not None else True,
         "doctor_id": doctor_profile_id,
         "branch_id": branch_id,
         "date": str(booking_date),
@@ -299,6 +303,11 @@ def book_appointment_online(
         ).first()
         if branch:
             branch_id = branch.id
+
+    # Doctor may be blocked from new bookings by reception
+    _doc = db.query(DoctorProfile).filter(DoctorProfile.id == payload.doctor_id).first()
+    if _doc and _doc.accepting_appointments is False:
+        raise HTTPException(status_code=400, detail="This doctor is not accepting new bookings right now. Please choose another doctor or call the clinic.")
 
     # Validate slot is still available
     slot_data = get_available_slots(

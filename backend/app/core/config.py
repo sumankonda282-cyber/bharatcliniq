@@ -74,6 +74,7 @@ class Settings(BaseSettings):
             "http://localhost:5177",
             "http://localhost:5178",
             "http://localhost:5179",
+            "https://bhs-staff.pages.dev",
         ]
         if self.CORS_ORIGINS:
             extras = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]

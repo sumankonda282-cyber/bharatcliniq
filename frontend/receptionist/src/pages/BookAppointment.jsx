@@ -19,6 +19,7 @@ const defaultForm = () => ({
 export default function BookAppointment() {
   const navigate = useNavigate()
   const location = useLocation()
+  const prefill = location.state?.prefill || null  // { doctor_staff_id, date, time } from Slot Board
 
   const [doctors, setDoctors] = useState([])
   const [patient, setPatient] = useState(location.state?.patient || null)
@@ -27,7 +28,11 @@ export default function BookAppointment() {
   const [searching, setSearching] = useState(false)
   const timer = useRef(null)
 
-  const [form, setForm] = useState(defaultForm)
+  const [form, setForm] = useState(() => ({
+    ...defaultForm(),
+    ...(prefill?.date ? { appointment_date: prefill.date } : {}),
+    ...(prefill?.time ? { appointment_time: prefill.time } : {}),
+  }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(null)
@@ -35,7 +40,14 @@ export default function BookAppointment() {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   useEffect(() => {
-    api.get('/clinic/doctors').then(r => setDoctors(Array.isArray(r) ? r : [])).catch(() => {})
+    api.get('/clinic/doctors').then(r => {
+      const list = Array.isArray(r) ? r : []
+      setDoctors(list)
+      if (prefill?.doctor_staff_id) {
+        const d = list.find(x => String(x.id) === String(prefill.doctor_staff_id))
+        if (d) setForm(f => ({ ...f, doctor_id: String(d.id), fee: f.fee || d.consultation_fee || '' }))
+      }
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
