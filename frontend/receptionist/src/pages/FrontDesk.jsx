@@ -3,9 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Search, X, Check, Loader2, Clock, Calendar, AlertTriangle,
   ChevronRight, UserPlus, CalendarPlus, Pin, PinOff, Pencil, CalendarRange,
-  Footprints, Phone, Globe, Video,
+  Footprints, Phone, Globe, Video, RefreshCw, ShieldAlert,
 } from 'lucide-react'
 import api from '../api/client'
+import { useAuth } from '../contexts/AuthContext'
 import RegisterPatientModal from '../components/frontdesk/RegisterPatientModal'
 import BookAppointmentModal from '../components/frontdesk/BookAppointmentModal'
 import EditAppointmentModal from '../components/frontdesk/EditAppointmentModal'
@@ -78,6 +79,8 @@ function Toast({ msg, type = 'success', onClose }) {
 export default function FrontDesk() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const { user } = useAuth()
+  const isHospital = user?.org_type === 'hospital'
 
   // ── data ───────────────────────────────────────────────────────────────────
   const [appts, setAppts] = useState([])
@@ -242,6 +245,14 @@ export default function FrontDesk() {
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
             <CalendarPlus size={14} /> Book Appointment
           </button>
+
+          {/* Emergency — hospital only */}
+          {isHospital && (
+            <button onClick={() => navigate('/emergency-admission')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 font-bold shadow-sm shadow-red-200">
+              <ShieldAlert size={14} /> Emergency
+            </button>
+          )}
         </div>
       </div>
 

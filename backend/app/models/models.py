@@ -1128,6 +1128,10 @@ class Admission(Base):
     caller_mobile         = Column(String(20), nullable=True)
     arrived_at            = Column(DateTime, nullable=True)
     initial_vitals        = Column(JSON, nullable=True)         # {bp, pulse, spo2, temp, rr, gcs}
+    alert_sent_at         = Column(DateTime, nullable=True)
+    alert_sent_by         = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    alert_ack_at          = Column(DateTime, nullable=True)
+    alert_ack_by          = Column(Integer, ForeignKey("staff.id"), nullable=True)
     created_by            = Column(Integer, ForeignKey("staff.id"), nullable=True)
     created_at            = Column(DateTime, server_default=func.now())
 

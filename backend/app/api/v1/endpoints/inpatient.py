@@ -578,6 +578,10 @@ def _admission_dict(a: Admission) -> dict:
         "insurance_company": a.insurance_company,
         "policy_number": a.policy_number,
         "pre_auth_number": a.pre_auth_number,
+        "triage_level": getattr(a, "triage_level", None),
+        "brought_by": getattr(a, "brought_by", None),
+        "eta_minutes": getattr(a, "eta_minutes", None),
+        "arrived_at": getattr(a, "arrived_at", None),
     }
 
 
@@ -2424,3 +2428,291 @@ def reprint_visitor_pass(
     db.commit()
     db.refresh(p)
     return _pass_dict(p, db)
+
+
+# ── Emergency Pre-Registration ─────────────────────────────────────────────────
+
+def _emergency_dict(adm: Admission, db: Session) -> dict:
+    patient = db.query(Patient).filter(Patient.id == adm.patient_id).first()
+    doctor = db.query(Staff).filter(Staff.id == adm.admitting_doctor_id).first() if adm.admitting_doctor_id else None
+    ward_name = bed_number = dept_name = None
+    if adm.ward_id:
+        w = db.query(Ward).filter(Ward.id == adm.ward_id).first()
+        if w: ward_name = w.name
+    if adm.bed_id:
+        b = db.query(Bed).filter(Bed.id == adm.bed_id).first()
+        if b: bed_number = b.bed_number
+    if adm.department_id:
+        d = db.query(Department).filter(Department.id == adm.department_id).first()
+        if d: dept_name = d.name
+    ack_by_name = None
+    if getattr(adm, "alert_ack_by", None):
+        acker = db.query(Staff).filter(Staff.id == adm.alert_ack_by).first()
+        if acker: ack_by_name = acker.full_name
+    sent_by_name = None
+    if getattr(adm, "alert_sent_by", None):
+        sender = db.query(Staff).filter(Staff.id == adm.alert_sent_by).first()
+        if sender: sent_by_name = sender.full_name
+    return {
+        "id": adm.id,
+        "admission_number": adm.admission_number,
+        "patient_id": adm.patient_id,
+        "patient_name": patient.full_name if patient else "Unknown",
+        "patient_gender": patient.gender if patient else None,
+        "patient_mobile": patient.mobile if patient else None,
+        "patient_age": patient.age if patient else None,
+        "triage_level": getattr(adm, "triage_level", None),
+        "brought_by": getattr(adm, "brought_by", None),
+        "eta_minutes": getattr(adm, "eta_minutes", None),
+        "caller_name": getattr(adm, "caller_name", None),
+        "caller_mobile": getattr(adm, "caller_mobile", None),
+        "chief_complaint": adm.primary_diagnosis,
+        "initial_vitals": getattr(adm, "initial_vitals", None),
+        "department_id": adm.department_id,
+        "dept_name": dept_name,
+        "ward_id": adm.ward_id,
+        "ward_name": ward_name,
+        "bed_id": adm.bed_id,
+        "bed_number": bed_number,
+        "admitting_doctor_id": adm.admitting_doctor_id,
+        "doctor_name": doctor.full_name if doctor else None,
+        "status": adm.status,
+        "arrived_at": adm.arrived_at.isoformat() if getattr(adm, "arrived_at", None) else None,
+        "alert_sent_at": adm.alert_sent_at.isoformat() if getattr(adm, "alert_sent_at", None) else None,
+        "alert_sent_by": getattr(adm, "alert_sent_by", None),
+        "alert_sent_by_name": sent_by_name,
+        "alert_ack_at": adm.alert_ack_at.isoformat() if getattr(adm, "alert_ack_at", None) else None,
+        "alert_ack_by": getattr(adm, "alert_ack_by", None),
+        "alert_ack_by_name": ack_by_name,
+        "admitted_at": adm.admitted_at.isoformat() if adm.admitted_at else None,
+    }
+
+
+@router.get("/emergency")
+def list_emergencies(
+    status: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    q = db.query(Admission).filter(
+        Admission.clinic_id == current.clinic_id,
+        Admission.admission_type == "emergency",
+    )
+    if status:
+        q = q.filter(Admission.status == status)
+    else:
+        q = q.filter(Admission.status.in_(["en_route", "active", "pending_bed"]))
+    return [_emergency_dict(a, db) for a in q.order_by(Admission.admitted_at.desc()).limit(100).all()]
+
+
+@router.post("/emergency")
+def create_emergency(
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    """Create emergency pre-registration — patient en route."""
+    clinic = _get_clinic(db, current.clinic_id)
+
+    patient_name = (body.get("patient_name") or "").strip()
+    if not patient_name:
+        patient_name = "Unidentified Patient"
+
+    patient = Patient(
+        clinic_id=current.clinic_id,
+        full_name=patient_name,
+        gender=body.get("gender"),
+        mobile=body.get("mobile"),
+    )
+    # age handling — store as approximate
+    if body.get("age"):
+        import json
+        # Store age in a way the model supports; Patient has no plain age column, skip if absent
+        pass
+    db.add(patient)
+    db.flush()
+
+    clinic.admission_sequence = (clinic.admission_sequence or 0) + 1
+    db.flush()
+    prefix = clinic.clinic_prefix or "BC"
+    admission_number = f"{prefix}-EMRG-{datetime.now().year}-{str(clinic.admission_sequence).zfill(6)}"
+
+    adm = Admission(
+        clinic_id=current.clinic_id,
+        patient_id=patient.id,
+        admission_number=admission_number,
+        admission_sequence=clinic.admission_sequence,
+        admission_type="emergency",
+        status="en_route",
+        department_id=body.get("department_id"),
+        ward_id=body.get("ward_id"),
+        bed_id=body.get("bed_id"),
+        admitting_doctor_id=body.get("doctor_id") or current.id,
+        primary_diagnosis=body.get("chief_complaint"),
+        triage_level=body.get("triage_level", "orange"),
+        brought_by=body.get("brought_by"),
+        eta_minutes=body.get("eta_minutes"),
+        caller_name=body.get("caller_name"),
+        caller_mobile=body.get("caller_mobile"),
+        initial_vitals=body.get("initial_vitals") or None,
+        created_by=current.id,
+    )
+    db.add(adm)
+
+    if body.get("bed_id"):
+        bed = db.query(Bed).filter(Bed.id == body["bed_id"]).first()
+        if bed:
+            bed.status = "occupied"
+            bed.current_admission_id = adm.id
+
+    db.commit()
+    db.refresh(adm)
+    return _emergency_dict(adm, db)
+
+
+@router.put("/emergency/{admission_id}")
+def update_emergency(
+    admission_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    """Fully editable — name, mobile, all details can be corrected."""
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == current.clinic_id,
+        Admission.admission_type == "emergency",
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Emergency not found")
+
+    # Update patient fields (name/mobile may be corrected)
+    patient = db.query(Patient).filter(Patient.id == adm.patient_id).first()
+    if patient:
+        if "patient_name" in body and body["patient_name"]:
+            patient.full_name = body["patient_name"].strip()
+        if "mobile" in body:
+            patient.mobile = body["mobile"]
+        if "gender" in body:
+            patient.gender = body["gender"]
+
+    for field in ("triage_level", "brought_by", "eta_minutes", "caller_name", "caller_mobile",
+                  "chief_complaint", "initial_vitals", "department_id"):
+        if field in body:
+            col = "primary_diagnosis" if field == "chief_complaint" else field
+            setattr(adm, col, body[field])
+
+    # Doctor reassignment
+    if "doctor_id" in body:
+        adm.admitting_doctor_id = body["doctor_id"] or adm.admitting_doctor_id
+
+    # Ward/Bed reassignment
+    new_bed_id = body.get("bed_id")
+    if new_bed_id is not None and new_bed_id != adm.bed_id:
+        if adm.bed_id:
+            old_bed = db.query(Bed).filter(Bed.id == adm.bed_id).first()
+            if old_bed and old_bed.current_admission_id == adm.id:
+                old_bed.status = "vacant"
+                old_bed.current_admission_id = None
+        if new_bed_id:
+            new_bed = db.query(Bed).filter(Bed.id == new_bed_id).first()
+            if new_bed:
+                new_bed.status = "occupied"
+                new_bed.current_admission_id = adm.id
+        adm.bed_id = new_bed_id
+    if "ward_id" in body:
+        adm.ward_id = body["ward_id"]
+
+    db.commit()
+    db.refresh(adm)
+    return _emergency_dict(adm, db)
+
+
+@router.post("/emergency/{admission_id}/alert")
+def send_emergency_alert(
+    admission_id: int,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    """Receptionist manually fires alarm to department care team."""
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == current.clinic_id,
+        Admission.admission_type == "emergency",
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Emergency not found")
+    adm.alert_sent_at = datetime.utcnow()
+    adm.alert_sent_by = current.id
+    adm.alert_ack_at = None
+    adm.alert_ack_by = None
+    db.commit()
+    db.refresh(adm)
+    return _emergency_dict(adm, db)
+
+
+@router.post("/emergency/{admission_id}/acknowledge")
+def acknowledge_emergency_alert(
+    admission_id: int,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    """Care team accepts the emergency alarm — stops the alarm."""
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == current.clinic_id,
+        Admission.admission_type == "emergency",
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Emergency not found")
+    adm.alert_ack_at = datetime.utcnow()
+    adm.alert_ack_by = current.id
+    db.commit()
+    db.refresh(adm)
+    return _emergency_dict(adm, db)
+
+
+@router.post("/emergency/{admission_id}/arrived")
+def mark_emergency_arrived(
+    admission_id: int,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    """Patient physically arrives — promote to active admission."""
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == current.clinic_id,
+        Admission.admission_type == "emergency",
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Emergency not found")
+    adm.status = "active"
+    adm.arrived_at = datetime.utcnow()
+    db.commit()
+    db.refresh(adm)
+    return _emergency_dict(adm, db)
+
+
+@router.post("/emergency/{admission_id}/cancel")
+def cancel_emergency(
+    admission_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current: Staff = Depends(get_current_staff),
+):
+    adm = db.query(Admission).filter(
+        Admission.id == admission_id,
+        Admission.clinic_id == current.clinic_id,
+        Admission.admission_type == "emergency",
+    ).first()
+    if not adm:
+        raise HTTPException(status_code=404, detail="Emergency not found")
+    adm.status = "cancelled"
+    if adm.bed_id:
+        bed = db.query(Bed).filter(Bed.id == adm.bed_id).first()
+        if bed and bed.current_admission_id == adm.id:
+            bed.status = "vacant"
+            bed.current_admission_id = None
+    db.commit()
+    db.refresh(adm)
+    return _emergency_dict(adm, db)

@@ -1,13 +1,14 @@
 import ChatWidget from './ChatWidget'
 import HelpWidget from './HelpWidget'
 import StaffProfilePanel from './StaffProfilePanel'
+import EmergencyAlertBanner from './EmergencyAlertBanner'
 import { useState, useEffect, useRef } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   CreditCard, LayoutDashboard, LogOut, Users,
   Menu, X, Settings, BedDouble, LayoutGrid, Banknote, Wrench, HelpCircle,
   CalendarRange, UserCircle2, Plane, LayoutTemplate, Send, Monitor, RefreshCw,
-  UserCheck,
+  UserCheck, ShieldAlert,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import BrandLogo from './BrandLogo'
@@ -28,10 +29,11 @@ const RECEP_NAV = [
   { to: '/billing',     icon: CreditCard,      label: 'Billing' },
 ]
 const HOSPITAL_NAV = [
-  { to: '/admissions',        icon: BedDouble,   label: 'Admissions' },
-  { to: '/bed-board',         icon: LayoutGrid,  label: 'Bed Board' },
-  { to: '/inpatient-billing', icon: Banknote,    label: 'IPD Billing' },
-  { to: '/visitor-desk',      icon: UserCheck,   label: 'Visitor Desk' },
+  { to: '/admissions',          icon: BedDouble,    label: 'Admissions' },
+  { to: '/bed-board',           icon: LayoutGrid,   label: 'Bed Board' },
+  { to: '/inpatient-billing',   icon: Banknote,     label: 'IPD Billing' },
+  { to: '/visitor-desk',        icon: UserCheck,    label: 'Visitor Desk' },
+  { to: '/emergency-admission', icon: ShieldAlert,  label: 'Emergency' },
 ]
 const SCHEDULER_NAV = [
   { to: '/scheduler',           icon: CalendarRange,   label: 'Schedule Board' },
@@ -105,6 +107,7 @@ const PAGE_TITLES = {
   '/account':             { recep: 'Account Settings',  manager: 'Account Settings' },
   '/scheduler':           { recep: 'Schedule Board',    manager: 'Schedule Board' },
   '/visitor-desk':        { recep: 'Visitor Desk',      manager: 'Visitor Desk' },
+  '/emergency-admission': { recep: 'Emergency Pre-Registration', manager: 'Emergency Pre-Registration' },
 }
 
 function getPageTitle(pathname, isManager) {
@@ -271,6 +274,8 @@ export default function Layout() {
             )}
           </div>
         </header>
+
+        {isHospital && <EmergencyAlertBanner />}
 
         <main className="flex-1 overflow-y-auto">
           <div className="p-4 md:p-6">

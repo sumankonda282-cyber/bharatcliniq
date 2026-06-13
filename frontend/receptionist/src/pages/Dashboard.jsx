@@ -5,7 +5,7 @@ import api from '../api/client'
 import DoctorSlotBoard from '../components/dashboard/DoctorSlotBoard'
 import {
   CalendarDays, Clock, CheckCircle, Video, CreditCard, ChevronRight,
-  BedDouble, Loader2, Bell,
+  BedDouble, Loader2, Bell, ShieldAlert,
 } from 'lucide-react'
 
 function todayIST() {
@@ -78,6 +78,92 @@ function IPDSnapshot() {
   )
 }
 
+// ── Emergency Board (hospital only) ──────────────────────────────────────────
+
+const TRIAGE_ROW = {
+  red:    'bg-red-50 border-red-300 text-red-800',
+  orange: 'bg-orange-50 border-orange-300 text-orange-800',
+  yellow: 'bg-yellow-50 border-yellow-300 text-yellow-800',
+  green:  'bg-green-50 border-green-300 text-green-800',
+}
+const TRIAGE_PILL = {
+  red:    'bg-red-600 text-white',
+  orange: 'bg-orange-500 text-white',
+  yellow: 'bg-yellow-400 text-yellow-900',
+  green:  'bg-green-600 text-white',
+}
+
+function EmergencyBoard({ onNavigate }) {
+  const [items, setItems] = useState([])
+  const [loaded, setLoaded] = useState(false)
+
+  const load = useCallback(() => {
+    api.get('/inpatient/emergency', { params: { status: 'en_route' } })
+      .then(r => setItems(Array.isArray(r) ? r : []))
+      .catch(() => {})
+      .finally(() => setLoaded(true))
+  }, [])
+
+  useEffect(() => {
+    load()
+    const id = setInterval(load, 30000)
+    const h = () => load()
+    window.addEventListener('bharatcliniq:refresh', h)
+    return () => { clearInterval(id); window.removeEventListener('bharatcliniq:refresh', h) }
+  }, [load])
+
+  return (
+    <div className="card p-4 mb-6" style={{ borderLeft: '4px solid #dc2626' }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <ShieldAlert size={15} className="text-red-500" />
+          <span className="font-bold text-gray-800 text-sm">Emergency Board</span>
+          {items.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">
+              {items.length} EN ROUTE
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => onNavigate('/emergency-admission')}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700 transition shadow-sm shadow-red-200">
+          <ShieldAlert size={12} /> New Emergency
+        </button>
+      </div>
+
+      {!loaded ? null : items.length === 0 ? (
+        <p className="text-xs text-gray-400 text-center py-2">No emergencies en route</p>
+      ) : (
+        <div className="space-y-2">
+          {items.map(e => (
+            <div key={e.id}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm ${TRIAGE_ROW[e.triage_level] || TRIAGE_ROW.red}`}>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-md uppercase flex-shrink-0 ${TRIAGE_PILL[e.triage_level] || TRIAGE_PILL.red}`}>
+                {e.triage_level}
+              </span>
+              <span className="font-semibold flex-1 truncate">{e.patient_name}</span>
+              {e.eta_minutes && (
+                <span className="text-xs opacity-75 flex items-center gap-0.5 flex-shrink-0">
+                  <Clock size={10} /> {e.eta_minutes} min
+                </span>
+              )}
+              {e.doctor_name && (
+                <span className="text-xs opacity-75 flex-shrink-0 hidden sm:inline">Dr. {e.doctor_name}</span>
+              )}
+              {e.alert_sent_at && !e.alert_ack_at && (
+                <span className="text-xs font-bold text-red-600 animate-pulse flex-shrink-0">● Alert</span>
+              )}
+              {e.alert_ack_at && (
+                <span className="text-xs font-bold text-green-600 flex-shrink-0">✓ Accepted</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -126,6 +212,7 @@ export default function Dashboard() {
   const goFrontDesk  = (filter) => navigate(`/front-desk${filter ? `?status=${filter}` : ''}`)
   const goBilling    = () => navigate('/billing')
   const goOperations = () => navigate('/operations')
+  const goEmergency  = (path = '/emergency-admission') => navigate(path)
 
   return (
     <div>
@@ -148,6 +235,11 @@ export default function Dashboard() {
         <StatCard icon={Video}        label="Telehealth"      value={telehealth}    color="#0891B2" loading={loading}
           onClick={() => isManager ? goOperations() : goFrontDesk('telehealth')} />
       </div>
+
+      {/* Emergency Board (hospital only, non-manager) */}
+      {isHospital && !isManager && (
+        <EmergencyBoard onNavigate={goEmergency} />
+      )}
 
       {/* Doctor Slot Board — availability, requests, slot control (receptionist) */}
       {!isManager && (

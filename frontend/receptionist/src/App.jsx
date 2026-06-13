@@ -22,6 +22,7 @@ import InpatientBilling from './pages/InpatientBilling'
 import Telehealth from './pages/Telehealth'
 import MaintenanceDashboard from './pages/MaintenanceDashboard'
 import VisitorDesk from './pages/VisitorDesk'
+import EmergencyAdmission from './pages/EmergencyAdmission'
 import Board from './pages/scheduler/Board'
 import Setup from './pages/scheduler/Setup'
 import Groups from './pages/scheduler/Groups'
@@ -82,6 +83,7 @@ function AppRoutes() {
         <Route path="inpatient-billing" element={<InpatientBilling />} />
         <Route path="maintenance" element={<MaintenanceDashboard />} />
         <Route path="visitor-desk" element={<VisitorDesk />} />
+        <Route path="emergency-admission" element={<EmergencyAdmission />} />
         <Route path="account" element={<AccountSettings />} />
         <Route path="scheduler" element={<SchedulerOnly><Board /></SchedulerOnly>} />
         <Route path="scheduler/setup" element={<SchedulerOnly><Setup /></SchedulerOnly>} />
