@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 from app.db.session import get_db
 from app.core.config import settings
-from app.models.models import PatientUser, Patient, BHProfile
+from app.models.models import PatientUser, Patient, BHProfile, DrugCounselling
 
 router = APIRouter(prefix="/portal", tags=["patient-portal"])
 security = HTTPBearer()
@@ -626,3 +626,18 @@ def generate_new_pin(current: PatientUser = Depends(get_current_patient), db: Se
         "expires_at":       current.disclosure_pin_expiry.isoformat(),
         "expires_in_seconds": PIN_TTL_MINUTES * 60,
     }
+
+@router.get("/drug-counselling")
+def portal_drug_counselling(
+    generic: str,
+    current: PatientUser = Depends(get_current_patient),
+    db: Session = Depends(get_db),
+):
+    """Return patient counselling tips for a drug generic name."""
+    rows = (
+        db.query(DrugCounselling)
+        .filter(DrugCounselling.generic.ilike(generic.strip()))
+        .order_by(DrugCounselling.sort_order)
+        .all()
+    )
+    return {"generic": generic, "tips": [r.tip for r in rows]}

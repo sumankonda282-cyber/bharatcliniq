@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import api from '../api/client'
 import { cachedFetch } from '../utils/cache'
-import { Pill, ChevronDown, ChevronUp } from 'lucide-react'
+import { Pill, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
 
 const isActive = (drug) => {
   const d = new Date(drug.rx_date)
@@ -11,6 +11,16 @@ const isActive = (drug) => {
 function DrugRow({ drug, expanded, onToggle }) {
   const active = isActive(drug)
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+  const [tips, setTips] = useState(null)
+
+  useEffect(() => {
+    if (!expanded || tips !== null) return
+    const generic = drug.medicine_name || drug.medicine || ''
+    if (!generic) { setTips([]); return }
+    api.get(`/portal/drug-counselling?generic=${encodeURIComponent(generic)}`)
+      .then(r => setTips(r?.tips || r?.data?.tips || []))
+      .catch(() => setTips([]))
+  }, [expanded])
 
   return (
     <>
@@ -38,17 +48,32 @@ function DrugRow({ drug, expanded, onToggle }) {
           <td colSpan={6} className="px-6 py-4">
             <div className="text-sm space-y-1.5">
               <div className="text-gray-700">
-                <strong>Prescribed by:</strong> {drug.doctor_name || '—'} on {fmtDate(drug.rx_date)} at {drug.clinic_name || '—'}
+                <strong>Prescribed by:</strong> {drug.doctor_name || '—'} · {fmtDate(drug.rx_date)} · {drug.clinic_name || '—'}
               </div>
-              <div className="text-gray-600">
-                <strong>For:</strong> {drug.rx_notes || '—'}
-              </div>
-              <div className="text-gray-600">
-                <strong>Instructions:</strong> {drug.instructions || '—'}
-              </div>
-              <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-2">
-                Note: Take as directed. Do not stop medication without consulting your doctor.
-              </div>
+              {drug.rx_notes && (
+                <div className="text-gray-600"><strong>For condition:</strong> {drug.rx_notes}</div>
+              )}
+              {drug.instructions && (
+                <div className="text-gray-600"><strong>Instructions:</strong> {drug.instructions}</div>
+              )}
+              {tips === null && (
+                <div className="text-xs text-gray-400 italic">Loading counselling notes…</div>
+              )}
+              {tips && tips.length > 0 && (
+                <div className="mt-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <AlertCircle size={12} className="text-amber-600" />
+                    <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">Counselling Notes</span>
+                  </div>
+                  <ul className="space-y-1">
+                    {tips.map((tip, i) => (
+                      <li key={i} className="text-xs text-amber-800 flex items-start gap-1.5">
+                        <span className="text-amber-400 mt-0.5">•</span>{tip}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </td>
         </tr>
