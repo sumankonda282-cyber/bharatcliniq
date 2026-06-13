@@ -1120,6 +1120,14 @@ class Admission(Base):
     insurance_company     = Column(String(200), nullable=True)
     policy_number         = Column(String(100), nullable=True)
     pre_auth_number       = Column(String(100), nullable=True)
+    # Emergency pre-registration fields
+    triage_level          = Column(String(10), nullable=True)   # red|orange|yellow|green
+    brought_by            = Column(String(50), nullable=True)   # ambulance|relative|police|walk_in|other
+    eta_minutes           = Column(Integer, nullable=True)
+    caller_name           = Column(String(200), nullable=True)
+    caller_mobile         = Column(String(20), nullable=True)
+    arrived_at            = Column(DateTime, nullable=True)
+    initial_vitals        = Column(JSON, nullable=True)         # {bp, pulse, spo2, temp, rr, gcs}
     created_by            = Column(Integer, ForeignKey("staff.id"), nullable=True)
     created_at            = Column(DateTime, server_default=func.now())
 
