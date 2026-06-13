@@ -15,7 +15,7 @@ const NAV = [
   { to: '/',              label: 'Dashboard',        icon: LayoutDashboard, end: true },
   { to: '/appointments',  label: 'Appointments',     icon: Calendar },
   { to: '/telehealth',    label: 'Telehealth',       icon: Video },
-  { to: '/history',       label: 'Clinical History', icon: FileText },
+  { to: '/history',       label: 'Medical History',  icon: FileText },
   { to: '/prescriptions', label: 'Prescriptions',    icon: Pill },
   { to: '/lab-results',   label: 'Lab Results',      icon: FlaskConical },
   { to: '/bills',         label: 'Bills',            icon: Receipt },

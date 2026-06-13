@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   ChevronDown, Calendar, Stethoscope, Building2, FileText, X,
-  Activity, FlaskConical, Pill, ClipboardList, MessageSquare, Video,
+  Activity, FlaskConical, Pill, ClipboardList, MessageSquare, Video, Printer,
 } from 'lucide-react'
 import api from '../api/client'
 import { cachedFetch } from '../utils/cache'
@@ -66,6 +66,7 @@ function VisitRow({ visit, open, onToggle }) {
           </div>
           <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5 flex-wrap">
             <span className="inline-flex items-center gap-1"><Stethoscope size={11} />{visit.doctor_name}</span>
+            {visit.doctor_specialty && <span className="text-gray-400">{visit.doctor_specialty}</span>}
             <span className="inline-flex items-center gap-1"><Building2 size={11} />{visit.clinic_name}</span>
           </div>
           {headline && <div className="text-xs text-gray-400 mt-0.5 truncate">{headline}</div>}
@@ -79,6 +80,7 @@ function VisitRow({ visit, open, onToggle }) {
           <div className="flex flex-wrap gap-x-6 gap-y-1 py-3 text-xs text-gray-500">
             <span><strong className="text-gray-700">Date:</strong> {fmtDate(visit.date)} {visit.time && `· ${visit.time}`}</span>
             <span><strong className="text-gray-700">Doctor:</strong> {visit.doctor_name}{visit.doctor_specialty && ` (${visit.doctor_specialty})`}</span>
+            {visit.doctor_specialty && <span><strong className="text-gray-700">Specialty:</strong> {visit.doctor_specialty}</span>}
             <span><strong className="text-gray-700">Health Center:</strong> {visit.clinic_name}{visit.clinic_city && `, ${visit.clinic_city}`}</span>
             <span><strong className="text-gray-700">Visit:</strong> {visit.mode === 'telehealth' ? 'Telehealth' : 'In-person'}{visit.visit_type && ` · ${visit.visit_type}`}</span>
           </div>
@@ -148,13 +150,17 @@ function VisitRow({ visit, open, onToggle }) {
   )
 }
 
-export default function ClinicalHistory() {
+export default function MedicalHistory() {
   const [visits, setVisits] = useState([])
   const [loading, setLoading] = useState(true)
   const [openId, setOpenId] = useState(null)
-  const [filterDate, setFilterDate] = useState('')
+
+  // Filters
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [visitType, setVisitType] = useState('')
+  const [filterSpecialty, setFilterSpecialty] = useState('')
   const [filterClinic, setFilterClinic] = useState('')
-  const [filterDoctor, setFilterDoctor] = useState('')
 
   useEffect(() => {
     cachedFetch('clinical_history', () => api.get('/portal/clinical-history'), (d) => {
@@ -163,40 +169,66 @@ export default function ClinicalHistory() {
     }).catch(() => setLoading(false))
   }, [])
 
+  const specialties = useMemo(() => [...new Set(visits.map(v => v.doctor_specialty).filter(Boolean))], [visits])
   const clinics = useMemo(() => [...new Set(visits.map(v => v.clinic_name).filter(Boolean))], [visits])
-  const doctors = useMemo(() => [...new Set(visits.map(v => v.doctor_name).filter(Boolean))], [visits])
 
-  const filtered = visits.filter(v =>
-    (!filterDate || v.date === filterDate) &&
-    (!filterClinic || v.clinic_name === filterClinic) &&
-    (!filterDoctor || v.doctor_name === filterDoctor)
-  )
+  const filtered = visits.filter(v => {
+    if (fromDate && v.date < fromDate) return false
+    if (toDate && v.date > toDate) return false
+    if (visitType === 'telehealth' && v.mode !== 'telehealth') return false
+    if (visitType === 'in_person' && v.mode === 'telehealth') return false
+    if (filterSpecialty && v.doctor_specialty !== filterSpecialty) return false
+    if (filterClinic && v.clinic_name !== filterClinic) return false
+    return true
+  })
 
-  const hasFilters = filterDate || filterClinic || filterDoctor
+  const hasFilters = fromDate || toDate || visitType || filterSpecialty || filterClinic
+
+  const clearFilters = () => {
+    setFromDate(''); setToDate(''); setVisitType(''); setFilterSpecialty(''); setFilterClinic('')
+  }
 
   return (
     <div>
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-2 mb-5">
-        <div className="relative">
-          <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)}
-            className="input pl-9 sm:w-44" style={{ colorScheme: 'light' }} />
-        </div>
-        <select value={filterClinic} onChange={e => setFilterClinic(e.target.value)} className="input sm:w-52">
-          <option value="">All Health Centers</option>
-          {clinics.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select value={filterDoctor} onChange={e => setFilterDoctor(e.target.value)} className="input sm:w-48">
-          <option value="">All Doctors</option>
-          {doctors.map(d => <option key={d} value={d}>{d}</option>)}
-        </select>
-        {hasFilters && (
-          <button onClick={() => { setFilterDate(''); setFilterClinic(''); setFilterDoctor('') }}
-            className="inline-flex items-center gap-1 text-sm font-medium px-3 py-2 rounded-xl text-gray-500 hover:bg-gray-100 transition-colors">
-            <X size={14} />Clear
+      <style>{`@media print { .no-print { display: none !important; } .card { box-shadow: none !important; border: 1px solid #e5e7eb !important; } }`}</style>
+
+      {/* Filters bar */}
+      <div className="no-print">
+        <div className="flex flex-wrap gap-2 mb-5">
+          <div className="flex items-center gap-1">
+            <label className="text-xs text-gray-500 whitespace-nowrap">From</label>
+            <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+              className="input sm:w-40" style={{ colorScheme: 'light' }} />
+          </div>
+          <div className="flex items-center gap-1">
+            <label className="text-xs text-gray-500 whitespace-nowrap">To</label>
+            <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+              className="input sm:w-40" style={{ colorScheme: 'light' }} />
+          </div>
+          <select value={visitType} onChange={e => setVisitType(e.target.value)} className="input sm:w-40">
+            <option value="">All Visit Types</option>
+            <option value="in_person">In-Person</option>
+            <option value="telehealth">Telehealth</option>
+          </select>
+          <select value={filterSpecialty} onChange={e => setFilterSpecialty(e.target.value)} className="input sm:w-48">
+            <option value="">All Specialties</option>
+            {specialties.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={filterClinic} onChange={e => setFilterClinic(e.target.value)} className="input sm:w-52">
+            <option value="">All Health Centers</option>
+            {clinics.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          {hasFilters && (
+            <button onClick={clearFilters}
+              className="inline-flex items-center gap-1 text-sm font-medium px-3 py-2 rounded-xl text-gray-500 hover:bg-gray-100 transition-colors">
+              <X size={14} />Clear
+            </button>
+          )}
+          <button onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors ml-auto">
+            <Printer size={14} />Print
           </button>
-        )}
+        </div>
       </div>
 
       {loading ? (
@@ -211,7 +243,7 @@ export default function ClinicalHistory() {
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-xs text-gray-400">{filtered.length} visit{filtered.length !== 1 ? 's' : ''}{hasFilters ? ' (filtered)' : ''}</p>
+          <p className="text-xs text-gray-400 no-print">{filtered.length} visit{filtered.length !== 1 ? 's' : ''}{hasFilters ? ' (filtered)' : ''}</p>
           {filtered.map(v => (
             <VisitRow key={v.appointment_id} visit={v}
               open={openId === v.appointment_id}

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../api/client'
 import { cachedFetch } from '../utils/cache'
-import { Calendar, Pill, Heart, CheckCircle, Users, ShieldCheck, RefreshCw, Copy, Check } from 'lucide-react'
+import { Calendar, Pill, Heart, CheckCircle, Users, ShieldCheck, RefreshCw, Copy, Check, Eye, EyeOff } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import logoImg from '../assets/logo.png'
 
@@ -12,6 +12,7 @@ function HistoryPinSection() {
   const [secondsLeft, setSecondsLeft] = useState(0)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [visible, setVisible] = useState(false)
   const timerRef = useRef(null)
 
   const startCountdown = (expiry) => {
@@ -19,7 +20,7 @@ function HistoryPinSection() {
     timerRef.current = setInterval(() => {
       const secs = Math.max(0, Math.round((new Date(expiry) - Date.now()) / 1000))
       setSecondsLeft(secs)
-      if (secs === 0) clearInterval(timerRef.current)
+      if (secs === 0) { clearInterval(timerRef.current); setVisible(false) }
     }, 1000)
   }
 
@@ -30,6 +31,7 @@ function HistoryPinSection() {
       const data = res?.data || res
       setPin(data.pin)
       setExpiresAt(data.expires_at)
+      setVisible(false)
       startCountdown(data.expires_at)
     } catch { /* silent */ } finally {
       setLoading(false)
@@ -51,6 +53,8 @@ function HistoryPinSection() {
   const expired = secondsLeft === 0 && pin
   const mins = Math.floor(secondsLeft / 60)
   const secs = secondsLeft % 60
+  // warn when under 5 minutes
+  const timerColor = secondsLeft < 300 ? '#f87171' : '#86efac'
 
   return (
     <div className="mt-5 pt-4 border-t border-white/10">
@@ -74,24 +78,41 @@ function HistoryPinSection() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-3xl font-extrabold tracking-[0.25em] font-mono" style={{ color: '#F5821E' }}>
-              {pin}
+              {visible ? pin : '●  ●  ●  ●  ●  ●'}
             </span>
             <button
-              onClick={() => { navigator.clipboard.writeText(pin); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
+              onClick={() => setVisible(v => !v)}
               className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+              title={visible ? 'Hide PIN' : 'Show PIN'}
             >
-              {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} style={{ color: '#93c5fd' }} />}
+              {visible ? <EyeOff size={14} style={{ color: '#93c5fd' }} /> : <Eye size={14} style={{ color: '#93c5fd' }} />}
             </button>
+            {visible && (
+              <button
+                onClick={() => { navigator.clipboard.writeText(pin); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
+                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} style={{ color: '#93c5fd' }} />}
+              </button>
+            )}
           </div>
           <div className="text-right">
-            <div className="text-xs font-mono font-semibold" style={{ color: secondsLeft < 300 ? '#f87171' : '#86efac' }}>
+            <div className="text-xs font-mono font-semibold" style={{ color: timerColor }}>
               {mins}:{String(secs).padStart(2, '0')}
             </div>
             <div className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>remaining</div>
           </div>
         </div>
       ) : pin && expired ? (
-        <p className="text-xs" style={{ color: '#f87171' }}>PIN expired — generate a new one to share.</p>
+        <div>
+          <p className="text-xs mb-2" style={{ color: '#f87171' }}>PIN expired — generate a new one to share.</p>
+          <button onClick={generate} disabled={loading}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50"
+            style={{ background: 'rgba(245,130,30,0.25)', color: '#fbbf24' }}>
+            <RefreshCw size={11} className={`inline mr-1 ${loading ? 'animate-spin' : ''}`} />
+            Generate New PIN
+          </button>
+        </div>
       ) : (
         <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
           Share this PIN + your BHID with a doctor at another health center to grant temporary access to your history.
