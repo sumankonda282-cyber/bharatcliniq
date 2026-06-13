@@ -13,6 +13,7 @@ import Telehealth from './pages/Telehealth'
 import TelehealthCall from './pages/TelehealthCall'
 import BookAppointmentPage from './pages/BookAppointmentPage'
 import Settings from './pages/Settings'
+import DoctorProfile from './pages/DoctorProfile'
 
 function Spinner() {
   return <div className="flex items-center justify-center h-screen"><div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: '#c7d2e5', borderTopColor: '#0F2557' }} /></div>
@@ -42,6 +43,7 @@ function AppRoutes() {
         <Route path="/history"       element={<ClinicalHistory />} />
         <Route path="/timeline"      element={<Navigate to="/history" replace />} />
         <Route path="/telehealth"    element={<Telehealth />} />
+        <Route path="/doctors/:id"   element={<DoctorProfile />} />
       </Route>
 
       {/* Full-screen call — outside Layout */}

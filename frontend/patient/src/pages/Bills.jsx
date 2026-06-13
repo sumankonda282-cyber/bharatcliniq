@@ -1,7 +1,20 @@
 import { useState, useEffect } from 'react'
 import api from '../api/client'
 import { cachedFetch } from '../utils/cache'
-import { Receipt, IndianRupee, TrendingUp } from 'lucide-react'
+import { Receipt, IndianRupee, TrendingUp, Download } from 'lucide-react'
+
+async function downloadInvoice(billId, invoiceNumber) {
+  try {
+    const res = await api.get(`/pdf/portal/invoice/${billId}`, { responseType: 'blob' })
+    const blob = res instanceof Blob ? res : res.data || res
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `invoice-${invoiceNumber || billId}.pdf`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  } catch { /* silent — PDF service may not have data */ }
+}
 
 const STATUS_BADGE = { pending: 'badge-yellow', paid: 'badge-green', cancelled: 'badge-gray', partial: 'badge-blue' }
 
@@ -68,6 +81,7 @@ export default function Bills() {
                   <th className="th">Method</th>
                   <th className="th">Status</th>
                   <th className="th">Date</th>
+                  <th className="th"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -84,6 +98,15 @@ export default function Bills() {
                     <td className="td"><span className={STATUS_BADGE[b.status] || 'badge-gray'}>{b.status}</span></td>
                     <td className="td text-xs text-gray-400">
                       {b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN') : '—'}
+                    </td>
+                    <td className="td">
+                      <button
+                        onClick={() => downloadInvoice(b.id, b.invoice_number)}
+                        className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                        title="Download PDF"
+                      >
+                        <Download size={11} /> PDF
+                      </button>
                     </td>
                   </tr>
                 ))}

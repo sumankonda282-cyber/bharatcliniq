@@ -9,6 +9,7 @@ import {
   Lock, PenLine, BedDouble, X, ChevronDown, ChevronRight, Search,
   AlertCircle, Stethoscope, ClipboardList,
 } from 'lucide-react'
+import VitalsForm from '../../components/clinical/VitalsForm'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const calcAge = dob =>
@@ -702,28 +703,20 @@ export default function PatientChart() {
               {isLocked && <Lock size={13} className="text-gray-300 ml-auto" />}
             </div>
 
-            {/* ── Vitals row ── */}
-            {(vitals.blood_pressure_systolic || vitals.weight_kg || vitals.temperature) && (
-              <div>
-                <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Vitals (from triage)</div>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    ['BP',   vitals.blood_pressure_systolic ? `${vitals.blood_pressure_systolic}/${vitals.blood_pressure_diastolic} mmHg` : null],
-                    ['Pulse',vitals.pulse_rate       ? `${vitals.pulse_rate} bpm`       : null],
-                    ['SpO₂', vitals.oxygen_saturation ? `${vitals.oxygen_saturation}%`  : null],
-                    ['Temp', vitals.temperature       ? `${vitals.temperature}°F`        : null],
-                    ['Wt',   vitals.weight_kg         ? `${vitals.weight_kg} kg`         : null],
-                    ['Ht',   vitals.height_cm         ? `${vitals.height_cm} cm`         : null],
-                    ['RBS',  vitals.blood_sugar        ? `${vitals.blood_sugar} mg/dL`   : null],
-                  ].filter(([, v]) => v).map(([label, value]) => (
-                    <div key={label} className="bg-gray-50 rounded-lg px-3 py-1.5 text-xs">
-                      <span className="text-gray-400">{label} </span>
-                      <span className="font-semibold text-gray-700">{value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* ── Vitals ── */}
+            <div>
+              <VitalsForm
+                patientId={data.patient?.id}
+                appointmentId={data.id}
+                initialValues={vitals}
+                compact={false}
+                readOnly={isLocked}
+                onSaved={saved => {
+                  // Merge saved vitals into local state so demographics bar updates
+                  setData(d => d ? { ...d, vitals: { ...d.vitals, ...saved } } : d)
+                }}
+              />
+            </div>
 
             {/* ── Symptoms & History ── */}
             <div>

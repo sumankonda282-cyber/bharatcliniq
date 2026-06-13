@@ -11,6 +11,7 @@ const ALL_NAV = [
   { to: '/dashboard',    label: 'Dashboard',   icon: LayoutDashboard, roles: ['clinic_admin','doctor','receptionist','pharmacist','lab_tech','imaging_tech'] },
   { to: '/patients',     label: 'Patients',     icon: Users,           roles: ['clinic_admin','doctor','receptionist'] },
   { to: '/appointments', label: 'Appointments', icon: Calendar,        roles: ['clinic_admin','doctor','receptionist'] },
+  { to: '/triage',       label: 'Triage',       icon: Activity,        roles: ['clinic_admin','receptionist','nurse'] },
   { to: '/doctor-desk',  label: 'Doctor Desk',  icon: Stethoscope,     roles: ['doctor','clinic_admin'] },
   { to: '/telehealth',   label: 'Telehealth',   icon: Video,           roles: ['doctor','clinic_admin'] },
   { to: '/inpatient',   label: 'Inpatient Desk', icon: BedDouble,     roles: ['doctor','clinic_admin'], hospitalOnly: true },

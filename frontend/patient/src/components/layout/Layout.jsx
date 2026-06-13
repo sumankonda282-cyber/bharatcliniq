@@ -9,6 +9,7 @@ import {
 import BrandLogo from '../BrandLogo'
 import InstallPrompt, { useInstallState, InstallModal } from '../InstallPrompt'
 import { cacheClear } from '../../utils/cache'
+import PatientNotificationBell from '../ui/NotificationBell'
 
 const NAV = [
   { to: '/',              label: 'Dashboard',        icon: LayoutDashboard, end: true },
@@ -200,9 +201,10 @@ export default function Layout() {
             {currentLabel}
           </span>
 
-          {/* Actions: BHID · Refresh · Avatar (Settings/Help/Sign out live in the avatar menu) */}
+          {/* Actions: BHID · Notifications · Refresh · Avatar */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <BHIDChip bhId={user?.bh_id} />
+            <PatientNotificationBell />
             <button onClick={handleRefresh} title="Refresh data"
               className="p-2 rounded-xl text-gray-500 hover:bg-gray-100 transition-colors">
               <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />

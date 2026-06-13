@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Menu, HelpCircle, User, LogOut, Settings, Globe, ChevronDown, RefreshCw, Clock } from 'lucide-react'
 import ProfileDrawer from './ProfileDrawer'
+import NotificationBell from '../ui/NotificationBell'
 
 const ROUTE_TITLES = [
   { pattern: /^\/dashboard$/,         title: 'Dashboard' },
@@ -10,6 +11,7 @@ const ROUTE_TITLES = [
   { pattern: /^\/patients\/\d+/,       title: 'Patient Detail' },
   { pattern: /^\/patients/,            title: 'Patients' },
   { pattern: /^\/appointments/,        title: 'Appointments' },
+  { pattern: /^\/triage/,             title: 'Triage' },
   { pattern: /^\/doctor-desk/,         title: 'Doctor Desk' },
   { pattern: /^\/encounter/,           title: 'Patient Chart' },
   { pattern: /^\/telehealth\/call/,    title: 'Telehealth Call' },
@@ -81,6 +83,7 @@ export default function TopBar({ onMenuClick, onRefresh }) {
           >
             <RefreshCw size={17} />
           </button>
+          <NotificationBell />
           <button
             className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
             title="Help"

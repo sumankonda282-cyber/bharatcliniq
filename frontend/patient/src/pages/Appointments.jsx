@@ -117,19 +117,43 @@ export default function Appointments() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [appts, setAppts] = useState([])
+  const [prevStatuses, setPrevStatuses] = useState({})
+  const [newlyConfirmed, setNewlyConfirmed] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('All')
 
+  const loadAppts = (cached = true) => {
+    const fetcher = () => api.get('/portal/appointments')
+    const handler = r => {
+      const list = r?.appointments || (Array.isArray(r) ? r : [])
+      setAppts(list)
+      setLoading(false)
+      // Detect status changes → newly confirmed
+      setPrevStatuses(prev => {
+        const confirmed = list.filter(a =>
+          a.status === 'confirmed' && prev[a.id] === 'pending'
+        )
+        if (confirmed.length) setNewlyConfirmed(confirmed.map(a => a.id))
+        const next = {}
+        list.forEach(a => { next[a.id] = a.status })
+        return next
+      })
+    }
+    if (cached) {
+      cachedFetch('appointments', fetcher, handler).catch(() => setLoading(false))
+    } else {
+      fetcher().then(handler).catch(() => setLoading(false))
+    }
+  }
+
   useEffect(() => {
-    // Deeplink: /appointments?book=1
     if (searchParams.get('book') || searchParams.get('doctor_id')) {
       navigate('/appointments/book', { replace: true })
     }
-    cachedFetch(
-      'appointments',
-      () => api.get('/portal/appointments'),
-      r => { setAppts(r?.appointments || (Array.isArray(r) ? r : [])); setLoading(false) }
-    ).catch(() => setLoading(false))
+    loadAppts()
+    // Poll every 60s to catch status changes
+    const t = setInterval(() => loadAppts(false), 60_000)
+    return () => clearInterval(t)
   }, []) // eslint-disable-line
 
   const filtered = appts.filter(a => {
@@ -141,6 +165,22 @@ export default function Appointments() {
 
   return (
     <div className="space-y-5">
+      {/* Newly confirmed notifications */}
+      {newlyConfirmed.length > 0 && (
+        <div className="rounded-2xl p-4 flex items-start gap-3 border border-green-200" style={{ background: '#f0fdf4' }}>
+          <CheckCircle size={18} className="text-green-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-green-800">Appointment Confirmed!</p>
+            <p className="text-xs text-green-600 mt-0.5">
+              {newlyConfirmed.length === 1
+                ? 'Your appointment has been confirmed by the health center.'
+                : `${newlyConfirmed.length} appointments have been confirmed.`}
+            </p>
+          </div>
+          <button onClick={() => setNewlyConfirmed([])} className="text-green-400 hover:text-green-600 text-xs">✕</button>
+        </div>
+      )}
+
       {/* Action bar — hidden when there's nothing to filter; empty state owns the Book button */}
       {!(!loading && appts.length === 0) && (
       <div className="flex items-center justify-between gap-3">

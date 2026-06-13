@@ -168,7 +168,27 @@ def list_online_bookings(
     q = db.query(OnlineBooking).filter(OnlineBooking.clinic_id == current.clinic_id)
     if status:
         q = q.filter(OnlineBooking.status == status)
-    return q.order_by(OnlineBooking.booking_date, OnlineBooking.booking_time).all()
+    bookings = q.order_by(OnlineBooking.booking_date, OnlineBooking.booking_time).all()
+    result = []
+    for b in bookings:
+        doc_name = None
+        if b.doctor and b.doctor.staff:
+            doc_name = b.doctor.staff.full_name
+        result.append({
+            "id": b.id,
+            "clinic_id": b.clinic_id,
+            "doctor_id": b.doctor_id,
+            "doctor_name": doc_name,
+            "patient_name": b.patient_name,
+            "patient_mobile": b.patient_mobile,
+            "booking_date": str(b.booking_date),
+            "booking_time": b.booking_time,
+            "reason": b.reason,
+            "status": b.status,
+            "confirmation_code": b.confirmation_code,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+        })
+    return result
 
 
 @router.post("/online-bookings/{booking_id}/confirm")

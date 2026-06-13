@@ -33,6 +33,7 @@ const FormTaskList   = lazy(() => import('./pages/forms/FormTaskList'))
 const FormFiller     = lazy(() => import('./pages/forms/FormFiller'))
 const SubmissionViewer = lazy(() => import('./pages/forms/SubmissionViewer'))
 const TelehealthDesk = lazy(() => import('./pages/telehealth/TelehealthDesk'))
+const Triage         = lazy(() => import('./pages/appointments/Triage'))
 const TelehealthCall = lazy(() => import('./pages/telehealth/TelehealthCall'))
 
 function AppRoutes() {
@@ -61,6 +62,7 @@ function AppRoutes() {
         <Route path="/patients/new" element={<Suspense fallback={<PageLoader />}><PatientNew /></Suspense>} />
         <Route path="/patients/:id" element={<Suspense fallback={<PageLoader />}><PatientDetail /></Suspense>} />
         <Route path="/appointments" element={<Suspense fallback={<PageLoader />}><Appointments /></Suspense>} />
+        <Route path="/triage"       element={<Suspense fallback={<PageLoader />}><Triage /></Suspense>} />
         <Route path="/doctor-desk"  element={<Suspense fallback={<PageLoader />}><DoctorDesk /></Suspense>} />
         <Route path="/encounter/:id" element={<Suspense fallback={<PageLoader />}><Encounter /></Suspense>} />
         <Route path="/pharmacy"     element={<Suspense fallback={<PageLoader />}><Pharmacy /></Suspense>} />

@@ -76,6 +76,7 @@ export default function DoctorDesk() {
   const [date, setDate] = useState(today)
   const [telehealthAppt, setTelehealthAppt] = useState(null)
   const [assignTarget, setAssignTarget] = useState(null)
+  const [statusFilter, setStatusFilter] = useState(null) // null = all
 
   useEffect(() => {
     const fetch = () => {
@@ -103,35 +104,28 @@ export default function DoctorDesk() {
         </div>
       </div>
 
-      {/* Summary */}
+      {/* Summary — clickable filters */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
-            <Clock size={18} className="text-yellow-600" />
-          </div>
-          <div>
-            <div className="text-xl font-bold">{waiting.length}</div>
-            <div className="text-xs text-gray-500">Waiting</div>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-            <Stethoscope size={18} className="text-purple-600" />
-          </div>
-          <div>
-            <div className="text-xl font-bold">{inProg.length}</div>
-            <div className="text-xs text-gray-500">In Progress</div>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-            <CheckCircle size={18} className="text-green-600" />
-          </div>
-          <div>
-            <div className="text-xl font-bold">{done.length}</div>
-            <div className="text-xs text-gray-500">Completed</div>
-          </div>
-        </div>
+        {[
+          { key: 'waiting', label: 'Waiting', count: waiting.length, bg: 'bg-yellow-100', fg: 'text-yellow-600', ring: '#ca8a04', Icon: Clock, statuses: ['pending','confirmed'] },
+          { key: 'in_progress', label: 'In Progress', count: inProg.length, bg: 'bg-purple-100', fg: 'text-purple-600', ring: '#7c3aed', Icon: Stethoscope, statuses: ['in_progress'] },
+          { key: 'completed', label: 'Completed', count: done.length, bg: 'bg-green-100', fg: 'text-green-600', ring: '#16a34a', Icon: CheckCircle, statuses: ['completed'] },
+        ].map(({ key, label, count, bg, fg, ring, Icon, statuses }) => {
+          const active = statusFilter === key
+          return (
+            <button key={key} onClick={() => setStatusFilter(active ? null : key)}
+              className="card p-4 flex items-center gap-3 transition-all text-left hover:shadow-md"
+              style={active ? { outline: `2px solid ${ring}`, outlineOffset: 2 } : {}}>
+              <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center`}>
+                <Icon size={18} className={fg} />
+              </div>
+              <div>
+                <div className="text-xl font-bold">{count}</div>
+                <div className="text-xs text-gray-500">{label}{active ? ' (filtered)' : ''}</div>
+              </div>
+            </button>
+          )
+        })}
       </div>
 
       {loading ? <PageLoader /> : queue.length === 0 ? (
@@ -142,7 +136,14 @@ export default function DoctorDesk() {
       ) : (
         <>
           <div className="space-y-3">
-            {queue.map(appt => (
+            {(statusFilter
+              ? queue.filter(a =>
+                  statusFilter === 'waiting' ? ['pending','confirmed'].includes(a.status) :
+                  statusFilter === 'in_progress' ? a.status === 'in_progress' :
+                  statusFilter === 'completed' ? a.status === 'completed' : true
+                )
+              : queue
+            ).map(appt => (
               <div key={appt.id} className="card p-4 flex items-center gap-4 hover:border-blue-300 hover:shadow-md transition-all">
                 <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
                   #{appt.token_number || appt.id}

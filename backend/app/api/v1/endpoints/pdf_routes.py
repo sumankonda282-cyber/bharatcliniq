@@ -221,3 +221,40 @@ def patient_download_lab_report(
     pdf = generate_lab_report_pdf(order_dict, _patient_data(patient), clinic_data)
     return Response(content=pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f"attachment; filename=lab_report_{order_id}.pdf"})
+
+
+@router.get("/portal/invoice/{invoice_id}")
+def patient_download_invoice(
+    invoice_id: int,
+    db: Session = Depends(get_db),
+    current=Depends(get_current_patient_user),
+):
+    inv = db.query(Invoice).options(joinedload(Invoice.items)).filter(Invoice.id == invoice_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Not found")
+    patient = db.query(Patient).filter(
+        Patient.id == inv.patient_id,
+        Patient.portal_user_id == current.id
+    ).first()
+    if not patient:
+        raise HTTPException(status_code=403, detail="Access denied")
+    clinic_data = _clinic_data(patient, db)
+    inv_dict = {
+        "invoice_number": inv.invoice_number,
+        "date":           inv.created_at.strftime("%d %b %Y") if inv.created_at else "",
+        "payment_method": inv.payment_method or "",
+        "subtotal":       float(inv.subtotal or 0),
+        "discount":       float(inv.discount or 0),
+        "tax":            float(inv.tax or 0),
+        "total":          float(inv.total or 0),
+        "amount_paid":    float(inv.amount_paid or 0),
+        "items": [
+            {"description": i.description, "item_type": i.item_type,
+             "quantity": i.quantity, "unit_price": float(i.unit_price or 0),
+             "total": float(i.total or 0)}
+            for i in inv.items
+        ]
+    }
+    pdf = generate_invoice_pdf(inv_dict, _patient_data(patient), clinic_data)
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f"attachment; filename=invoice_{inv.invoice_number or invoice_id}.pdf"})
