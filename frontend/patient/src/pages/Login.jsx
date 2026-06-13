@@ -22,7 +22,7 @@ function HeroPanel() {
   const features = [
     { icon: Heart,    text: 'Complete health history in one place' },
     { icon: FileText, text: 'View & download prescriptions digitally' },
-    { icon: Shield,   text: 'Your permanent BH ID — one identity, every clinic' },
+    { icon: Shield,   text: 'Your permanent BH ID — one identity, every health center' },
   ]
   return (
     <div

@@ -76,7 +76,7 @@ export default function Bills() {
               <thead>
                 <tr>
                   <th className="th">Invoice #</th>
-                  <th className="th">Clinic</th>
+                  <th className="th">Health Center</th>
                   <th className="th">Amount</th>
                   <th className="th">Method</th>
                   <th className="th">Status</th>

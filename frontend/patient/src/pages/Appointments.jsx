@@ -4,7 +4,8 @@ import api from '../api/client'
 import { cachedFetch, cacheSet } from '../utils/cache'
 import {
   Calendar, Stethoscope, Clock, Video, MapPin, Plus,
-  Building2, Globe, CheckCircle, AlertTriangle
+  Building2, Globe, CheckCircle, AlertTriangle, X,
+  ExternalLink, ChevronRight, RefreshCw
 } from 'lucide-react'
 
 const STATUS_BADGE = {
@@ -14,13 +15,292 @@ const STATUS_BADGE = {
 
 const TABS = ['All', 'Upcoming', 'Completed', 'Cancelled']
 
-function ApptCard({ a }) {
+function hoursUntil(dateStr, timeStr) {
+  if (!dateStr) return null
+  try {
+    const dt = new Date(`${dateStr}T${timeStr || '00:00'}`)
+    return (dt - Date.now()) / 3_600_000
+  } catch {
+    return null
+  }
+}
+
+function modeLabel(mode) {
+  if (mode === 'telehealth') return 'Telehealth (Video)'
+  if (mode === 'online') return 'Online'
+  return 'In-Person'
+}
+
+// ── Appointment detail drawer ─────────────────────────────────────────────
+function ApptDrawer({ a, onClose, onRefresh }) {
+  const navigate = useNavigate()
+  const [rescheduling, setRescheduling] = useState(false)
+  const [newDate, setNewDate] = useState(a.date || '')
+  const [newTime, setNewTime] = useState(a.time || '')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  const bookingId = a.id?.toString().startsWith('ob-') ? parseInt(a.id.slice(3)) : null
+  const isOnline = a.source === 'online_booking'
+  const hours = hoursUntil(a.date, a.time)
+  const canCancel = !['completed', 'cancelled'].includes(a.status)
+  const canReschedule = isOnline && ['pending', 'confirmed'].includes(a.status)
+
+  const cancelLabel = () => {
+    if (isOnline && a.status === 'pending') return { label: 'Cancel Request', color: '#6B7280', warn: null }
+    if (hours !== null && hours > 6) return { label: 'Cancel — Full Refund', color: '#16a34a', warn: null }
+    if (hours !== null && hours <= 6) return {
+      label: 'Cancel — No Refund', color: '#CC1414',
+      warn: 'Cancellations within 6 hours of appointment are not eligible for a refund.'
+    }
+    return { label: 'Cancel Appointment', color: '#CC1414', warn: null }
+  }
+
+  const doCancel = async () => {
+    if (!window.confirm('Are you sure you want to cancel this appointment?')) return
+    setBusy(true); setMsg('')
+    try {
+      if (isOnline && bookingId) {
+        await api.post(`/portal/bookings/${bookingId}/cancel`)
+      } else {
+        await api.post(`/portal/appointments/${a.id}/cancel`)
+      }
+      setMsg('Appointment cancelled.')
+      onRefresh()
+      setTimeout(onClose, 1200)
+    } catch (e) {
+      setMsg(e.message || 'Could not cancel.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const doReschedule = async () => {
+    if (!bookingId) return
+    setBusy(true); setMsg('')
+    try {
+      await api.put(`/portal/bookings/${bookingId}/reschedule`, {
+        booking_date: newDate,
+        booking_time: newTime,
+      })
+      setMsg('Appointment rescheduled.')
+      onRefresh()
+      setRescheduling(false)
+    } catch (e) {
+      setMsg(e.message || 'Could not reschedule.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const cl = cancelLabel()
+
+  const fmtDate = (d) => {
+    if (!d) return '—'
+    try {
+      return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    } catch { return d }
+  }
+
+  return (
+    <>
+      {/* Overlay */}
+      <div
+        className="fixed inset-0 bg-black/40 z-40"
+        onClick={onClose}
+      />
+      {/* Panel */}
+      <div className="fixed inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center z-50 p-0 sm:p-4">
+        <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl shadow-2xl overflow-y-auto max-h-[92vh] sm:max-h-[85vh] rounded-t-2xl">
+          {/* Header */}
+          <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between z-10 rounded-t-2xl">
+            <div>
+              <div className="font-bold text-base" style={{ color: '#0F2557' }}>
+                {/^dr\.?\s/i.test(a.doctor_name || '') ? a.doctor_name : `Dr. ${a.doctor_name || 'Doctor'}`}
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">
+                {a.clinic_name}
+              </div>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
+              <X size={18} className="text-gray-500" />
+            </button>
+          </div>
+
+          <div className="p-5 space-y-5">
+            {/* Status */}
+            <div className="flex items-center gap-3">
+              <span className={`${STATUS_BADGE[a.status] || 'badge-gray'} capitalize text-sm`}>
+                {a.status?.replace('_', ' ')}
+              </span>
+              {a.source === 'online_booking' && (
+                <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#0F255710', color: '#0F2557' }}>
+                  <Globe size={10} /> Booked Online
+                </span>
+              )}
+            </div>
+
+            {/* Booking summary */}
+            <div className="rounded-xl p-4 space-y-2.5" style={{ background: '#EEF2FF' }}>
+              {[
+                ['Date', fmtDate(a.date)],
+                ['Time', a.time || '—'],
+                ['Mode', modeLabel(a.mode)],
+                ...(a.token_number ? [['Token', `#${a.token_number}`]] : []),
+                ...(a.confirmation_code ? [['Confirmation Code', a.confirmation_code]] : []),
+                ...(a.patient_name ? [['Patient', a.patient_name]] : []),
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between text-sm">
+                  <span className="text-gray-500">{k}</span>
+                  <span className="font-semibold text-gray-900 font-mono text-right">{v}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Pending notice */}
+            {a.source === 'online_booking' && a.status === 'pending' && (
+              <div className="flex items-start gap-2 text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+                <AlertTriangle size={14} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+                Awaiting confirmation from health center
+              </div>
+            )}
+
+            {/* Location */}
+            {a.clinic_address && a.mode !== 'telehealth' && (
+              <div className="space-y-1.5">
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">Location</div>
+                <div className="flex items-start gap-2 text-sm text-gray-700">
+                  <MapPin size={14} className="text-gray-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div>{a.clinic_address}</div>
+                    {a.clinic_city && <div className="text-gray-500 text-xs">{a.clinic_city}</div>}
+                  </div>
+                </div>
+                <a
+                  href={`https://www.openstreetmap.org/search?query=${encodeURIComponent([a.clinic_address, a.clinic_city, 'India'].filter(Boolean).join(', '))}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium"
+                >
+                  <ExternalLink size={11} /> Get Directions →
+                </a>
+              </div>
+            )}
+
+            {/* Reason */}
+            {a.reason && (
+              <div className="space-y-1">
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">Reason for Visit</div>
+                <p className="text-sm text-gray-600 italic">"{a.reason}"</p>
+              </div>
+            )}
+
+            {/* Reschedule section */}
+            {canReschedule && (
+              <div>
+                {!rescheduling ? (
+                  <button
+                    onClick={() => setRescheduling(true)}
+                    className="w-full py-2.5 rounded-xl border-2 text-sm font-semibold transition-colors"
+                    style={{ borderColor: '#0F2557', color: '#0F2557' }}
+                  >
+                    <RefreshCw size={14} className="inline mr-2" />
+                    Change Slot
+                  </button>
+                ) : (
+                  <div className="border-2 border-blue-200 rounded-xl p-4 space-y-3" style={{ background: '#EEF2FF' }}>
+                    <div className="text-sm font-semibold" style={{ color: '#0F2557' }}>Select New Date & Time</div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Date</label>
+                      <input
+                        type="date"
+                        value={newDate}
+                        min={new Date().toISOString().split('T')[0]}
+                        onChange={e => setNewDate(e.target.value)}
+                        className="input"
+                        style={{ colorScheme: 'light' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Time (e.g. 10:30 AM)</label>
+                      <input
+                        type="time"
+                        value={newTime}
+                        onChange={e => setNewTime(e.target.value)}
+                        className="input"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setRescheduling(false)}
+                        className="flex-1 py-2 rounded-xl border text-sm font-medium text-gray-500"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={doReschedule}
+                        disabled={busy || !newDate}
+                        className="flex-1 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+                        style={{ background: '#0F2557' }}
+                      >
+                        {busy ? 'Saving…' : 'Confirm Change'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Cancel */}
+            {canCancel && (
+              <div>
+                {cl.warn && (
+                  <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 mb-2">
+                    ⚠ {cl.warn}
+                  </div>
+                )}
+                <button
+                  onClick={doCancel}
+                  disabled={busy}
+                  className="w-full py-2.5 rounded-xl border-2 text-sm font-semibold transition-colors disabled:opacity-50"
+                  style={{ borderColor: cl.color, color: cl.color }}
+                >
+                  {busy ? 'Processing…' : cl.label}
+                </button>
+              </div>
+            )}
+
+            {/* View doctor profile */}
+            {a.doctor_profile_id && (
+              <button
+                onClick={() => { navigate(`/doctors/${a.doctor_profile_id}`); onClose() }}
+                className="w-full py-2.5 rounded-xl text-sm font-medium text-gray-600 flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors"
+              >
+                <Stethoscope size={14} /> View Doctor Profile <ChevronRight size={14} />
+              </button>
+            )}
+
+            {/* Telehealth join */}
+            {a.mode === 'telehealth' && ['confirmed', 'in_progress', 'pending'].includes(a.status) && (
+              <TelehealthJoin a={a} />
+            )}
+
+            {/* Feedback message */}
+            {msg && (
+              <div className={`text-sm text-center font-medium py-2 rounded-xl ${msg.includes('cancel') || msg.includes('Could') ? 'text-red-600 bg-red-50' : 'text-green-700 bg-green-50'}`}>
+                {msg}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function TelehealthJoin({ a }) {
   const navigate = useNavigate()
   const [joining, setJoining] = useState(false)
-  const isTelehealth = a.mode === 'telehealth'
-  const isOnlineBooking = a.source === 'online_booking'
 
-  // Same secured join flow as the Telehealth page — never link the raw room URL
   const join = async () => {
     setJoining(true)
     try {
@@ -34,7 +314,23 @@ function ApptCard({ a }) {
   }
 
   return (
-    <div className="card p-4 flex items-start gap-4">
+    <button onClick={join} disabled={joining}
+      className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+      style={{ background: '#CC1414' }}>
+      <Video size={14} /> {joining ? 'Joining…' : 'Join Consultation'}
+    </button>
+  )
+}
+
+function ApptCard({ a, onClick }) {
+  const isTelehealth = a.mode === 'telehealth'
+  const isOnlineBooking = a.source === 'online_booking'
+
+  return (
+    <button
+      onClick={() => onClick(a)}
+      className="w-full card p-4 flex items-start gap-4 hover:shadow-md hover:border-blue-200 border-2 border-transparent transition-all text-left"
+    >
       <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
         style={{ background: isTelehealth ? '#0F255712' : '#EEF2FF' }}>
         {isTelehealth
@@ -87,29 +383,14 @@ function ApptCard({ a }) {
           </div>
         )}
         {a.reason && <div className="text-xs text-gray-400 mt-1 italic">"{a.reason}"</div>}
-        {a.clinic_address && !isTelehealth && (
-          <a href={`https://www.openstreetmap.org/search?query=${encodeURIComponent([a.clinic_address, a.clinic_city, 'India'].filter(Boolean).join(', '))}`}
-            target="_blank" rel="noopener noreferrer"
-            className="mt-1.5 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-            <MapPin size={11} /> Get Directions
-          </a>
-        )}
-        {isTelehealth && ['confirmed', 'in_progress', 'pending'].includes(a.status) && (
-          <div className="mt-2">
-            <button onClick={join} disabled={joining}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
-              style={{ background: '#CC1414' }}>
-              <Video size={12} /> {joining ? 'Joining…' : 'Join Consultation'}
-            </button>
-          </div>
-        )}
         {a.status === 'completed' && (
           <div className="mt-1.5 flex items-center gap-1 text-xs text-green-600">
             <CheckCircle size={11} /> Visit completed
           </div>
         )}
       </div>
-    </div>
+      <ChevronRight size={16} className="text-gray-300 flex-shrink-0 mt-1" />
+    </button>
   )
 }
 
@@ -121,6 +402,7 @@ export default function Appointments() {
   const [newlyConfirmed, setNewlyConfirmed] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('All')
+  const [selectedAppt, setSelectedAppt] = useState(null)
 
   const loadAppts = (cached = true) => {
     const fetcher = () => api.get('/portal/appointments')
@@ -228,8 +510,17 @@ export default function Appointments() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map(a => <ApptCard key={a.id} a={a} />)}
+          {filtered.map(a => <ApptCard key={a.id} a={a} onClick={setSelectedAppt} />)}
         </div>
+      )}
+
+      {/* Detail drawer */}
+      {selectedAppt && (
+        <ApptDrawer
+          a={selectedAppt}
+          onClose={() => setSelectedAppt(null)}
+          onRefresh={() => loadAppts(false)}
+        />
       )}
     </div>
   )

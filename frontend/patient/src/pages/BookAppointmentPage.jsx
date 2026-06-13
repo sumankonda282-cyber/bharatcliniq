@@ -4,7 +4,7 @@ import api from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import {
   Stethoscope, Building2, Calendar, Clock, Search, ChevronRight,
-  ArrowLeft, CheckCircle, Copy, Check, X, MapPin, Filter
+  ArrowLeft, CheckCircle, Copy, Check, X, MapPin, Filter, Video
 } from 'lucide-react'
 
 const today = new Date().toISOString().split('T')[0]
@@ -57,6 +57,7 @@ function SlotPicker({ doctor, onBack, onBooked }) {
   const [error, setError] = useState('')
   const [booking, setBooking] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [visitType, setVisitType] = useState('in_person')
 
   const fetchSlots = (d) => {
     setLoadingSlots(true); setSlots([]); setSlot(null)
@@ -78,6 +79,7 @@ function SlotPicker({ doctor, onBack, onBooked }) {
         booking_time: slot,
         patient_name: patientName.trim() || undefined,
         reason: reason.trim() || undefined,
+        mode: visitType === 'telehealth' ? 'telehealth' : 'offline',
       })
       setBooking(res); setStep('done')
       onBooked && onBooked()
@@ -174,6 +176,28 @@ function SlotPicker({ doctor, onBack, onBooked }) {
           </div>
 
           <div>
+            <label className="label">Type of Visit</label>
+            <div className="flex gap-3">
+              {[
+                { value: 'in_person', label: '🏥 In-Person' },
+                { value: 'telehealth', label: '📹 Telehealth (Video)' },
+              ].map(opt => (
+                <button key={opt.value} type="button"
+                  onClick={() => setVisitType(opt.value)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-all"
+                  style={visitType === opt.value
+                    ? { background: '#0F2557', color: 'white', borderColor: '#0F2557' }
+                    : { background: 'white', color: '#374151', borderColor: '#e5e7eb' }}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {visitType === 'telehealth' && (
+              <p className="text-xs text-blue-600 mt-2">A secure video link will be shared before your appointment.</p>
+            )}
+          </div>
+
+          <div>
             <label className="label">Patient Name</label>
             <input value={patientName} onChange={e => setPatientName(e.target.value)}
               placeholder="Who is this appointment for?" className="input" />
@@ -246,6 +270,7 @@ export default function BookAppointmentPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [specialty, setSpecialty] = useState('All Specialties')
+  const [cityFilter, setCityFilter] = useState('All Cities')
   const [pastDoctors, setPastDoctors] = useState([])
   const [booked, setBooked] = useState(false)
 
@@ -284,9 +309,15 @@ export default function BookAppointmentPage() {
       .catch(() => {})
   }, []) // eslint-disable-line
 
+  const cities = useMemo(() =>
+    ['All Cities', ...new Set(allDoctors.map(d => d.city).filter(Boolean))],
+    [allDoctors]
+  )
+
   const filtered = useMemo(() => {
     let list = allDoctors
     if (specialty !== 'All Specialties') list = list.filter(d => d.specialty === specialty)
+    if (cityFilter !== 'All Cities') list = list.filter(d => d.city === cityFilter)
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(d =>
@@ -297,7 +328,7 @@ export default function BookAppointmentPage() {
       )
     }
     return list
-  }, [allDoctors, search, specialty])
+  }, [allDoctors, search, specialty, cityFilter])
 
   // Doctor selected — show slot picker
   if (doctor) {
@@ -369,8 +400,15 @@ export default function BookAppointmentPage() {
               {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
-          {(search || specialty !== 'All Specialties') && (
-            <button onClick={() => { setSearch(''); setSpecialty('All Specialties') }}
+          <div className="relative">
+            <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}
+              className="input pl-9 sm:w-40">
+              {cities.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          {(search || specialty !== 'All Specialties' || cityFilter !== 'All Cities') && (
+            <button onClick={() => { setSearch(''); setSpecialty('All Specialties'); setCityFilter('All Cities') }}
               className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-100 transition-colors">
               <X size={14} /> Clear
             </button>

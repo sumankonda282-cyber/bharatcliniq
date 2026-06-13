@@ -135,6 +135,7 @@ def portal_appointments(current=Depends(get_current_patient), db: Session = Depe
                 "token_number": a.token_number,
                 "mode": a.mode or "offline",
                 "source": "clinic",
+                "doctor_profile_id": a.doctor_id,
             })
 
     # Online bookings made via the public website or this portal, matched by
@@ -163,6 +164,8 @@ def portal_appointments(current=Depends(get_current_patient), db: Session = Depe
             "source": "online_booking",
             "confirmation_code": b.confirmation_code,
             "patient_name": b.patient_name,
+            "doctor_profile_id": b.doctor_id,
+            "booking_id": b.id,
         })
 
     result.sort(key=lambda x: ((x["date"] or ""), (x["time"] or "")), reverse=True)
@@ -335,6 +338,71 @@ def portal_book_appointment(
         "booking_date": str(booking.booking_date),
         "booking_time": booking.booking_time,
     }
+
+
+@router.post("/bookings/{booking_id}/cancel")
+def portal_cancel_booking(
+    booking_id: int,
+    current: PatientUser = Depends(get_current_patient),
+    db: Session = Depends(get_db),
+):
+    from app.models.models import OnlineBooking, Appointment
+    # Try online booking first
+    booking = db.query(OnlineBooking).filter(
+        OnlineBooking.id == booking_id,
+        (OnlineBooking.patient_user_id == current.id) | (OnlineBooking.patient_mobile == current.mobile)
+    ).first()
+    if booking:
+        if booking.status in ('pending', 'confirmed'):
+            booking.status = 'cancelled'
+            db.commit()
+            return {"cancelled": True, "type": "online_booking"}
+        raise HTTPException(status_code=400, detail="Cannot cancel this booking")
+    raise HTTPException(status_code=404, detail="Booking not found")
+
+@router.post("/appointments/{appointment_id}/cancel")
+def portal_cancel_appointment(
+    appointment_id: int,
+    current: PatientUser = Depends(get_current_patient),
+    db: Session = Depends(get_db),
+):
+    from app.models.models import Appointment, Patient
+    patients = db.query(Patient).filter(Patient.portal_user_id == current.id).all()
+    patient_ids = [p.id for p in patients]
+    appt = db.query(Appointment).filter(
+        Appointment.id == appointment_id,
+        Appointment.patient_id.in_(patient_ids)
+    ).first()
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    if appt.status in ('pending', 'confirmed'):
+        appt.status = 'cancelled'
+        db.commit()
+        return {"cancelled": True}
+    raise HTTPException(status_code=400, detail="Cannot cancel this appointment")
+
+@router.put("/bookings/{booking_id}/reschedule")
+def portal_reschedule_booking(
+    booking_id: int,
+    body: dict,
+    current: PatientUser = Depends(get_current_patient),
+    db: Session = Depends(get_db),
+):
+    from app.models.models import OnlineBooking
+    booking = db.query(OnlineBooking).filter(
+        OnlineBooking.id == booking_id,
+        (OnlineBooking.patient_user_id == current.id) | (OnlineBooking.patient_mobile == current.mobile)
+    ).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if booking.status not in ('pending', 'confirmed'):
+        raise HTTPException(status_code=400, detail="Cannot reschedule this booking")
+    if body.get("booking_date"):
+        booking.booking_date = body["booking_date"]
+    if body.get("booking_time"):
+        booking.booking_time = body["booking_time"]
+    db.commit()
+    return {"rescheduled": True, "booking_date": str(booking.booking_date), "booking_time": booking.booking_time}
 
 
 @router.get("/prescriptions")

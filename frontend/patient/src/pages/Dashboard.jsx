@@ -94,7 +94,7 @@ function HistoryPinSection() {
         <p className="text-xs" style={{ color: '#f87171' }}>PIN expired — generate a new one to share.</p>
       ) : (
         <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
-          Share this PIN + your BHID with a doctor at another clinic to grant temporary access to your history.
+          Share this PIN + your BHID with a doctor at another health center to grant temporary access to your history.
         </p>
       )}
     </div>
@@ -170,7 +170,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="text-right">
-              <div className="text-xs mb-1 font-medium" style={{ color: '#93c5fd' }}>Linked Clinics</div>
+              <div className="text-xs mb-1 font-medium" style={{ color: '#93c5fd' }}>Health Centers</div>
               <div className="text-xl font-bold">{user?.linked_clinics || 0}</div>
             </div>
           </div>
